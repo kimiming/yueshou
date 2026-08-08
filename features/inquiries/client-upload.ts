@@ -1,6 +1,6 @@
 import type { InquiryAttachmentInput } from "./schemas";
 
-export type PublicAttachmentBinding = { submissionToken: string; sessionToken: string; actorToken: string };
+export type PublicAttachmentBinding = { id: string; secret: string; email: string };
 
 export async function uploadInquiryFiles(
   files: File[],
@@ -21,4 +21,20 @@ export async function uploadInquiryFiles(
     tokens.push((await dependencies.finalize(binding, intent.key, upload)).token);
   }
   return tokens;
+}
+
+export async function prepareAndUploadInquiry(
+  files: File[],
+  fields: FormData,
+  dependencies: {
+    prepare: (fields: FormData) => Promise<PublicAttachmentBinding>;
+    begin: (binding: PublicAttachmentBinding, upload: InquiryAttachmentInput) => Promise<{ key: string; url: string; method: "PUT"; headers: Record<string, string> }>;
+    finalize: (binding: PublicAttachmentBinding, key: string, upload: InquiryAttachmentInput) => Promise<{ token: string }>;
+    fetch?: typeof fetch;
+  },
+) {
+  if (files.length > 5) throw new Error("inquiry_error_attachment_count");
+  if (files.reduce((sum, file) => sum + file.size, 0) > 75 * 1024 * 1024) throw new Error("inquiry_error_attachment_bytes");
+  const binding = await dependencies.prepare(fields);
+  return { binding, tokens: await uploadInquiryFiles(files, binding, dependencies) };
 }

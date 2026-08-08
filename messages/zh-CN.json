@@ -17,6 +17,7 @@
   },
   "consent": { "title": "Cookie 选择", "description": "必要 Cookie 用于保障网站正常运行。分析 Cookie 为可选项，仅在您选择同意后运行。", "necessary": "必要", "necessaryDescription": "网站安全和核心功能所必需。", "analytics": "分析", "analyticsDescription": "帮助我们了解网站使用情况。", "rejectAll": "全部拒绝", "acceptAll": "全部接受", "manage": "Cookie 设置", "save": "保存偏好", "close": "关闭 Cookie 设置" },
   "inquiry": { "company": "公司或机构", "contact": "联系人姓名", "email": "机构邮箱", "country": "国家或地区", "details": "项目详情", "consent": "我同意使用本人提供的信息来处理本次询价。", "submit": "提交询价", "submitting": "正在提交…", "success": "感谢您，我们已收到您的询价。", "required": "所有字段均为必填项。", "attachments": "附件", "attachmentHelp": "可选：PDF、DOCX、XLSX、CSV 或 TXT；每个不超过 15 MB。", "uploading": "正在安全处理附件…", "errors": { "inquiry_error_required": "此字段为必填项。", "inquiry_error_email": "请输入有效的邮箱地址。", "inquiry_error_attachment": "无法安全处理附件。", "inquiry_attachment_signature": "附件内容与文件类型不符。", "inquiry_upload_intent_expired": "附件上传已过期，请重试。", "inquiry_upload_intent_consumed": "此附件已完成处理。", "inquiry_error_rate_limited": "请求过于频繁，请稍后重试。", "inquiry_error_service": "无法提交询价，请重试。" } },
+  "inquiryErrors": { "inquiry_error_validation": "上传前请更正标出的字段。", "inquiry_error_attachment_count": "最多选择五个文件。", "inquiry_error_attachment_bytes": "附件总大小不得超过 75 MB。", "inquiry_upload_session_invalid": "安全上传会话已过期，请重试。", "inquiry_attachment_upload_failed": "附件上传失败，请重试。" },
   "marketing": {
     "accessibility": {
       "home": "YueShou 首页",

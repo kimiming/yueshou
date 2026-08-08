@@ -430,11 +430,9 @@ model InquiryAttachment {
 }
 
 model InquiryUploadIntent {
-  id              String    @id @default(cuid())
-  storageKey      String    @unique
-  submissionHash  String
-  sessionHash     String
-  actorHash       String
+  id              String               @id @default(cuid())
+  uploadSessionId String
+  storageKey      String               @unique
   filename        String
   mimeType        String
   extension       String
@@ -444,10 +442,29 @@ model InquiryUploadIntent {
   sha256          String?
   finalizedAt     DateTime?
   consumedAt      DateTime?
-  createdAt       DateTime  @default(now())
+  createdAt       DateTime             @default(now())
+  uploadSession   InquiryUploadSession @relation(fields: [uploadSessionId], references: [id], onDelete: Cascade)
 
-  @@index([submissionHash, expiresAt])
+  @@index([uploadSessionId, expiresAt])
   @@index([finalStorageKey])
+  @@index([expiresAt, consumedAt])
+}
+
+model InquiryUploadSession {
+  id           String                @id @default(cuid())
+  secretDigest String
+  emailDigest  String
+  ipDigest     String?
+  expiresAt    DateTime
+  maxFiles     Int                   @default(5)
+  maxBytes     Int                   @default(78643200)
+  usedFiles    Int                   @default(0)
+  usedBytes    Int                   @default(0)
+  consumedAt   DateTime?
+  createdAt    DateTime              @default(now())
+  intents      InquiryUploadIntent[]
+
+  @@index([emailDigest, expiresAt])
   @@index([expiresAt, consumedAt])
 }
 

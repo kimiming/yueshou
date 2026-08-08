@@ -18,6 +18,10 @@ import {
   applyInquiryRateLimits,
   hashRateLimitIdentity,
 } from "@/features/inquiries/rate-limit";
+import {
+  createUploadSession,
+  DeterministicUploadSessionRepository,
+} from "@/features/inquiries/upload-session";
 import type { ObjectStorage, PrivateFinalizationStorage } from "@/lib/storage";
 
 const validFields = {
@@ -90,6 +94,48 @@ describe("inquiry submission", () => {
     expect(result.fields).toMatchObject({ contact: "Ada Lovelace", email: "ada@research.example" });
     expect(JSON.stringify(result)).not.toContain("private-token");
   });
+
+  it("submits a prepared zero-file session without charging the admission limiter again", async () => {
+    const repository: InquiryRepository = { createInquiryWithConsent: vi.fn(async () => ({ id: "inquiry-1" })) };
+    const rateLimit = new DeterministicRateLimitAdapter();
+    const consume = vi.spyOn(rateLimit, "consume");
+    const submit = createSubmitInquiry({
+      repository,
+      rateLimit,
+      requestContext: async () => ({ ip: "203.0.113.10", userAgent: "test" }),
+      secret: "a sufficiently long private keyed hashing secret",
+      now: () => new Date("2026-08-08T02:00:00.000Z"),
+      requirePreparedSession: true,
+    });
+    const data = formData();
+    data.set("uploadSessionId", "session-1");
+    data.set("uploadSessionSecret", "server-secret");
+    data.set("attachmentTokens", "[]");
+
+    await expect(submit(undefined, data)).resolves.toMatchObject({ status: "success" });
+    expect(consume).not.toHaveBeenCalled();
+    expect(repository.createInquiryWithConsent).toHaveBeenCalledWith(expect.objectContaining({
+      attachmentClaim: expect.objectContaining({ sessionId: "session-1", intentIds: [] }),
+    }));
+  });
+
+  it("returns a stable attachment error when the prepared session was consumed", async () => {
+    const submit = createSubmitInquiry({
+      repository: { createInquiryWithConsent: vi.fn(async () => { throw new Error("inquiry_upload_session_invalid"); }) },
+      rateLimit: new DeterministicRateLimitAdapter(),
+      requestContext: async () => ({ userAgent: "test" }),
+      secret: "a sufficiently long private keyed hashing secret",
+      requirePreparedSession: true,
+    });
+    const data = formData();
+    data.set("uploadSessionId", "session-1");
+    data.set("uploadSessionSecret", "already-consumed");
+    data.set("attachmentTokens", "[]");
+    await expect(submit(undefined, data)).resolves.toMatchObject({
+      status: "validation_error",
+      fieldErrors: { attachments: ["inquiry_upload_session_invalid"] },
+    });
+  });
 });
 
 describe("persistent rate limit contract", () => {
@@ -116,9 +162,9 @@ describe("private inquiry attachments", () => {
     expect(() => createInquiryAttachmentKey({ name: "payload.exe", type: "application/octet-stream", size: 1 } as never)).toThrow();
   });
 
-  it("binds upload intent to inquiry, session, actor, metadata and expiry, then consumes once", async () => {
+  it("binds upload intent to a server-issued session, metadata and expiry, then consumes once", async () => {
     const intent = {
-      id: "intent-1", storageKey: key, submissionHash: "submission-hash", sessionHash: "session-hash", actorHash: "actor-hash",
+      id: "intent-1", storageKey: key, uploadSessionId: "session-1",
       filename: upload.name, mimeType: upload.type, extension: "pdf", sizeBytes: upload.size,
       expiresAt: new Date("2026-08-08T00:15:00Z"), finalStorageKey: null, sha256: null, finalizedAt: null, consumedAt: null,
     };
@@ -142,8 +188,14 @@ describe("private inquiry attachments", () => {
       readPrivateObject: vi.fn(async () => new TextEncoder().encode("%PDF-1.7")),
       putImmutableObject: vi.fn(async () => undefined),
     };
-    const dependencies = { repository, storage, secret: "a sufficiently long private keyed hashing secret", now: () => new Date("2026-08-08T00:00:00Z"), uuid: () => "123e4567-e89b-42d3-a456-426614174000" };
-    const binding = { submissionToken: "submission-token", sessionToken: "session-token", actorToken: "actor-token" };
+    const secret = "a sufficiently long private keyed hashing secret";
+    const sessions = new DeterministicUploadSessionRepository();
+    const capability = await createUploadSession(
+      { repository: sessions, secret, now: () => new Date("2026-08-08T00:00:00Z"), randomSecret: () => "server-secret" },
+      { email: "ada@research.example" },
+    );
+    const dependencies = { repository, sessions, storage, secret, now: () => new Date("2026-08-08T00:00:00Z"), uuid: () => "123e4567-e89b-42d3-a456-426614174000" };
+    const binding = { ...capability, email: "ada@research.example" };
 
     await expect(createInquiryAttachmentUpload(dependencies, { binding, upload })).resolves.toEqual({ key, url: "https://upload.example/signed", method: "PUT", headers: { "content-type": upload.type } });
     storedIntent = { ...storedIntent, expiresAt: new Date("2026-08-08T00:00:30Z") };

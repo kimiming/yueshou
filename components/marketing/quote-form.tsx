@@ -2,8 +2,8 @@
 
 import { startTransition, useActionState, useState, type FormEvent } from "react";
 
-import { beginInquiryAttachmentUpload, finalizeInquiryAttachmentUpload, submitInquiry, type InquiryActionState } from "@/features/inquiries/actions";
-import { uploadInquiryFiles, type PublicAttachmentBinding } from "@/features/inquiries/client-upload";
+import { beginInquiryAttachmentUpload, finalizeInquiryAttachmentUpload, prepareInquirySubmission, submitInquiry, type InquiryActionState } from "@/features/inquiries/actions";
+import { prepareAndUploadInquiry } from "@/features/inquiries/client-upload";
 
 export type QuoteFormLabels = {
   company: string;
@@ -28,7 +28,7 @@ function FieldError({ state, name, errors: messages }: { state: InquiryActionSta
   return errors?.length ? <span id={`${name}-error`} className="quote-form__error">{messages[errors[0]] ?? messages.inquiry_error_required}</span> : null;
 }
 
-export function QuoteForm({ labels, binding }: { labels: QuoteFormLabels; binding: PublicAttachmentBinding }) {
+export function QuoteForm({ labels }: { labels: QuoteFormLabels }) {
   const [state, action, pending] = useActionState(submitInquiry, undefined);
   const [uploading, setUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string>();
@@ -44,11 +44,12 @@ export function QuoteForm({ labels, binding }: { labels: QuoteFormLabels; bindin
     const files = data.getAll("attachments").filter((value): value is File => value instanceof File && value.size > 0);
     data.delete("attachments");
     try {
-      const tokens = await uploadInquiryFiles(files, binding, {
+      const prepared = await prepareAndUploadInquiry(files, data, {
+        prepare: async (fields) => { const result = await prepareInquirySubmission(fields); if (!result.ok) throw new Error(result.code); return result.value; },
         begin: async (b, upload) => { const result = await beginInquiryAttachmentUpload(b, upload); if (!result.ok) throw new Error(result.code); return result.value; },
         finalize: async (b, key, upload) => { const result = await finalizeInquiryAttachmentUpload(b, key, upload); if (!result.ok) throw new Error(result.code); return result.value; },
       });
-      data.set("attachmentTokens", JSON.stringify(tokens)); data.set("submissionToken", binding.submissionToken); data.set("sessionToken", binding.sessionToken); data.set("actorToken", binding.actorToken);
+      data.set("attachmentTokens", JSON.stringify(prepared.tokens)); data.set("uploadSessionId", prepared.binding.id); data.set("uploadSessionSecret", prepared.binding.secret);
       startTransition(() => action(data));
     } catch (error) { setAttachmentError(error instanceof Error ? error.message : "inquiry_error_attachment"); }
     finally { setUploading(false); }
@@ -64,6 +65,7 @@ export function QuoteForm({ labels, binding }: { labels: QuoteFormLabels; bindin
       <label><span>{labels.country}</span><input name="country" autoComplete="country-name" required defaultValue={state?.fields.country} aria-describedby={describedBy("country")} /><FieldError state={state} name="country" errors={labels.errors} /></label>
       <label><span>{labels.details}</span><textarea name="details" required rows={8} defaultValue={state?.fields.details} aria-describedby={describedBy("details")} /><FieldError state={state} name="details" errors={labels.errors} /></label>
       <label><span>{labels.attachments}</span><input aria-label={labels.attachments} name="attachments" type="file" multiple accept=".pdf,.docx,.xlsx,.csv,.txt" /><small>{labels.attachmentHelp}</small></label>
+      <FieldError state={state} name="attachments" errors={labels.errors} />
       {attachmentError ? <p className="quote-form__error" role="alert">{labels.errors[attachmentError] ?? labels.errors.inquiry_error_attachment}</p> : null}
       <label className="quote-form__consent"><input name="gdprConsent" type="checkbox" required aria-describedby={describedBy("gdprConsent")} /><span>{labels.consent}</span><FieldError state={state} name="gdprConsent" errors={labels.errors} /></label>
       <button type="submit" disabled={pending || uploading}>{uploading ? labels.uploading : pending ? labels.submitting : labels.submit}</button>
