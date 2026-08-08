@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
+import { SeoJsonLd } from "@/components/marketing/seo-json-ld";
 import {
   BRAND_SLOGAN,
   createMarketingShellViewModel,
@@ -11,6 +12,7 @@ import { getMarketingShell } from "@/features/content/service";
 import type { MarketingShellContentViewModel } from "@/features/content/view-models";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { isLocale, type Locale } from "@/lib/i18n/config";
+import { organizationJsonLd, websiteJsonLd } from "@/features/seo/json-ld";
 
 type MarketingLayoutProps = {
   children: ReactNode;
@@ -51,6 +53,7 @@ export default async function MarketingLayout({ children, params }: MarketingLay
   const shell = createMarketingShellViewModel(result.content, dictionary);
   return (
     <>
+      <SeoJsonLd data={[organizationJsonLd(result.content), websiteJsonLd()]} />
       <SiteHeader model={shell} />
       {children}
       <SiteFooter model={shell} />

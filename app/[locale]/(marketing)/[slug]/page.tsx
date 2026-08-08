@@ -6,10 +6,28 @@ import { isGenericPageSlug } from "@/features/content/public-slug";
 import { getPageBySlug } from "@/features/content/service";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { buildMetadata } from "@/features/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
-export default async function GenericContentPage({ params }: { params: Promise<{ locale: string; slug: string }> }) {
+type GenericContentPageProps = {
+  params: Promise<{ locale: string; slug: string }>;
+};
+
+export async function generateMetadata({ params }: GenericContentPageProps) {
+  const { locale, slug } = await params;
+  if (!isLocale(locale) || !isGenericPageSlug(slug)) notFound();
+  const page = await getPageBySlug(locale, slug);
+  if (!page) notFound();
+  return buildMetadata({
+    locale,
+    path: `/${slug}`,
+    title: page.seoTitle?.trim() || page.title,
+    description: page.seoDescription,
+  });
+}
+
+export default async function GenericContentPage({ params }: GenericContentPageProps) {
   const { locale, slug } = await params;
   if (!isLocale(locale) || !isGenericPageSlug(slug)) notFound();
   const [page, dictionary] = await Promise.all([

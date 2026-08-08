@@ -6,10 +6,26 @@ import { RichContent } from "@/components/marketing/rich-content";
 import { getPageBySlug } from "@/features/content/service";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { buildMetadata } from "@/features/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
-export default async function RequestAQuotePage({ params }: { params: Promise<{ locale: string }> }) {
+type RequestAQuotePageProps = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: RequestAQuotePageProps) {
+  const { locale } = await params;
+  if (!isLocale(locale)) notFound();
+  const page = await getPageBySlug(locale, "request-a-quote");
+  if (!page) notFound();
+  return buildMetadata({
+    locale,
+    path: "/request-a-quote",
+    title: page.seoTitle?.trim() || page.title,
+    description: page.seoDescription,
+  });
+}
+
+export default async function RequestAQuotePage({ params }: RequestAQuotePageProps) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const [page, dictionary] = await Promise.all([

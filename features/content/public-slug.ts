@@ -10,6 +10,9 @@ export type LegalPageSlug = (typeof LEGAL_PAGE_SLUGS)[number];
 
 const legalPageSlugs = new Set<string>(LEGAL_PAGE_SLUGS);
 const reservedPageSlugs = new Set<string>([
+  "admin",
+  "api",
+  "preview",
   "home",
   "about",
   "contact",

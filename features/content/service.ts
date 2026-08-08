@@ -447,6 +447,16 @@ function serviceFromRepository(repository: ContentRepository) {
       const records = await repository.findLatestPublishedArticles(30);
       return records.map((record) => mapArticle(record, locale));
     },
+    async getSitemapContent() {
+      const records = await repository.findSitemapContent();
+      return records.map((record) => ({
+        ...record,
+        deletedAt: record.deletedAt?.toISOString() ?? null,
+        publishedAt: record.publishedAt?.toISOString() ?? null,
+        updatedAt: record.updatedAt.toISOString(),
+        legalReviewedAt: record.legalReviewedAt?.toISOString() ?? null,
+      }));
+    },
   };
 }
 
@@ -465,3 +475,4 @@ export const getPublishedProduct = contentService.getPublishedProduct;
 export const getPublishedService = contentService.getPublishedService;
 export const getPublishedProducts = contentService.getPublishedProducts;
 export const getPublishedArticles = contentService.getPublishedArticles;
+export const getSitemapContent = contentService.getSitemapContent;

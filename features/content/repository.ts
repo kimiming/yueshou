@@ -144,6 +144,17 @@ export type PublishedNavigationRecord = {
   translations: Array<{ locale: DatabaseLocale; title: string }>;
 };
 
+export type SitemapContentRecord = {
+  kind: "page" | "service" | "product" | "article";
+  slug: string;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  deletedAt: Date | null;
+  publishedAt: Date | null;
+  updatedAt: Date;
+  legalReviewStatus?: "NOT_REQUIRED" | "PENDING" | "APPROVED";
+  legalReviewedAt?: Date | null;
+};
+
 export type PublishedPageRecord = {
   id: string;
   slug: string;
@@ -209,6 +220,7 @@ export interface ContentRepository {
   findLatestPublishedArticles(count: number): Promise<PublishedArticleRecord[]>;
   findPublishedSiteSettingByKey(key: string): Promise<PublishedSiteSettingRecord | null>;
   findPublishedNavigationItems(): Promise<PublishedNavigationRecord[]>;
+  findSitemapContent(): Promise<SitemapContentRecord[]>;
 }
 
 export interface PublicationRepository {
@@ -371,6 +383,75 @@ export function createContentRepository(database: ContentDatabase) {
         orderBy: [{ position: "asc" }, { id: "asc" }],
         select: { id: true, href: true, position: true, translations: true },
       });
+    },
+
+    async findSitemapContent(): Promise<SitemapContentRecord[]> {
+      const [pages, services, products, articles] = await Promise.all([
+        database.page.findMany({
+          where: {
+            status: "PUBLISHED",
+            deletedAt: null,
+            OR: [
+              { legalReviewStatus: "NOT_REQUIRED" },
+              { legalReviewStatus: "APPROVED", legalReviewedAt: { not: null } },
+            ],
+          },
+          select: {
+            slug: true,
+            status: true,
+            deletedAt: true,
+            publishedAt: true,
+            updatedAt: true,
+            legalReviewStatus: true,
+            legalReviewedAt: true,
+          },
+        }),
+        database.service.findMany({
+          where: { status: "PUBLISHED", deletedAt: null },
+          select: {
+            slug: true,
+            status: true,
+            deletedAt: true,
+            publishedAt: true,
+            updatedAt: true,
+          },
+        }),
+        database.product.findMany({
+          where: {
+            status: "PUBLISHED",
+            deletedAt: null,
+            category: { is: { status: "PUBLISHED", deletedAt: null } },
+          },
+          select: {
+            slug: true,
+            status: true,
+            deletedAt: true,
+            publishedAt: true,
+            updatedAt: true,
+          },
+        }),
+        database.article.findMany({
+          where: {
+            status: "PUBLISHED",
+            deletedAt: null,
+            category: { is: { status: "PUBLISHED", deletedAt: null } },
+          },
+          select: {
+            slug: true,
+            status: true,
+            deletedAt: true,
+            publishedAt: true,
+            updatedAt: true,
+          },
+        }),
+      ]);
+
+      return [
+        ...pages.map((record) => ({ ...record, kind: "page" as const })),
+        ...services.map((record) => ({ ...record, kind: "service" as const })),
+        ...products.map((record) => ({ ...record, kind: "product" as const })),
+        ...articles.map((record) => ({ ...record, kind: "article" as const })),
+      ];
     },
 
     async publishEntity(

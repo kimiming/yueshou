@@ -28,5 +28,8 @@ describe("public content slugs", () => {
     expect(isGenericPageSlug("about")).toBe(false);
     expect(isGenericPageSlug("home")).toBe(false);
     expect(isGenericPageSlug("privacy")).toBe(false);
+    expect(isGenericPageSlug("admin")).toBe(false);
+    expect(isGenericPageSlug("api")).toBe(false);
+    expect(isGenericPageSlug("preview")).toBe(false);
   });
 });

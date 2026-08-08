@@ -6,10 +6,26 @@ import { RichContent } from "@/components/marketing/rich-content";
 import { getPageBySlug, getPublishedProducts } from "@/features/content/service";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { buildMetadata } from "@/features/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProductsPage({ params }: { params: Promise<{ locale: string }> }) {
+type ProductsPageProps = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: ProductsPageProps) {
+  const { locale } = await params;
+  if (!isLocale(locale)) notFound();
+  const page = await getPageBySlug(locale, "products");
+  if (!page) notFound();
+  return buildMetadata({
+    locale,
+    path: "/products",
+    title: page.seoTitle?.trim() || page.title,
+    description: page.seoDescription,
+  });
+}
+
+export default async function ProductsPage({ params }: ProductsPageProps) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const [page, products, dictionary] = await Promise.all([

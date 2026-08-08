@@ -5,10 +5,26 @@ import { RichContent } from "@/components/marketing/rich-content";
 import { getMarketingShell, getPageBySlug } from "@/features/content/service";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { buildMetadata } from "@/features/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
-export default async function ContactPage({ params }: { params: Promise<{ locale: string }> }) {
+type ContactPageProps = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: ContactPageProps) {
+  const { locale } = await params;
+  if (!isLocale(locale)) notFound();
+  const page = await getPageBySlug(locale, "contact");
+  if (!page) notFound();
+  return buildMetadata({
+    locale,
+    path: "/contact",
+    title: page.seoTitle?.trim() || page.title,
+    description: page.seoDescription,
+  });
+}
+
+export default async function ContactPage({ params }: ContactPageProps) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const [page, shell, dictionary] = await Promise.all([

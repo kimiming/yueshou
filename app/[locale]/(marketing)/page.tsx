@@ -16,6 +16,7 @@ import { getHomePage } from "@/features/content/service";
 import type { PageViewModel } from "@/features/content/view-models";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { buildMetadata } from "@/features/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,19 @@ type HomePageProps = {
 type HomePageDataResult =
   | { status: "ready"; page: PageViewModel | null }
   | { status: "error" };
+
+export async function generateMetadata({ params }: HomePageProps) {
+  const { locale } = await params;
+  if (!isLocale(locale)) notFound();
+  const page = await getHomePage(locale);
+  if (!page) notFound();
+  return buildMetadata({
+    locale,
+    path: "/",
+    title: page.seoTitle?.trim() || page.title,
+    description: page.seoDescription,
+  });
+}
 
 async function loadHomePageData(locale: Locale): Promise<HomePageDataResult> {
   try {

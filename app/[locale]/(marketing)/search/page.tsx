@@ -5,6 +5,7 @@ import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
 import { normalizeSearchQuery, searchPublishedContent } from "@/features/content/search";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { buildMetadata } from "@/features/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,18 @@ type SearchPageProps = {
   params: Promise<{ locale: string }>;
   searchParams: Promise<{ q?: string | string[] }>;
 };
+
+export async function generateMetadata({ params }: Pick<SearchPageProps, "params">) {
+  const { locale } = await params;
+  if (!isLocale(locale)) notFound();
+  const dictionary = await getDictionary(locale);
+  return buildMetadata({
+    locale,
+    path: "/search",
+    title: dictionary.marketing.public.search,
+    noIndex: true,
+  });
+}
 
 export default async function SearchPage({ params, searchParams }: SearchPageProps) {
   const [{ locale }, queryParameters] = await Promise.all([params, searchParams]);

@@ -6,10 +6,28 @@ import { getApprovedLegalPageBySlug } from "@/features/content/service";
 import { isLegalPageSlug } from "@/features/content/public-slug";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { buildMetadata } from "@/features/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
-export default async function LegalPage({ params }: { params: Promise<{ locale: string; slug: string }> }) {
+type LegalPageProps = {
+  params: Promise<{ locale: string; slug: string }>;
+};
+
+export async function generateMetadata({ params }: LegalPageProps) {
+  const { locale, slug } = await params;
+  if (!isLocale(locale) || !isLegalPageSlug(slug)) notFound();
+  const page = await getApprovedLegalPageBySlug(locale, slug);
+  if (!page) notFound();
+  return buildMetadata({
+    locale,
+    path: `/legal/${slug}`,
+    title: page.seoTitle?.trim() || page.title,
+    description: page.seoDescription,
+  });
+}
+
+export default async function LegalPage({ params }: LegalPageProps) {
   const { locale, slug } = await params;
   if (!isLocale(locale) || !isLegalPageSlug(slug)) notFound();
   const [page, dictionary] = await Promise.all([getApprovedLegalPageBySlug(locale, slug), getDictionary(locale)]);
