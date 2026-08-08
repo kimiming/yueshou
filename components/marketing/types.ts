@@ -6,6 +6,7 @@ export type MarketingLinkViewModel = {
   href: string;
   enabled: boolean;
   sortOrder: number;
+  children?: MarketingLinkViewModel[];
 };
 
 export type MarketingContactViewModel = {

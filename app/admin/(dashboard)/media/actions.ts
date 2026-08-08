@@ -13,3 +13,4 @@ function service() { return createAdminEditorService({ repository: prismaAdminEd
 
 export async function saveMediaMetadataAction(input: unknown) { const actor = await requireUser(); await service().saveMediaMetadata({ ...(readPayload(input) as object), actor }); revalidatePath("/admin/media"); }
 export async function archiveMediaAction(input: unknown) { const actor = await requireUser(); await service().archiveMedia({ ...(readPayload(input) as object), actor }); revalidatePath("/admin/media"); }
+export async function publishMediaAction(input: unknown) { const actor = await requireUser(); await service().publishMedia({ ...(readPayload(input) as object), actor }); revalidatePath("/admin/media"); }

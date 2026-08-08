@@ -61,6 +61,11 @@ function asJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
 }
 
+async function writeAudit(tx: Prisma.TransactionClient, audit: { actorId: string; action: string; entityType: string; entityId?: string; metadata?: Record<string, unknown> } | undefined, entityId: string) {
+  if (!audit) return;
+  await tx.auditLog.create({ data: { actorId: audit.actorId, action: audit.action, entityType: audit.entityType, entityId: audit.entityId ?? entityId, metadata: audit.metadata ? asJson(audit.metadata) : undefined } });
+}
+
 async function replaceTranslations(
   tx: Prisma.TransactionClient,
   entity: "siteSetting" | "navigationItem" | "page" | "pageSection" | "mediaAsset",
@@ -86,12 +91,14 @@ async function replaceTranslations(
 }
 
 export const prismaAdminEditorRepository: AdminEditorRepository = {
+  auditsMutations: true,
   async saveSiteSetting(input) {
     return prisma.$transaction(async (tx) => {
       if (input.version === null) {
         try {
           const created = await tx.siteSetting.create({ data: { key: input.key, value: asJson(input.value), status: input.status } });
           await replaceTranslations(tx, "siteSetting", created.id, input.translations);
+          await writeAudit(tx, input.audit, created.id);
           return { id: created.id, version: version(created.updatedAt) };
         } catch (error) {
           if (typeof error === "object" && error && "code" in error && error.code === "P2002") return null;
@@ -105,6 +112,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       if (updated.count !== 1) return null;
       const record = await tx.siteSetting.findUniqueOrThrow({ where: { key: input.key }, select: { id: true, updatedAt: true } });
       await replaceTranslations(tx, "siteSetting", record.id, input.translations);
+      await writeAudit(tx, input.audit, record.id);
       return { id: record.id, version: version(record.updatedAt) };
     });
   },
@@ -115,6 +123,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
         try {
           const created = await tx.navigationItem.create({ data: { slug: input.slug, href: input.href, parentId: input.parentId, position: input.position, isVisible: input.isVisible, status: input.status, publishedAt: input.status === "PUBLISHED" ? new Date() : null } });
           await replaceTranslations(tx, "navigationItem", created.id, input.translations);
+          await writeAudit(tx, input.audit, created.id);
           return { id: created.id, version: version(created.updatedAt) };
         } catch (error) {
           if (typeof error === "object" && error && "code" in error && error.code === "P2002") return null;
@@ -128,8 +137,19 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       if (updated.count !== 1) return null;
       const record = await tx.navigationItem.findUniqueOrThrow({ where: { id: input.id }, select: { id: true, updatedAt: true } });
       await replaceTranslations(tx, "navigationItem", record.id, input.translations);
+      await writeAudit(tx, input.audit, record.id);
       return { id: record.id, version: version(record.updatedAt) };
     });
+  },
+
+  async isNavigationDescendant(id, proposedParentId) {
+    let candidate: string | null = proposedParentId;
+    for (let depth = 0; candidate && depth < 100; depth += 1) {
+      if (candidate === id) return true;
+      const current: { parentId: string | null } | null = await prisma.navigationItem.findUnique({ where: { id: candidate }, select: { parentId: true } });
+      candidate = current?.parentId ?? null;
+    }
+    return Boolean(candidate);
   },
 
   async reorderNavigation({ orderedIds }) {
@@ -144,12 +164,26 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
     return translations.map((item) => ({ locale: item.locale === "zh_CN" ? "zh-CN" : item.locale, title: item.title, body: item.body }));
   },
 
+  async isPagePublished(pageId) {
+    const page = await prisma.page.findUnique({ where: { id: pageId }, select: { status: true, deletedAt: true } });
+    return page?.status === "PUBLISHED" && page.deletedAt === null;
+  },
+
+  async getPageForPublication(pageId) {
+    const page = await prisma.page.findUnique({ where: { id: pageId }, select: { translations: { select: { locale: true, title: true, body: true } }, sections: { where: { deletedAt: null }, select: { id: true, isEnabled: true, type: true, config: true, translations: { select: { locale: true, title: true, body: true } } } } } });
+    if (!page) return null;
+    const locale = (value: string) => value === "zh_CN" ? "zh-CN" : value as "en" | "de" | "fr" | "es";
+    const type = (value: string) => value.toLowerCase().replaceAll("_", "-");
+    return { translations: page.translations.map((item) => ({ ...item, locale: locale(item.locale) })), sections: page.sections.map((section) => ({ ...section, type: type(section.type), config: section.config, translations: section.translations.map((item) => ({ ...item, locale: locale(item.locale) })) })) };
+  },
+
   async savePage(input) {
     return prisma.$transaction(async (tx) => {
       if (!input.id) {
         try {
           const created = await tx.page.create({ data: { slug: input.slug } });
           await replaceTranslations(tx, "page", created.id, input.translations);
+          await writeAudit(tx, input.audit, created.id);
           return { id: created.id, slug: created.slug, version: version(created.updatedAt) };
         } catch (error) {
           if (typeof error === "object" && error && "code" in error && error.code === "P2002") return null;
@@ -160,6 +194,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       if (updated.count !== 1) return null;
       const record = await tx.page.findUniqueOrThrow({ where: { id: input.id }, select: { id: true, slug: true, updatedAt: true } });
       await replaceTranslations(tx, "page", record.id, input.translations);
+      await writeAudit(tx, input.audit, record.id);
       return { id: record.id, slug: record.slug, version: version(record.updatedAt) };
     });
   },
@@ -170,12 +205,14 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       if (!input.id) {
         const created = await tx.pageSection.create({ data });
         await replaceTranslations(tx, "pageSection", created.id, input.translations);
+        await writeAudit(tx, input.audit, created.id);
         return { id: created.id, version: version(created.updatedAt) };
       }
       const updated = await tx.pageSection.updateMany({ where: { id: input.id, updatedAt: new Date(input.version ?? ""), deletedAt: null }, data });
       if (updated.count !== 1) return null;
       const record = await tx.pageSection.findUniqueOrThrow({ where: { id: input.id }, select: { id: true, updatedAt: true } });
       await replaceTranslations(tx, "pageSection", record.id, input.translations);
+      await writeAudit(tx, input.audit, record.id);
       return { id: record.id, version: version(record.updatedAt) };
     });
   },
@@ -187,14 +224,16 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
     });
   },
 
-  async changePageStatus({ pageId, version: expectedVersion, status }) {
+  async changePageStatus({ pageId, version: expectedVersion, status, actorId }) {
     const now = new Date();
-    const updated = await prisma.page.updateMany({
-      where: { id: pageId, updatedAt: new Date(expectedVersion), deletedAt: null },
-      data: { status, publishedAt: status === "PUBLISHED" ? now : null },
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.page.updateMany({ where: { id: pageId, updatedAt: new Date(expectedVersion), deletedAt: null }, data: { status, publishedAt: status === "PUBLISHED" ? now : null } });
+      if (updated.count !== 1) return null;
+      const page = await tx.page.findUniqueOrThrow({ where: { id: pageId }, select: { id: true, slug: true, publishedAt: true } });
+      if (status === "PUBLISHED") await tx.pageSection.updateMany({ where: { pageId, deletedAt: null, isEnabled: true }, data: { status: "PUBLISHED", publishedAt: now } });
+      if (actorId) await tx.auditLog.create({ data: { actorId, action: status === "PUBLISHED" ? "PUBLISH" : `PAGE_${status}`, entityType: "page", entityId: page.id, metadata: { slug: page.slug, status } } });
+      return page;
     });
-    if (updated.count !== 1) return null;
-    return prisma.page.findUniqueOrThrow({ where: { id: pageId }, select: { id: true, slug: true, publishedAt: true } });
   },
 
   async saveMediaMetadata(input) {
@@ -203,7 +242,22 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       if (updated.count !== 1) return null;
       const record = await tx.mediaAsset.findUniqueOrThrow({ where: { id: input.id }, select: { id: true, updatedAt: true } });
       await replaceTranslations(tx, "mediaAsset", record.id, input.translations);
+      await writeAudit(tx, input.audit, record.id);
       return { id: record.id, version: version(record.updatedAt) };
+    });
+  },
+
+  async getMediaTranslations(mediaAssetId) {
+    const translations = await prisma.mediaAssetTranslation.findMany({ where: { mediaAssetId }, select: { locale: true, alt: true } });
+    return translations.map((translation) => ({ locale: (translation.locale === "zh_CN" ? "zh-CN" : translation.locale) as "en" | "zh-CN" | "de" | "fr" | "es", alt: translation.alt }));
+  },
+
+  async publishMedia({ mediaAssetId, version: expectedVersion, actorId }) {
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.mediaAsset.updateMany({ where: { id: mediaAssetId, updatedAt: new Date(expectedVersion), deletedAt: null }, data: { status: "PUBLISHED", publishedAt: new Date() } });
+      if (updated.count !== 1) return null;
+      await tx.auditLog.create({ data: { actorId, action: "PUBLISH", entityType: "MediaAsset", entityId: mediaAssetId } });
+      return { id: mediaAssetId };
     });
   },
 

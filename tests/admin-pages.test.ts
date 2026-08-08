@@ -5,6 +5,7 @@ import {
   createAdminEditorService,
   type AdminEditorRepository,
 } from "@/features/admin/editors";
+import { validatePagePublication } from "@/features/admin/publication";
 
 const admin = { id: "admin-1", role: "ADMIN" as const };
 const editor = { id: "editor-1", role: "EDITOR" as const };
@@ -27,6 +28,12 @@ function repository(overrides: Partial<AdminEditorRepository> = {}): AdminEditor
 }
 
 describe("page section editor", () => {
+  it("rejects publishing when an enabled section lacks an English translation", () => {
+    expect(() => validatePagePublication({
+      translations: [{ locale: "en", title: "About", body: "Research" }],
+      sections: [{ id: "section-1", isEnabled: true, type: "about", config: {}, translations: [{ locale: "de", title: "Über", body: "Text" }] }],
+    })).toThrow(/English translation/i);
+  });
   it("requires a complete English page translation before publishing", async () => {
     const repo = repository({ getPageTranslations: vi.fn(async () => [{ locale: "de" as const, title: "Über", body: "Text" }]) });
     const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });

@@ -2,11 +2,11 @@ import { prisma } from "@/lib/db/prisma";
 
 import type { MediaReferences, MediaRepository } from "./service";
 
-function jsonContainsStorageKey(value: unknown, storageKey: string): boolean {
-  if (value === storageKey) return true;
-  if (Array.isArray(value)) return value.some((item) => jsonContainsStorageKey(item, storageKey));
+function jsonContainsMediaId(value: unknown, mediaId: string): boolean {
+  if (value === mediaId) return true;
+  if (Array.isArray(value)) return value.some((item) => jsonContainsMediaId(item, mediaId));
   if (value && typeof value === "object") {
-    return Object.values(value).some((item) => jsonContainsStorageKey(item, storageKey));
+    return Object.values(value).some((item) => jsonContainsMediaId(item, mediaId));
   }
   return false;
 }
@@ -68,10 +68,10 @@ export const prismaMediaRepository: MediaRepository = {
 
     const pageIds = new Set(
       pageSections
-        .filter((section) => jsonContainsStorageKey(section.config, media.storageKey))
+        .filter((section) => jsonContainsMediaId(section.config, id))
         .map((section) => section.pageId),
     );
-    const settingCount = settings.filter((setting) => jsonContainsStorageKey(setting.value, media.storageKey)).length;
+    const settingCount = settings.filter((setting) => jsonContainsMediaId(setting.value, id)).length;
     return { pages: pageIds.size, products: productCount, articles: articleCount, settings: settingCount };
   },
 

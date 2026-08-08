@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   EditorAuthorizationError,
   EditorConflictError,
+  EditorValidationError,
   createAdminEditorService,
   type AdminEditorRepository,
 } from "@/features/admin/editors";
@@ -28,6 +29,30 @@ function repository(overrides: Partial<AdminEditorRepository> = {}): AdminEditor
 }
 
 describe("site settings and navigation editors", () => {
+  it("rejects a brand setting with a non-HTTPS social link", async () => {
+    const repo = repository();
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+
+    await expect(service.saveSiteSetting({
+      actor: admin,
+      key: "brand",
+      version: null,
+      value: { companyName: "YueShou", socialLinks: [{ label: "LinkedIn", href: "javascript:alert(1)" }] },
+      translations: [{ locale: "en", title: "YueShou", body: "Precision peptides" }],
+    })).rejects.toBeInstanceOf(EditorValidationError);
+    expect(repo.saveSiteSetting).not.toHaveBeenCalled();
+  });
+
+  it("rejects a navigation item that points to itself", async () => {
+    const repo = repository();
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+
+    await expect(service.saveNavigationItem({
+      actor: admin, id: "nav-1", slug: "about", href: "/en/about", parentId: "nav-1", position: 0, isVisible: true,
+      version: "2026-08-08T00:00:00.000Z", translations: [{ locale: "en", title: "About" }],
+    })).rejects.toBeInstanceOf(EditorValidationError);
+    expect(repo.saveNavigationItem).not.toHaveBeenCalled();
+  });
   it("rejects an unauthenticated settings write", async () => {
     const service = createAdminEditorService({ repository: repository(), invalidate: vi.fn() });
 

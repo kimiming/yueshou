@@ -400,7 +400,7 @@ function serviceFromRepository(repository: ContentRepository) {
 
       const settingTranslation = localized(setting.translations, locale);
       const contact = marketingShellValueSchema.parse(setting.value ?? {});
-      const navigation = navigationRecords
+      const flatNavigation = navigationRecords
         .map((item) => {
           const translation = resolveTranslation(item.translations, toDatabaseLocale(locale));
           return {
@@ -408,10 +408,15 @@ function serviceFromRepository(repository: ContentRepository) {
             label: translation.value.title,
             href: item.href,
             sortOrder: item.position,
+            parentId: item.parentId ?? null,
             enabled: true as const,
           };
         })
         .toSorted((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
+      const childrenByParent = new Map<string | null, typeof flatNavigation>();
+      for (const item of flatNavigation) childrenByParent.set(item.parentId, [...(childrenByParent.get(item.parentId) ?? []), item]);
+      const toTree = (parentId: string | null): typeof flatNavigation => (childrenByParent.get(parentId) ?? []).map((item) => ({ ...item, children: toTree(item.id) }));
+      const navigation = toTree(null);
 
       return {
         locale,

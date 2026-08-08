@@ -2,9 +2,11 @@ import { z } from "zod";
 
 import { pageSectionSchema, translationSchema } from "@/features/content/schemas";
 import { contentLocales, type ContentLocale } from "@/features/content/types";
+import { validatePagePublication } from "./publication";
 
 export type AdminEditorActor = { id: string; role: "ADMIN" | "EDITOR" };
 export type EditorTranslation = z.infer<typeof translationSchema>;
+type AuditStamp = { actorId: string; action: string; entityType: string; entityId?: string; metadata?: Record<string, unknown> };
 
 export class EditorAuthorizationError extends Error {
   constructor(message = "Administrator access is required") {
@@ -43,6 +45,19 @@ const safeNavigationHref = z.string().trim().superRefine((value, context) => {
   }
   context.addIssue({ code: "custom", message: "Navigation links must use a relative URL, https, mailto, tel" });
 });
+
+const brandValueSchema = z.object({
+  logoMediaId: z.string().cuid().optional(),
+  faviconMediaId: z.string().cuid().optional(),
+  companyName: z.string().trim().min(1).max(160).optional(),
+  slogan: z.string().trim().min(1).max(240).optional(),
+  email: z.string().trim().email().optional(),
+  phone: z.string().trim().min(3).max(40).optional(),
+  addressLines: z.array(z.string().trim().min(1).max(160)).max(6).optional(),
+  socialLinks: z.array(z.object({ label: z.string().trim().min(1).max(80), href: z.string().trim().url().refine((href) => new URL(href).protocol === "https:", "Social links must use HTTPS") })).max(12).optional(),
+  defaultSeo: z.object({ title: z.string().trim().min(1).max(160), description: z.string().trim().min(1).max(320), keywords: z.array(z.string().trim().min(1).max(80)).max(20).default([]) }).optional(),
+  footerColumns: z.array(z.object({ heading: z.string().trim().min(1).max(80), links: z.array(z.object({ label: z.string().trim().min(1).max(80), href: safeNavigationHref })).max(12) })).max(6).optional(),
+}).strict();
 
 const settingInputSchema = z.object({
   key: z.string().trim().regex(/^[a-z][a-z0-9-]{0,63}$/),
@@ -101,17 +116,26 @@ const mediaInputSchema = z.object({
 });
 
 export type AdminEditorRepository = {
-  saveSiteSetting(input: z.infer<typeof settingInputSchema>): Promise<{ id: string; version: string } | null>;
-  saveNavigationItem(input: z.infer<typeof navigationInputSchema>): Promise<{ id: string; version: string } | null>;
+  auditsMutations?: boolean;
+  saveSiteSetting(input: z.infer<typeof settingInputSchema> & { audit?: AuditStamp }): Promise<{ id: string; version: string } | null>;
+  saveNavigationItem(input: z.infer<typeof navigationInputSchema> & { audit?: AuditStamp }): Promise<{ id: string; version: string } | null>;
+  isNavigationDescendant?(id: string, proposedParentId: string): Promise<boolean>;
   reorderNavigation(input: { orderedIds: string[]; actorId: string }): Promise<void>;
   getPageTranslations(pageId: string): Promise<EditorTranslation[]>;
-  savePage(input: z.infer<typeof pageInputSchema>): Promise<{ id: string; slug: string; version: string } | null>;
-  savePageSection(input: z.output<typeof pageSectionInputSchema>): Promise<{ id: string; version: string } | null>;
+  isPagePublished?(pageId: string): Promise<boolean>;
+  getPageForPublication?(pageId: string): Promise<{
+    translations: EditorTranslation[];
+    sections: Array<{ id: string; isEnabled: boolean; type: string; config: unknown; translations: EditorTranslation[] }>;
+  } | null>;
+  savePage(input: z.infer<typeof pageInputSchema> & { audit?: AuditStamp }): Promise<{ id: string; slug: string; version: string } | null>;
+  savePageSection(input: z.output<typeof pageSectionInputSchema> & { audit?: AuditStamp }): Promise<{ id: string; version: string } | null>;
   reorderPageSections(input: { pageId: string; orderedIds: string[]; actorId: string }): Promise<void>;
-  changePageStatus(input: { pageId: string; version: string; status: "DRAFT" | "PUBLISHED" | "ARCHIVED" }): Promise<{
+  changePageStatus(input: { pageId: string; version: string; status: "DRAFT" | "PUBLISHED" | "ARCHIVED"; actorId?: string }): Promise<{
     id: string; slug: string; publishedAt: Date | null;
   } | null>;
-  saveMediaMetadata(input: z.infer<typeof mediaInputSchema>): Promise<{ id: string; version: string } | null>;
+  saveMediaMetadata(input: z.infer<typeof mediaInputSchema> & { audit?: AuditStamp }): Promise<{ id: string; version: string } | null>;
+  getMediaTranslations?(mediaAssetId: string): Promise<Array<{ locale: ContentLocale; alt: string }>>;
+  publishMedia?(input: { mediaAssetId: string; version: string; actorId: string }): Promise<{ id: string } | null>;
   archiveMedia(input: { actor: AdminEditorActor; mediaAssetId: string }): Promise<{ archived: boolean; retained: boolean; deleteAfter: Date | null }>;
   createAuditLog(input: { actorId: string; action: string; entityType: string; entityId: string; metadata?: Record<string, unknown> }): Promise<void>;
 };
@@ -137,6 +161,15 @@ function parse<T>(schema: z.ZodType<T>, input: unknown): T {
   return result.data;
 }
 
+function validateSettingValue(key: string, value: Record<string, unknown>) {
+  if (key === "brand") {
+    const result = brandValueSchema.safeParse(value);
+    if (!result.success) throw new EditorValidationError(result.error.issues.map((issue) => issue.message).join("; "));
+    return result.data;
+  }
+  return value;
+}
+
 async function audit(repository: AdminEditorRepository, actor: AdminEditorActor, action: string, entityType: string, entityId: string, metadata?: Record<string, unknown>) {
   await repository.createAuditLog({ actorId: actor.id, action, entityType, entityId, metadata });
 }
@@ -150,22 +183,27 @@ export function createAdminEditorService(dependencies: {
     async saveSiteSetting(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
       requireAdmin(input.actor);
       const payload = parse(settingInputSchema, input);
+      payload.value = validateSettingValue(payload.key, payload.value);
       if (payload.status === "PUBLISHED") assertEnglish(payload.translations);
-      const result = await repository.saveSiteSetting(payload);
+      const result = await repository.saveSiteSetting({ ...payload, audit: { actorId: input.actor.id, action: "SITE_SETTING_SAVED", entityType: "SiteSetting", metadata: { key: payload.key, status: payload.status } } });
       if (!result) throw new EditorConflictError();
-      await audit(repository, input.actor, "SITE_SETTING_SAVED", "SiteSetting", result.id, { key: payload.key, status: payload.status });
+      if (!repository.auditsMutations) await audit(repository, input.actor, "SITE_SETTING_SAVED", "SiteSetting", result.id, { key: payload.key, status: payload.status });
       return result;
     },
 
     async saveNavigationItem(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
       requireActor(input.actor);
       const payload = parse(navigationInputSchema, input);
+      if (payload.id && payload.parentId === payload.id) throw new EditorValidationError("A navigation item cannot be its own parent");
+      if (payload.id && payload.parentId && await repository.isNavigationDescendant?.(payload.id, payload.parentId)) {
+        throw new EditorValidationError("A navigation item cannot be moved below one of its descendants");
+      }
       if (payload.status === "PUBLISHED" && !payload.translations.some((translation) => translation.locale === "en")) {
         throw new EditorValidationError("English translation is required before publishing");
       }
-      const result = await repository.saveNavigationItem(payload);
+      const result = await repository.saveNavigationItem({ ...payload, audit: { actorId: input.actor.id, action: "NAVIGATION_SAVED", entityType: "NavigationItem", metadata: { slug: payload.slug, href: payload.href } } });
       if (!result) throw new EditorConflictError();
-      await audit(repository, input.actor, "NAVIGATION_SAVED", "NavigationItem", result.id, { slug: payload.slug, href: payload.href });
+      if (!repository.auditsMutations) await audit(repository, input.actor, "NAVIGATION_SAVED", "NavigationItem", result.id, { slug: payload.slug, href: payload.href });
       return result;
     },
 
@@ -180,18 +218,19 @@ export function createAdminEditorService(dependencies: {
     async savePage(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
       requireActor(input.actor);
       const payload = parse(pageInputSchema, input);
-      const result = await repository.savePage(payload);
+      const result = await repository.savePage({ ...payload, audit: { actorId: input.actor.id, action: "PAGE_SAVED", entityType: "Page", metadata: { slug: payload.slug } } });
       if (!result) throw new EditorConflictError();
-      await audit(repository, input.actor, "PAGE_SAVED", "Page", result.id, { slug: result.slug });
+      if (!repository.auditsMutations) await audit(repository, input.actor, "PAGE_SAVED", "Page", result.id, { slug: result.slug });
       return result;
     },
 
     async savePageSection(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
       requireActor(input.actor);
       const payload = parse(pageSectionInputSchema, input);
-      const result = await repository.savePageSection(payload);
+      if (payload.isEnabled && await repository.isPagePublished?.(payload.pageId)) assertEnglish(payload.translations);
+      const result = await repository.savePageSection({ ...payload, audit: { actorId: input.actor.id, action: "PAGE_SECTION_SAVED", entityType: "PageSection", metadata: { pageId: payload.pageId, type: payload.section.type } } });
       if (!result) throw new EditorConflictError();
-      await audit(repository, input.actor, "PAGE_SECTION_SAVED", "PageSection", result.id, { pageId: payload.pageId, type: payload.section.type });
+      if (!repository.auditsMutations) await audit(repository, input.actor, "PAGE_SECTION_SAVED", "PageSection", result.id, { pageId: payload.pageId, type: payload.section.type });
       return result;
     },
 
@@ -206,10 +245,14 @@ export function createAdminEditorService(dependencies: {
     async setPageStatus(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
       requireActor(input.actor);
       const payload = z.object({ pageId: z.string().min(1), version: z.string().datetime(), status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]) }).parse(input);
-      if (payload.status === "PUBLISHED") assertEnglish(await repository.getPageTranslations(payload.pageId));
-      const result = await repository.changePageStatus(payload);
+      if (payload.status === "PUBLISHED") {
+        const publication = await repository.getPageForPublication?.(payload.pageId);
+        if (publication) validatePagePublication(publication);
+        else assertEnglish(await repository.getPageTranslations(payload.pageId));
+      }
+      const result = await repository.changePageStatus({ ...payload, actorId: input.actor.id });
       if (!result) throw new EditorConflictError();
-      await audit(repository, input.actor, payload.status === "PUBLISHED" ? "PUBLISH" : `PAGE_${payload.status}`, "page", result.id, { slug: result.slug, status: payload.status });
+      if (!repository.auditsMutations) await audit(repository, input.actor, payload.status === "PUBLISHED" ? "PUBLISH" : `PAGE_${payload.status}`, "page", result.id, { slug: result.slug, status: payload.status });
       if (payload.status === "PUBLISHED") invalidate("page", result.slug);
       return { ...result, status: payload.status };
     },
@@ -223,9 +266,9 @@ export function createAdminEditorService(dependencies: {
       const payload = parse(mediaInputSchema, input);
       const english = payload.translations.find((translation) => translation.locale === "en");
       if (!english?.alt) throw new EditorValidationError("English alt text is required for media");
-      const result = await repository.saveMediaMetadata(payload);
+      const result = await repository.saveMediaMetadata({ ...payload, audit: { actorId: input.actor.id, action: "MEDIA_METADATA_SAVED", entityType: "MediaAsset" } });
       if (!result) throw new EditorConflictError();
-      await audit(repository, input.actor, "MEDIA_METADATA_SAVED", "MediaAsset", result.id);
+      if (!repository.auditsMutations) await audit(repository, input.actor, "MEDIA_METADATA_SAVED", "MediaAsset", result.id);
       return result;
     },
 
@@ -234,6 +277,18 @@ export function createAdminEditorService(dependencies: {
       const mediaAssetId = z.string().min(1).parse(input.mediaAssetId);
       const result = await repository.archiveMedia({ actor: input.actor, mediaAssetId });
       await audit(repository, input.actor, "MEDIA_ARCHIVED", "MediaAsset", mediaAssetId, { retained: result.retained, deleteAfter: result.deleteAfter?.toISOString() ?? null });
+      return result;
+    },
+
+    async publishMedia(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
+      requireActor(input.actor);
+      const payload = z.object({ mediaAssetId: z.string().min(1), version: z.string().datetime() }).parse(input);
+      if (!repository.getMediaTranslations || !repository.publishMedia) throw new EditorValidationError("Media publication is not available");
+      const english = (await repository.getMediaTranslations(payload.mediaAssetId)).find((translation) => translation.locale === "en");
+      if (!english?.alt.trim()) throw new EditorValidationError("English alt text is required before publishing media");
+      const result = await repository.publishMedia({ ...payload, actorId: input.actor.id });
+      if (!result) throw new EditorConflictError();
+      if (!repository.auditsMutations) await audit(repository, input.actor, "PUBLISH", "MediaAsset", result.id);
       return result;
     },
   };

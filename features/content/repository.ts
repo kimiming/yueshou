@@ -140,6 +140,7 @@ export type PublishedSiteSettingRecord = PublishedHomepageItemRecord;
 
 export type PublishedNavigationRecord = {
   id: string;
+  parentId: string | null;
   href: string;
   position: number;
   translations: Array<{ locale: DatabaseLocale; title: string }>;
@@ -400,7 +401,7 @@ export function createContentRepository(database: ContentDatabase) {
           deletedAt: null,
         },
         orderBy: [{ position: "asc" }, { id: "asc" }],
-        select: { id: true, href: true, position: true, translations: true },
+        select: { id: true, parentId: true, href: true, position: true, translations: true },
       });
     },
 

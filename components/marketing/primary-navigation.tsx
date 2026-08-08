@@ -22,16 +22,11 @@ export function PrimaryNavigation({
     .filter((item) => item.enabled)
     .toSorted((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
 
+  const navigationList = (entries: MarketingLinkViewModel[]) => <ul>{entries.map((item) => <li key={item.id}><Link href={item.href}>{item.label}</Link>{item.children?.length ? navigationList(item.children) : null}</li>)}</ul>;
   return (
     <>
       <nav className="primary-navigation" aria-label={label}>
-        <ul>
-          {visibleItems.map((item) => (
-            <li key={item.id}>
-              <Link href={item.href}>{item.label}</Link>
-            </li>
-          ))}
-        </ul>
+        {navigationList(visibleItems)}
       </nav>
       <MobileNavigation
         label={mobileNavigationLabel}
