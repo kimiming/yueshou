@@ -8,20 +8,21 @@ backup_root="${BACKUP_ROOT:-/backups}"
 retention_days="${BACKUP_RETENTION_DAYS:-30}"
 timestamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 final_dir="${backup_root}/${timestamp}"
-work_dir="${backup_root}/.work-${timestamp}-$$"
+work_parent="${backup_root}/.work"
+work_dir="${work_parent}/${timestamp}-$$"
 lock_file="${OPERATIONS_LOCK_FILE:-/operations-lock/media-deletion.lock}"
 
-[[ "$backup_root" == /backups && "$final_dir" == /backups/* && "$work_dir" == /backups/.work-* ]] || { echo "Backup paths must remain inside /backups" >&2; exit 64; }
+[[ "$backup_root" == /backups && "$final_dir" == /backups/* && "$work_dir" == /backups/.work/* ]] || { echo "Backup paths must remain inside /backups" >&2; exit 64; }
 [[ "$lock_file" == /operations-lock/* ]] || { echo "OPERATIONS_LOCK_FILE must be inside /operations-lock" >&2; exit 64; }
 [[ "$retention_days" =~ ^[1-9][0-9]*$ ]] || { echo "BACKUP_RETENTION_DAYS must be a positive integer" >&2; exit 64; }
-mkdir -p "$backup_root" /operations-lock
+mkdir -p "$work_parent"
 if [[ -e "$final_dir" ]]; then echo "Refusing to overwrite existing backup $final_dir" >&2; exit 73; fi
 mkdir "$work_dir"
 umask 077
 
 cleanup() {
   # The work path is generated here and never points outside the backup volume.
-  [[ -n "${work_dir:-}" && "$work_dir" == /backups/.work-* && -d "$work_dir" ]] && rm -rf -- "$work_dir"
+  [[ -n "${work_dir:-}" && "$work_dir" == /backups/.work/* && -d "$work_dir" ]] && rm -rf -- "$work_dir"
 }
 trap cleanup EXIT
 

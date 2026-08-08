@@ -64,11 +64,11 @@ port 9000. The MinIO root credential is available only to MinIO and its one-shot
 initializer; it is never provided to the web, cron, migration, or backup service.
 Changing either hostname requires re-running `minio-init` after reviewing CORS.
 
-`STORAGE_HOST` must resolve and be reachable from both visitors and the `web`
-container. Confirm the Docker host supports this HTTPS loopback path (or configure
-split-horizon DNS/hairpin NAT) before production use. Do not map MinIO's API or
-console to a host port. The certificate must present a matching SAN for the S3
-gateway hostname as well as the website hostname.
+`STORAGE_HOST` must resolve publicly to the Docker host for browser uploads. Inside
+the private Compose network it is an alias for Nginx, so the `web` container uses
+the same HTTPS/SNI/Host route without a public-DNS hairpin or host loopback
+dependency. Do not map MinIO's API or console to a host port. The certificate must
+present a matching SAN for the S3 gateway hostname as well as the website hostname.
 
 The `cron` service makes only private-network `POST` calls to the internal content
 publication and media deletion routes. Each call uses a short-lived HMAC generated

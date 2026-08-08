@@ -24,9 +24,11 @@ FROM minio/mc:RELEASE.2025-04-16T18-13-26Z AS mc
 
 FROM alpine:3.21 AS backup
 RUN apk add --no-cache bash ca-certificates coreutils findutils openssl postgresql17-client tar util-linux
+RUN addgroup -S -g 1001 nodejs && adduser -S -u 1001 -G nodejs ops
 COPY --from=mc /usr/bin/mc /usr/local/bin/mc
 COPY deploy/backup/backup.sh deploy/backup/restore.sh /backup/
 RUN chmod 0755 /backup/backup.sh /backup/restore.sh
+USER 1001:1001
 ENTRYPOINT ["/backup/backup.sh"]
 
 FROM base AS runtime

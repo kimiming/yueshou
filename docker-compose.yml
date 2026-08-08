@@ -132,6 +132,18 @@ services:
       start_period: 30s
     security_opt: [no-new-privileges:true]
 
+  ops-init:
+    image: alpine:3.21
+    user: "0:0"
+    volumes: [operations_lock:/operations-lock, backup_data:/backups]
+    command: |
+      /bin/sh -ec 'mkdir -p /operations-lock /backups/.work && touch /operations-lock/media-deletion.lock && chown -R 1001:1001 /operations-lock /backups && chmod 0770 /operations-lock /backups /backups/.work && chmod 0660 /operations-lock/media-deletion.lock'
+    networks: [private]
+    restart: "no"
+    logging: *default-logging
+    deploy: *default-resources
+    security_opt: [no-new-privileges:true]
+
   cron:
     build:
       context: .
@@ -143,9 +155,12 @@ services:
       CRON_SECRET: ${CRON_SECRET:?Set CRON_SECRET in .env.docker}
       CRON_INTERVAL_SECONDS: ${CRON_INTERVAL_SECONDS:-300}
     command: ["sh", "/app/deploy/ops/cron-runner.sh"]
-    depends_on: { web: { condition: service_healthy } }
+    depends_on:
+      web: { condition: service_healthy }
+      ops-init: { condition: service_completed_successfully }
     volumes: [operations_lock:/operations-lock]
     networks: [private]
+    user: "1001:1001"
     restart: unless-stopped
     logging: *default-logging
     deploy: *default-resources
@@ -170,8 +185,10 @@ services:
       postgres: { condition: service_healthy }
       minio: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
+      ops-init: { condition: service_completed_successfully }
     volumes: [backup_data:/backups, operations_lock:/operations-lock]
     networks: [private]
+    user: "1001:1001"
     restart: unless-stopped
     logging: *default-logging
     deploy: *default-resources
@@ -188,9 +205,11 @@ services:
     volumes:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./deploy/nginx/templates/site.conf.template:/etc/nginx/templates/site.conf.template:ro
-      - ./deploy/nginx/snippets/security-headers.conf:/etc/nginx/snippets/security-headers.conf:ro
       - ${TLS_CERTS_DIR:?Set TLS_CERTS_DIR to an absolute certificate directory}:/etc/nginx/certs:ro
-    networks: [private]
+    networks:
+      private:
+        aliases:
+          - "${STORAGE_HOST:?Set STORAGE_HOST in .env.docker}"
     restart: unless-stopped
     logging: *default-logging
     deploy: *default-resources

@@ -23,7 +23,7 @@ describe("self-hosted Docker deployment", () => {
   it("keeps all stateful services private and exposes only Nginx", async () => {
     const config = await compose();
 
-    expect(Object.keys(config.services)).toEqual(expect.arrayContaining(["web", "postgres", "minio", "minio-init", "migrate", "cron", "backup", "nginx"]));
+    expect(Object.keys(config.services)).toEqual(expect.arrayContaining(["web", "postgres", "minio", "minio-init", "migrate", "ops-init", "cron", "backup", "nginx"]));
     expect(config.services.nginx.ports).toEqual(["80:80", "443:443"]);
     expect(config.services.postgres.ports).toBeUndefined();
     expect(config.services.minio.ports).toBeUndefined();
@@ -84,6 +84,20 @@ describe("self-hosted Docker deployment", () => {
     expect(restorePowerShell).toContain("backup $BackupDirectory");
   });
 
+  it("initializes operation volumes once and runs cron plus backup as the same non-root identity", async () => {
+    const config = await compose();
+    const init = config.services["ops-init"];
+
+    expect(init.user).toBe("0:0");
+    expect(init.volumes).toEqual(["operations_lock:/operations-lock", "backup_data:/backups"]);
+    expect(String(init.command)).toContain("chown -R 1001:1001 /operations-lock /backups");
+    expect(String(init.command)).toContain("/backups/.work");
+    expect(config.services.cron.user).toBe("1001:1001");
+    expect(config.services.backup.user).toBe("1001:1001");
+    expect(config.services.cron.depends_on).toEqual(expect.objectContaining({ "ops-init": { condition: "service_completed_successfully" } }));
+    expect(config.services.backup.depends_on).toEqual(expect.objectContaining({ "ops-init": { condition: "service_completed_successfully" } }));
+  });
+
   it("uses a traced standalone runtime without hard-coded Prisma paths", async () => {
     const dockerfile = await deploymentFile("Dockerfile");
     expect(dockerfile).toContain("/app/.next/standalone");
@@ -94,18 +108,23 @@ describe("self-hosted Docker deployment", () => {
   });
 
   it("preserves HTTPS security headers while routing the S3 hostname privately", async () => {
-    const [template, securityHeaders] = await Promise.all([
-      deploymentFile("deploy/nginx/templates/site.conf.template"),
-      deploymentFile("deploy/nginx/snippets/security-headers.conf"),
-    ]);
+    const template = await deploymentFile("deploy/nginx/templates/site.conf.template");
     expect(template).toContain("server_name ${SERVER_NAME};");
     expect(template).toContain("server_name ${STORAGE_HOST};");
     expect(template).toContain("proxy_pass http://yueshou_minio;");
     expect(template).toContain("client_max_body_size 20m");
-    expect(template).toContain("include /etc/nginx/snippets/security-headers.conf;");
     expect(template).toContain("Cache-Control \"public, max-age=31536000, immutable\"");
-    expect(securityHeaders).toContain("Strict-Transport-Security");
-    expect(securityHeaders).toContain("X-Content-Type-Options");
+    expect(template).toContain("Strict-Transport-Security");
+    expect(template).toContain("X-Content-Type-Options");
+    expect(template.match(/connect-src 'self' https:\/\/\$\{STORAGE_HOST\}/g)).toHaveLength(2);
     expect(template).toContain("location /_next/static/");
+  });
+
+  it("resolves the S3 hostname to Nginx inside the private network", async () => {
+    const config = await compose();
+    const privateNetwork = config.services.nginx.networks as Record<string, { aliases?: string[] }>;
+
+    expect(privateNetwork.private.aliases).toContain("${STORAGE_HOST:?Set STORAGE_HOST in .env.docker}");
+    expect(environment(config.services.web).STORAGE_ENDPOINT).toBe("https://${STORAGE_HOST:?Set STORAGE_HOST in .env.docker}");
   });
 });
