@@ -202,6 +202,7 @@ export function createContentSearch(database: ContentSearchDatabase) {
       database.article.findMany({
         where: {
           status: "PUBLISHED",
+          publishedAt: { not: null },
           deletedAt: null,
           category: { is: { status: "PUBLISHED", deletedAt: null } },
           translations: { some: translationWhere },
@@ -221,7 +222,9 @@ export function createContentSearch(database: ContentSearchDatabase) {
       ...products.map((record) => mapResult("product", record, locale, query)),
       ...services.map((record) => mapResult("service", record, locale, query)),
       ...pages.map((record) => mapResult("page", record, locale, query)),
-      ...articles.map((record) => mapResult("article", record, locale, query)),
+      ...articles
+        .filter((record) => record.publishedAt !== null)
+        .map((record) => mapResult("article", record, locale, query)),
     ]
       .filter((result): result is SearchResultViewModel => result !== null)
       .toSorted(

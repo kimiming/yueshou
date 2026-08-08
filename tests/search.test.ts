@@ -174,6 +174,29 @@ describe("content search", () => {
     });
   });
 
+  it("requires and defensively enforces a publication timestamp for article results", async () => {
+    const database = createDatabase();
+    database.article.findMany.mockResolvedValue([
+      {
+        id: "invalid-article",
+        slug: "invalid-article",
+        publishedAt: null,
+        translations: translation("Needle article", "Needle body"),
+      },
+    ]);
+
+    const results = await createContentSearch(database as never)("en", "needle");
+
+    expect(database.article.findMany.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        status: "PUBLISHED",
+        publishedAt: { not: null },
+        deletedAt: null,
+      },
+    });
+    expect(results).toEqual([]);
+  });
+
   it("returns no results and performs no query for blank input", async () => {
     const database = createDatabase();
     const search = createContentSearch(database as never);

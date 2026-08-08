@@ -507,14 +507,13 @@ export function createContentRepository(database: ContentDatabase) {
               select: { id: true, slug: true, publishedAt: true },
             }));
           } else if (input.type === "article") {
-            const article = await transaction.article.findUniqueOrThrow({
-              where: { id: input.id },
-              select: { id: true, slug: true, publishedAt: true },
+            await transaction.article.updateMany({
+              where: { id: input.id, publishedAt: null },
+              data: { publishedAt },
             });
-            const effectivePublishedAt = article.publishedAt ?? publishedAt;
             record = requirePublicationDate(await transaction.article.update({
               where: { id: input.id },
-              data: { status: "PUBLISHED", publishedAt: effectivePublishedAt },
+              data: { status: "PUBLISHED" },
               select: { id: true, slug: true, publishedAt: true },
             }));
           } else {

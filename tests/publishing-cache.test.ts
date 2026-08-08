@@ -105,11 +105,10 @@ describe("publication cache", () => {
     const now = new Date("2026-08-08T06:00:00.000Z");
     const transaction = {
       article: {
-        findUniqueOrThrow: vi.fn(async () => ({
-          id: "article-1",
-          slug: "lab-update",
-          publishedAt: null,
-        })),
+        updateMany: vi.fn(async () => {
+          events.push("guard");
+          return { count: 1 };
+        }),
         update: vi.fn(async () => {
           events.push("update");
           return { id: "article-1", slug: "lab-update", publishedAt: now };
@@ -138,10 +137,14 @@ describe("publication cache", () => {
     );
 
     expect(result).toEqual({ id: "article-1", slug: "lab-update", publishedAt: now });
-    expect(events).toEqual(["update", "audit", "commit"]);
+    expect(events).toEqual(["guard", "update", "audit", "commit"]);
+    expect(transaction.article.updateMany).toHaveBeenCalledWith({
+      where: { id: "article-1", publishedAt: null },
+      data: { publishedAt: now },
+    });
     expect(transaction.article.update).toHaveBeenCalledWith({
       where: { id: "article-1" },
-      data: { status: "PUBLISHED", publishedAt: now },
+      data: { status: "PUBLISHED" },
       select: { id: true, slug: true, publishedAt: true },
     });
     expect(transaction.auditLog.create).toHaveBeenCalledWith({
@@ -164,11 +167,7 @@ describe("publication cache", () => {
     const republishedAt = new Date("2026-08-08T06:00:00.000Z");
     const transaction = {
       article: {
-        findUniqueOrThrow: vi.fn(async () => ({
-          id: "article-1",
-          slug: "lab-update",
-          publishedAt: existingPublishedAt,
-        })),
+        updateMany: vi.fn(async () => ({ count: 0 })),
         update: vi.fn(async () => ({
           id: "article-1",
           slug: "lab-update",
@@ -189,9 +188,13 @@ describe("publication cache", () => {
       republishedAt,
     );
 
+    expect(transaction.article.updateMany).toHaveBeenCalledWith({
+      where: { id: "article-1", publishedAt: null },
+      data: { publishedAt: republishedAt },
+    });
     expect(transaction.article.update).toHaveBeenCalledWith({
       where: { id: "article-1" },
-      data: { status: "PUBLISHED", publishedAt: existingPublishedAt },
+      data: { status: "PUBLISHED" },
       select: { id: true, slug: true, publishedAt: true },
     });
     expect(result).toEqual({
@@ -206,6 +209,60 @@ describe("publication cache", () => {
         }),
       }),
     });
+  });
+
+  it("concurrent first-publish attempts converge on the first guarded timestamp", async () => {
+    const firstTimestamp = new Date("2026-08-08T06:00:00.000Z");
+    const secondTimestamp = new Date("2026-08-08T06:00:01.000Z");
+    let storedPublishedAt: Date | null = null;
+    const transaction = {
+      article: {
+        updateMany: vi.fn(async ({ data }: { data: { publishedAt: Date } }) => {
+          if (storedPublishedAt === null) {
+            storedPublishedAt = data.publishedAt;
+            return { count: 1 };
+          }
+          return { count: 0 };
+        }),
+        update: vi.fn(async () => ({
+          id: "article-1",
+          slug: "lab-update",
+          publishedAt: storedPublishedAt,
+        })),
+      },
+      auditLog: { create: vi.fn(async () => ({ id: "audit-1" })) },
+    } as unknown as Prisma.TransactionClient;
+    const database = {
+      $transaction: vi.fn((callback: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+        callback(transaction),
+      ),
+    } as unknown as PrismaClient;
+    const repository = createContentRepository(database);
+
+    const [first, second] = await Promise.all([
+      repository.publishEntity(
+        { type: "article", id: "article-1" },
+        { id: "user-1" },
+        firstTimestamp,
+      ),
+      repository.publishEntity(
+        { type: "article", id: "article-1" },
+        { id: "user-2" },
+        secondTimestamp,
+      ),
+    ]);
+
+    expect(transaction.article.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: "article-1", publishedAt: null },
+      data: { publishedAt: firstTimestamp },
+    });
+    expect(transaction.article.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: "article-1", publishedAt: null },
+      data: { publishedAt: secondTimestamp },
+    });
+    expect(storedPublishedAt).toEqual(firstTimestamp);
+    expect(first.publishedAt).toEqual(firstTimestamp);
+    expect(second.publishedAt).toEqual(firstTimestamp);
   });
 
   it("invalidates only after the publication repository resolves", async () => {
