@@ -2,6 +2,10 @@ import type { PrismaClient, Prisma } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  createContentRepository,
+  type PublicationRepository,
+} from "@/features/content/repository";
+import {
   LegalReviewRequiredError,
   publishEntity,
 } from "@/features/publishing/actions";
@@ -12,33 +16,91 @@ import {
 import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
 
 describe("publication cache", () => {
-  it("invalidates exactly five localized detail paths and the entity tags", () => {
+  it.each([
+    {
+      type: "article" as const,
+      slug: "lab-update",
+      paths: [
+        "/en/news/lab-update",
+        "/zh-CN/news/lab-update",
+        "/de/news/lab-update",
+        "/fr/news/lab-update",
+        "/es/news/lab-update",
+      ],
+      tags: ["article:lab-update", "article:list", "page:home"],
+    },
+    {
+      type: "product" as const,
+      slug: "bpc-157",
+      paths: [
+        "/en/products/bpc-157",
+        "/zh-CN/products/bpc-157",
+        "/de/products/bpc-157",
+        "/fr/products/bpc-157",
+        "/es/products/bpc-157",
+      ],
+      tags: ["product:bpc-157", "product:list", "page:home"],
+    },
+    {
+      type: "page" as const,
+      slug: "about",
+      paths: [
+        "/en/about",
+        "/zh-CN/about",
+        "/de/about",
+        "/fr/about",
+        "/es/about",
+      ],
+      tags: ["page:about", "page:list", "page:home"],
+    },
+  ])("invalidates deterministic $type paths, entity tags, and the home tag", ({
+    type,
+    slug,
+    paths,
+    tags,
+  }) => {
     const revalidatePath = vi.fn();
     const revalidateTag = vi.fn();
 
-    invalidatePublishedEntity("article", "lab-update", SUPPORTED_LOCALES, {
+    invalidatePublishedEntity(type, slug, SUPPORTED_LOCALES, {
+      revalidatePath,
+      revalidateTag,
+    });
+
+    expect(revalidatePath.mock.calls).toEqual(paths.map((path) => [path]));
+    expect(revalidateTag.mock.calls).toEqual(tags.map((tag) => [tag, "max"]));
+  });
+
+  it("deduplicates localized paths and the page:home detail/home tag", () => {
+    const revalidatePath = vi.fn();
+    const revalidateTag = vi.fn();
+
+    invalidatePublishedEntity("page", "home", [...SUPPORTED_LOCALES, "en"], {
       revalidatePath,
       revalidateTag,
     });
 
     expect(revalidatePath.mock.calls).toEqual([
-      ["/en/news/lab-update"],
-      ["/zh-CN/news/lab-update"],
-      ["/de/news/lab-update"],
-      ["/fr/news/lab-update"],
-      ["/es/news/lab-update"],
+      ["/en"],
+      ["/zh-CN"],
+      ["/de"],
+      ["/fr"],
+      ["/es"],
     ]);
     expect(revalidateTag.mock.calls).toEqual([
-      ["article:lab-update", "max"],
-      ["article:list", "max"],
+      ["page:home", "max"],
+      ["page:list", "max"],
     ]);
+  });
+
+  it("keeps contentTags limited to entity detail and list tags", () => {
     expect(contentTags("product", "bpc-157")).toEqual([
       "product:bpc-157",
       "product:list",
     ]);
   });
 
-  it("commits publication and its audit record before invalidating", async () => {
+  it("repository commits publication and its audit record atomically", async () => {
     const events: string[] = [];
     const now = new Date("2026-08-08T06:00:00.000Z");
     const transaction = {
@@ -63,22 +125,16 @@ describe("publication cache", () => {
         return result;
       }),
     } as unknown as PrismaClient;
-    const invalidate = vi.fn(() => events.push("invalidate"));
+    const repository = createContentRepository(database);
 
-    const result = await publishEntity(
+    const result = await repository.publishEntity(
       { type: "article", id: "article-1" },
       { id: "user-1" },
-      { database, invalidate, now: () => now },
+      now,
     );
 
-    expect(result).toEqual({
-      id: "article-1",
-      slug: "lab-update",
-      type: "article",
-      status: "PUBLISHED",
-      publishedAt: "2026-08-08T06:00:00.000Z",
-    });
-    expect(events).toEqual(["update", "audit", "commit", "invalidate"]);
+    expect(result).toEqual({ id: "article-1", slug: "lab-update" });
+    expect(events).toEqual(["update", "audit", "commit"]);
     expect(transaction.auditLog.create).toHaveBeenCalledWith({
       data: {
         actorId: "user-1",
@@ -94,25 +150,52 @@ describe("publication cache", () => {
     });
   });
 
-  it("does not invalidate when the publication transaction fails", async () => {
-    const database = {
-      $transaction: vi.fn(async () => {
+  it("invalidates only after the publication repository resolves", async () => {
+    const events: string[] = [];
+    const now = new Date("2026-08-08T06:00:00.000Z");
+    const repository = {
+      publishEntity: vi.fn(async () => {
+        events.push("persist");
+        return { id: "article-1", slug: "lab-update" };
+      }),
+    } as PublicationRepository;
+    const invalidate = vi.fn(() => events.push("invalidate"));
+
+    const result = await publishEntity(
+      { type: "article", id: "article-1" },
+      { id: "user-1" },
+      { repository, invalidate, now: () => now },
+    );
+
+    expect(result).toEqual({
+      id: "article-1",
+      slug: "lab-update",
+      type: "article",
+      status: "PUBLISHED",
+      publishedAt: "2026-08-08T06:00:00.000Z",
+    });
+    expect(events).toEqual(["persist", "invalidate"]);
+  });
+
+  it("does not invalidate when the publication repository fails", async () => {
+    const repository = {
+      publishEntity: vi.fn(async () => {
         throw new Error("audit unavailable");
       }),
-    } as unknown as PrismaClient;
+    } as PublicationRepository;
     const invalidate = vi.fn();
 
     await expect(
       publishEntity(
         { type: "product", id: "product-1" },
         { id: "user-1" },
-        { database, invalidate, now: () => new Date() },
+        { repository, invalidate, now: () => new Date() },
       ),
     ).rejects.toThrow("audit unavailable");
     expect(invalidate).not.toHaveBeenCalled();
   });
 
-  it("surfaces an actionable error when a legal page is not approved", async () => {
+  it("repository surfaces an actionable error when a legal page is not approved", async () => {
     const transaction = {
       page: {
         findUniqueOrThrow: vi.fn(async () => ({
@@ -130,17 +213,16 @@ describe("publication cache", () => {
         callback(transaction),
       ),
     } as unknown as PrismaClient;
-    const invalidate = vi.fn();
+    const repository = createContentRepository(database);
 
     await expect(
-      publishEntity(
+      repository.publishEntity(
         { type: "page", id: "page-terms" },
         { id: "user-1" },
-        { database, invalidate, now: () => new Date() },
+        new Date(),
       ),
     ).rejects.toBeInstanceOf(LegalReviewRequiredError);
     expect(transaction.page.update).not.toHaveBeenCalled();
     expect(transaction.auditLog.create).not.toHaveBeenCalled();
-    expect(invalidate).not.toHaveBeenCalled();
   });
 });

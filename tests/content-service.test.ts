@@ -1,6 +1,10 @@
 import type { PrismaClient } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  createContentRepository,
+  type ContentRepository,
+} from "@/features/content/repository";
 import { createContentService } from "@/features/content/service";
 
 type PageQuery = {
@@ -90,10 +94,21 @@ function pageDatabase(row: ReturnType<typeof pageFixture> | null) {
   };
 }
 
+function pageRepository(row: ReturnType<typeof pageFixture> | null) {
+  const findPublishedPageBySlug = vi.fn(async (slug: string) =>
+    row?.slug === slug ? row : null,
+  );
+
+  return {
+    repository: { findPublishedPageBySlug } as unknown as ContentRepository,
+    findPublishedPageBySlug,
+  };
+}
+
 describe("content service", () => {
   it("returns the requested translation and serializable page sections", async () => {
-    const { client } = pageDatabase(pageFixture());
-    const service = createContentService(client);
+    const { repository } = pageRepository(pageFixture());
+    const service = createContentService(repository);
 
     const page = await service.getPageBySlug("de", "about");
 
@@ -126,8 +141,8 @@ describe("content service", () => {
   });
 
   it("falls back to English when the requested page translation is absent", async () => {
-    const { client } = pageDatabase(pageFixture());
-    const service = createContentService(client);
+    const { repository } = pageRepository(pageFixture());
+    const service = createContentService(repository);
 
     const page = await service.getPageBySlug("fr", "about");
 
@@ -140,11 +155,11 @@ describe("content service", () => {
     });
   });
 
-  it("never returns a draft page", async () => {
+  it("repository never returns a draft page", async () => {
     const { client } = pageDatabase(pageFixture("DRAFT"));
-    const service = createContentService(client);
+    const repository = createContentRepository(client);
 
-    await expect(service.getPageBySlug("de", "about")).resolves.toBeNull();
+    await expect(repository.findPublishedPageBySlug("about")).resolves.toBeNull();
   });
 
   it("maps the URL locale to the database locale explicitly", async () => {
@@ -158,8 +173,8 @@ describe("content service", () => {
       seoTitle: null,
       seoDescription: null,
     });
-    const { client } = pageDatabase(fixture);
-    const service = createContentService(client);
+    const { repository } = pageRepository(fixture);
+    const service = createContentService(repository);
 
     const page = await service.getPageBySlug("zh-CN", "about");
 
@@ -176,13 +191,13 @@ describe("content service", () => {
     ["de", "../draft"],
     ["de", "About"],
   ])("rejects invalid public lookup input (%s, %s)", async (locale, slug) => {
-    const { client, findFirst } = pageDatabase(pageFixture());
-    const service = createContentService(client);
+    const { repository, findPublishedPageBySlug } = pageRepository(pageFixture());
+    const service = createContentService(repository);
 
     await expect(service.getPageBySlug(locale, slug)).rejects.toThrow(
       /Invalid (locale|slug)/,
     );
-    expect(findFirst).not.toHaveBeenCalled();
+    expect(findPublishedPageBySlug).not.toHaveBeenCalled();
   });
 
   it("returns a published article while withholding a non-public cover", async () => {
@@ -220,14 +235,13 @@ describe("content service", () => {
         ],
       },
     };
-    const findFirst = vi.fn(async (query: PageQuery) =>
-      article.status === query.where.status && article.deletedAt === query.where.deletedAt
-        ? article
-        : null,
-    );
-    const client = { article: { findFirst } } as unknown as PrismaClient;
+    const repository = {
+      findPublishedArticleBySlug: vi.fn(async (slug: string) =>
+        slug === article.slug ? article : null,
+      ),
+    } as unknown as ContentRepository;
 
-    const result = await createContentService(client).getPublishedArticle("de", "lab-update");
+    const result = await createContentService(repository).getPublishedArticle("de", "lab-update");
 
     expect(result).toMatchObject({
       id: "article-1",
@@ -277,14 +291,13 @@ describe("content service", () => {
         },
       ],
     };
-    const findFirst = vi.fn(async (query: PageQuery) =>
-      product.status === query.where.status && product.deletedAt === query.where.deletedAt
-        ? product
-        : null,
-    );
-    const client = { product: { findFirst } } as unknown as PrismaClient;
+    const repository = {
+      findPublishedProductBySlug: vi.fn(async (slug: string) =>
+        slug === product.slug ? product : null,
+      ),
+    } as unknown as ContentRepository;
 
-    const result = await createContentService(client).getPublishedProduct("fr", "bpc-157");
+    const result = await createContentService(repository).getPublishedProduct("fr", "bpc-157");
 
     expect(result).toMatchObject({
       id: "product-1",

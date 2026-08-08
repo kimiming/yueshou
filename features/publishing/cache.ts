@@ -1,8 +1,9 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 
+import type { PublishedEntityType } from "@/features/content/types";
 import type { Locale } from "@/lib/i18n/config";
 
-export type PublishedEntityType = "page" | "article" | "product";
+export type { PublishedEntityType } from "@/features/content/types";
 
 type CacheInvalidation = {
   revalidatePath(path: string): void;
@@ -36,11 +37,13 @@ export function invalidatePublishedEntity(
   locales: readonly Locale[],
   cache: CacheInvalidation = defaultCacheInvalidation,
 ) {
-  for (const locale of locales) {
-    cache.revalidatePath(publishedPath(type, slug, locale));
+  const paths = new Set(locales.map((locale) => publishedPath(type, slug, locale)));
+  for (const path of paths) {
+    cache.revalidatePath(path);
   }
 
-  for (const tag of contentTags(type, slug)) {
+  const tags = new Set([...contentTags(type, slug), "page:home"]);
+  for (const tag of tags) {
     cache.revalidateTag(tag, "max");
   }
 }

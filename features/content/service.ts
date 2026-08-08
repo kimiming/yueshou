@@ -1,7 +1,5 @@
-import type { PrismaClient } from "@prisma/client";
-
 import {
-  createContentRepository,
+  contentRepository,
   type ContentRepository,
   type PublishedArticleRecord,
   type PublishedPageRecord,
@@ -14,7 +12,6 @@ import type {
   PageViewModel,
   ProductViewModel,
 } from "@/features/content/view-models";
-import { prisma } from "@/lib/db/prisma";
 import {
   fromDatabaseLocale,
   isLocale,
@@ -194,11 +191,11 @@ function serviceFromRepository(repository: ContentRepository) {
   };
 }
 
-export function createContentService(database: PrismaClient) {
-  return serviceFromRepository(createContentRepository(database));
+export function createContentService(repository: ContentRepository) {
+  return serviceFromRepository(repository);
 }
 
-const contentService = createContentService(prisma);
+const contentService = createContentService(contentRepository);
 
 export const getHomePage = contentService.getHomePage;
 export const getPageBySlug = contentService.getPageBySlug;
