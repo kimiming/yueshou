@@ -61,7 +61,7 @@ export interface MediaRepository {
     storageKey: string;
     deleteAfter: Date;
   }): Promise<void>;
-  archiveWithReferences?(input: { actorId: string; mediaAssetId: string; archivedAt: Date; deleteAfter: Date }): Promise<{ retained: boolean }>;
+  archiveWithReferences?(input: { actorId: string; mediaAssetId: string; archivedAt: Date; deleteAfter: Date }): Promise<{ retained: boolean; deleteAfter?: Date | null }>;
 }
 
 export class MediaDomainError extends Error {
@@ -231,7 +231,7 @@ export async function archiveMediaAsset(
   deleteAfter.setUTCDate(deleteAfter.getUTCDate() + 30);
   if (dependencies.repository.archiveWithReferences) {
     const result = await dependencies.repository.archiveWithReferences({ actorId: input.actor.id, mediaAssetId, archivedAt, deleteAfter });
-    return { archived: true, retained: result.retained, deleteAfter: result.retained ? null : deleteAfter };
+    return { archived: true, retained: result.retained, deleteAfter: result.retained ? null : result.deleteAfter ?? deleteAfter };
   }
   const media = await dependencies.repository.getMediaAsset(mediaAssetId);
   if (!media) throw new MediaAssetNotFoundError();

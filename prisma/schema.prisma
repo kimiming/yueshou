@@ -46,6 +46,7 @@ enum MediaVisibility {
 enum MediaDeletionJobStatus {
   PENDING
   PROCESSING
+  DELETING
   COMPLETED
   FAILED
 }

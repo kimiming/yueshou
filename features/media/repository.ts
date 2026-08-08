@@ -18,6 +18,11 @@ export const prismaMediaRepository: MediaRepository = {
     return prisma.$transaction(async (tx) => {
       const media = await tx.mediaAsset.findUnique({ where: { id: mediaAssetId }, select: { id: true } });
       if (!media) throw new Error("Media asset not found");
+      const existingJob = await tx.mediaDeletionJob.findUnique({ where: { mediaAssetId }, select: { status: true, deleteAfter: true } });
+      if (existingJob) {
+        await tx.auditLog.create({ data: { actorId, action: existingJob.status === "COMPLETED" ? "MEDIA_ARCHIVE_ALREADY_COMPLETED" : "MEDIA_ARCHIVE_ALREADY_QUEUED", entityType: "MediaAsset", entityId: mediaAssetId, metadata: { status: existingJob.status, deleteAfter: existingJob.deleteAfter.toISOString() } } });
+        return { retained: existingJob.status === "COMPLETED", deleteAfter: existingJob.status === "COMPLETED" ? null : existingJob.deleteAfter };
+      }
       const [products, articles, sections, settings] = await Promise.all([
         tx.product.count({ where: { media: { some: { id: mediaAssetId } } } }),
         tx.article.count({ where: { coverMediaId: mediaAssetId } }),
@@ -28,9 +33,9 @@ export const prismaMediaRepository: MediaRepository = {
       const settingCount = settings.filter((setting) => jsonContainsMediaId(setting.value, mediaAssetId)).length;
       const retained = products + articles + pages + settingCount > 0;
       await tx.mediaAsset.update({ where: { id: mediaAssetId }, data: { status: "ARCHIVED", deletedAt: archivedAt } });
-      if (!retained) await tx.mediaDeletionJob.upsert({ where: { mediaAssetId }, update: { deleteAfter, status: "PENDING", attempts: 0, leaseUntil: null, leaseToken: null, lastError: null, completedAt: null }, create: { mediaAssetId, storageKey: (await tx.mediaAsset.findUniqueOrThrow({ where: { id: mediaAssetId }, select: { storageKey: true } })).storageKey, deleteAfter } });
+      if (!retained) await tx.mediaDeletionJob.create({ data: { mediaAssetId, storageKey: (await tx.mediaAsset.findUniqueOrThrow({ where: { id: mediaAssetId }, select: { storageKey: true } })).storageKey, deleteAfter } });
       await tx.auditLog.create({ data: { actorId, action: retained ? "MEDIA_ARCHIVED_RETAINED" : "MEDIA_ARCHIVED_QUEUED", entityType: "MediaAsset", entityId: mediaAssetId, metadata: { retained, deleteAfter: retained ? null : deleteAfter.toISOString() } } });
-      return { retained };
+      return { retained, deleteAfter: retained ? null : deleteAfter };
     });
   },
   async createUploadIntent(input) {
@@ -105,11 +110,9 @@ export const prismaMediaRepository: MediaRepository = {
 
   async queueObjectDeletion(input) {
     await prisma.$transaction(async (tx) => {
-      await tx.mediaDeletionJob.upsert({
-        where: { mediaAssetId: input.mediaAssetId },
-        update: { storageKey: input.storageKey, deleteAfter: input.deleteAfter, status: "PENDING", attempts: 0, leaseUntil: null, leaseToken: null, lastError: null, completedAt: null },
-        create: { mediaAssetId: input.mediaAssetId, storageKey: input.storageKey, deleteAfter: input.deleteAfter },
-      });
+      const existing = await tx.mediaDeletionJob.findUnique({ where: { mediaAssetId: input.mediaAssetId }, select: { id: true } });
+      if (existing) return;
+      await tx.mediaDeletionJob.create({ data: { mediaAssetId: input.mediaAssetId, storageKey: input.storageKey, deleteAfter: input.deleteAfter } });
       await tx.auditLog.create({
         data: {
           actorId: input.actorId,
@@ -135,8 +138,8 @@ export const prismaMediaDeletionJobRepository: MediaDeletionJobRepository = {
   },
   async confirmDeletable(id, leaseToken) {
     return prisma.$transaction(async (tx) => {
-      const job = await tx.mediaDeletionJob.findFirst({ where: { id, status: "PROCESSING", leaseToken }, select: { mediaAssetId: true } });
-      if (!job) return false;
+      const job = await tx.mediaDeletionJob.findFirst({ where: { id, status: "PROCESSING", leaseToken }, select: { mediaAssetId: true, deleteAfter: true, leaseUntil: true } });
+      if (!job?.leaseUntil || job.leaseUntil <= new Date()) return null;
       const [products, articles, sections, settings] = await Promise.all([
         tx.product.count({ where: { media: { some: { id: job.mediaAssetId } } } }),
         tx.article.count({ where: { coverMediaId: job.mediaAssetId } }),
@@ -145,12 +148,14 @@ export const prismaMediaDeletionJobRepository: MediaDeletionJobRepository = {
       ]);
       const referenced = products + articles + sections.filter((section) => jsonContainsMediaId(section.config, job.mediaAssetId)).length + settings.filter((setting) => jsonContainsMediaId(setting.value, job.mediaAssetId)).length > 0;
       if (referenced) {
-        const cancelled = await tx.mediaDeletionJob.updateMany({ where: { id, status: "PROCESSING", leaseToken }, data: { status: "COMPLETED", completedAt: new Date(), leaseUntil: null, leaseToken: null, lastError: "Deletion cancelled because the asset was referenced again" } });
+        const cancelled = await tx.mediaDeletionJob.updateMany({ where: { id, status: "PROCESSING", leaseToken, deleteAfter: job.deleteAfter, leaseUntil: job.leaseUntil }, data: { status: "COMPLETED", completedAt: new Date(), leaseUntil: null, leaseToken: null, lastError: "Deletion cancelled because the asset was referenced again" } });
         if (cancelled.count === 1) await tx.auditLog.create({ data: { action: "MEDIA_DELETION_CANCELLED_REFERENCED", entityType: "MediaAsset", entityId: job.mediaAssetId, metadata: { jobId: id } } });
+        return null;
       }
-      return !referenced;
+      const authorized = await tx.mediaDeletionJob.updateMany({ where: { id, status: "PROCESSING", leaseToken, deleteAfter: job.deleteAfter, leaseUntil: job.leaseUntil }, data: { status: "DELETING" } });
+      return authorized.count === 1 ? { authorizationToken: leaseToken } : null;
     });
   },
-  async complete(id, leaseToken, completedAt) { await prisma.mediaDeletionJob.updateMany({ where: { id, status: "PROCESSING", leaseToken }, data: { status: "COMPLETED", completedAt, leaseUntil: null, leaseToken: null, lastError: null } }); },
-  async fail(id, leaseToken, message, failedAt) { await prisma.mediaDeletionJob.updateMany({ where: { id, status: "PROCESSING", leaseToken }, data: { status: "FAILED", lastError: message.slice(0, 1_000), leaseUntil: new Date(failedAt.getTime() + 60_000), leaseToken: null } }); },
+  async complete(id, leaseToken, completedAt) { await prisma.mediaDeletionJob.updateMany({ where: { id, status: "DELETING", leaseToken }, data: { status: "COMPLETED", completedAt, leaseUntil: null, leaseToken: null, lastError: null } }); },
+  async fail(id, leaseToken, message, failedAt) { await prisma.mediaDeletionJob.updateMany({ where: { id, status: "DELETING", leaseToken }, data: { status: "FAILED", lastError: message.slice(0, 1_000), leaseUntil: new Date(failedAt.getTime() + 60_000), leaseToken: null } }); },
 };

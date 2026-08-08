@@ -26,7 +26,7 @@ it("records a retryable failure when object deletion fails", async () => {
 it("does not delete an object when a newly-created reference revokes its lease", async () => {
   const repository = {
     claimDue: vi.fn(async () => ({ id: "job-1", storageKey: "media/2026/08/a.webp", attempts: 1, leaseToken: "lease-1" })),
-    confirmDeletable: vi.fn(async () => false),
+    confirmDeletable: vi.fn(async () => null),
     complete: vi.fn(async () => undefined),
     fail: vi.fn(async () => undefined),
   };
@@ -35,4 +35,17 @@ it("does not delete an object when a newly-created reference revokes its lease",
   await expect(processDueMediaDeletionJobs({ repository, storage })).resolves.toEqual({ processed: 0, failed: 0 });
   expect(storage.deleteObject).not.toHaveBeenCalled();
   expect(repository.complete).not.toHaveBeenCalled();
+});
+
+it("uses the irreversible deletion authorization rather than the rearrangeable claim lease", async () => {
+  const repository = {
+    claimDue: vi.fn(async () => ({ id: "job-1", storageKey: "media/2026/08/a.webp", attempts: 1, leaseToken: "claim-lease" })),
+    confirmDeletable: vi.fn(async () => ({ authorizationToken: "delete-authorization" })),
+    complete: vi.fn(async () => undefined),
+    fail: vi.fn(async () => undefined),
+  };
+  const storage = { deleteObject: vi.fn(async () => undefined) };
+
+  await expect(processDueMediaDeletionJobs({ repository, storage })).resolves.toEqual({ processed: 1, failed: 0 });
+  expect(repository.complete).toHaveBeenCalledWith("job-1", "delete-authorization", expect.any(Date));
 });
