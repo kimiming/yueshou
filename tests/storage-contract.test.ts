@@ -1,0 +1,87 @@
+import { DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
+import { describe, expect, it, vi } from "vitest";
+
+import { createS3Storage, type S3StorageBackend } from "@/lib/storage/s3-storage";
+
+const fixtures: Array<{ backend: S3StorageBackend; forcePathStyle: boolean }> = [
+  { backend: "r2", forcePathStyle: false },
+  { backend: "minio", forcePathStyle: true },
+];
+
+describe.each(fixtures)("$backend object storage contract", ({ backend, forcePathStyle }) => {
+  it("configures addressing for the backend without exposing credentials", async () => {
+    const observed: { client?: S3Client; command?: PutObjectCommand } = {};
+    const presign = vi.fn(async (client: S3Client, command: PutObjectCommand) => {
+      observed.client = client;
+      observed.command = command;
+      return "https://uploads.example.test/signed";
+    });
+    const storage = createS3Storage(
+      {
+        backend,
+        endpoint: "https://objects.example.test",
+        region: "auto",
+        bucket: "media",
+        accessKeyId: "access-secret",
+        secretAccessKey: "credential-secret",
+      },
+      { presign },
+    );
+
+    const result = await storage.presignUpload({
+      key: "media/2026/08/id.webp",
+      contentType: "image/webp",
+      contentLength: 100,
+    });
+
+    expect(result).toEqual({
+      url: "https://uploads.example.test/signed",
+      method: "PUT",
+      headers: { "content-type": "image/webp" },
+    });
+    expect(observed.client?.config.forcePathStyle).toBe(forcePathStyle);
+    expect(JSON.stringify(result)).not.toContain("secret");
+    expect(observed.command).toBeInstanceOf(PutObjectCommand);
+    expect(observed.command?.input).toMatchObject({
+      Bucket: "media",
+      Key: "media/2026/08/id.webp",
+      ContentType: "image/webp",
+      ContentLength: 100,
+    });
+  });
+
+  it("reads normalized metadata and deletes through the configured bucket", async () => {
+    const commands: unknown[] = [];
+    const client = {
+      send: vi.fn(async (command: unknown) => {
+        commands.push(command);
+        if (command instanceof HeadObjectCommand) {
+          return { ContentType: "image/avif", ContentLength: 321, ETag: '"etag-value"' };
+        }
+        return {};
+      }),
+    };
+    const storage = createS3Storage(
+      {
+        backend,
+        endpoint: "https://objects.example.test",
+        region: "auto",
+        bucket: "media",
+        accessKeyId: "access-secret",
+        secretAccessKey: "credential-secret",
+      },
+      { client },
+    );
+
+    await expect(storage.headObject("media/2026/08/id.avif")).resolves.toEqual({
+      contentType: "image/avif",
+      contentLength: 321,
+      etag: '"etag-value"',
+    });
+    await expect(storage.deleteObject("media/2026/08/id.avif")).resolves.toBeUndefined();
+    expect(commands[0]).toBeInstanceOf(HeadObjectCommand);
+    expect((commands[0] as HeadObjectCommand).input).toEqual({ Bucket: "media", Key: "media/2026/08/id.avif" });
+    expect(commands[1]).toBeInstanceOf(DeleteObjectCommand);
+    expect((commands[1] as DeleteObjectCommand).input).toEqual({ Bucket: "media", Key: "media/2026/08/id.avif" });
+  });
+});
