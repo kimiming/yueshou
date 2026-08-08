@@ -1,0 +1,18 @@
+{
+  "site": {
+    "name": "YueShou",
+    "slogan": "面向全球科学研究的精准多肽合成"
+  },
+  "navigation": {
+    "home": "首页",
+    "about": "关于我们",
+    "services": "服务",
+    "products": "产品",
+    "quality": "质量",
+    "contact": "联系我们"
+  },
+  "actions": {
+    "requestQuote": "询价",
+    "learnMore": "了解更多"
+  }
+}

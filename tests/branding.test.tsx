@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import Home from "@/app/page";
-import { metadata } from "@/app/layout";
+import Home from "@/app/[locale]/page";
+import { metadata } from "@/app/[locale]/layout";
 
 describe("YueShou branding", () => {
   it("uses the required Chinese brand name in root metadata", () => {

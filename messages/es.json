@@ -1,0 +1,18 @@
+{
+  "site": {
+    "name": "YueShou",
+    "slogan": "Síntesis precisa de péptidos para la investigación científica mundial"
+  },
+  "navigation": {
+    "home": "Inicio",
+    "about": "Acerca de",
+    "services": "Servicios",
+    "products": "Productos",
+    "quality": "Calidad",
+    "contact": "Contacto"
+  },
+  "actions": {
+    "requestQuote": "Solicitar un presupuesto",
+    "learnMore": "Más información"
+  }
+}

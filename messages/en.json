@@ -1,0 +1,18 @@
+{
+  "site": {
+    "name": "YueShou",
+    "slogan": "Precision Peptide Synthesis for Global Scientific Research"
+  },
+  "navigation": {
+    "home": "Home",
+    "about": "About",
+    "services": "Services",
+    "products": "Products",
+    "quality": "Quality",
+    "contact": "Contact"
+  },
+  "actions": {
+    "requestQuote": "Request a Quote",
+    "learnMore": "Learn More"
+  }
+}
