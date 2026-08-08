@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { createAdminEditorService } from "@/features/admin/editors";
 import { prismaAdminEditorRepository } from "@/features/admin/repository";
-import { invalidatePublishedEntity } from "@/features/publishing/cache";
+import { invalidateMarketingShell, invalidatePublishedEntity } from "@/features/publishing/cache";
 import { requireUser } from "@/lib/auth/permissions";
 import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
 
@@ -26,6 +26,6 @@ export async function saveSiteSettingAction(input: unknown) {
   const actor = await requireUser();
   const result = await editorService().saveSiteSetting({ ...(payload(input) as object), actor });
   revalidatePath("/admin/settings");
-  for (const locale of SUPPORTED_LOCALES) revalidatePath(`/${locale}`);
+  invalidateMarketingShell(SUPPORTED_LOCALES);
   void result;
 }

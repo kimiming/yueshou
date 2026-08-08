@@ -400,6 +400,9 @@ function serviceFromRepository(repository: ContentRepository) {
 
       const settingTranslation = localized(setting.translations, locale);
       const contact = marketingShellValueSchema.parse(setting.value ?? {});
+      const brandingMediaIds = unique([contact.logoMediaId, contact.faviconMediaId]);
+      const brandingMedia = brandingMediaIds.length ? await repository.findPublishedMediaByIds(brandingMediaIds) : [];
+      const mediaById = new Map(brandingMedia.map((item) => [item.id, item]));
       const flatNavigation = navigationRecords
         .map((item) => {
           const translation = resolveTranslation(item.translations, toDatabaseLocale(locale));
@@ -423,6 +426,13 @@ function serviceFromRepository(repository: ContentRepository) {
         translationLocale: settingTranslation.translationLocale,
         usedFallback: settingTranslation.usedFallback,
         summary: settingTranslation.body,
+        brandName: settingTranslation.title,
+        slogan: contact.slogan ?? settingTranslation.body,
+        logo: contact.logoMediaId && mediaById.get(contact.logoMediaId) ? mapMedia(mediaById.get(contact.logoMediaId)!, locale) : null,
+        favicon: contact.faviconMediaId && mediaById.get(contact.faviconMediaId) ? mapMedia(mediaById.get(contact.faviconMediaId)!, locale) : null,
+        socialLinks: contact.socialLinks,
+        defaultSeo: contact.defaultSeo,
+        footerColumns: contact.footerColumns,
         contact,
         navigation,
       };

@@ -383,6 +383,7 @@ model MediaDeletionJob {
   status       MediaDeletionJobStatus @default(PENDING)
   deleteAfter  DateTime
   attempts     Int                    @default(0)
+  leaseUntil   DateTime?
   lastError    String?
   completedAt  DateTime?
   createdAt    DateTime               @default(now())

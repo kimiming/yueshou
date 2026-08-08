@@ -81,6 +81,7 @@ export type MarketingNavigationViewModel = {
   href: string;
   sortOrder: number;
   enabled: true;
+  children?: MarketingNavigationViewModel[];
 };
 
 export type MarketingShellContentViewModel = {
@@ -88,6 +89,13 @@ export type MarketingShellContentViewModel = {
   translationLocale: Locale;
   usedFallback: boolean;
   summary: string;
+  brandName?: string;
+  slogan?: string;
+  logo?: MediaViewModel | null;
+  favicon?: MediaViewModel | null;
+  socialLinks?: Array<{ label: string; href: string }>;
+  defaultSeo?: { title: string; description: string; keywords: string[] };
+  footerColumns?: Array<{ heading: string; links: Array<{ label: string; href: string }> }>;
   contact: {
     email?: string;
     phone?: string;

@@ -105,4 +105,33 @@ describe("site settings and navigation editors", () => {
     })).rejects.toBeInstanceOf(EditorConflictError);
     expect(repo.createAuditLog).not.toHaveBeenCalled();
   });
+
+  it("passes reorder audit data to transactional repositories", async () => {
+    const repo = repository({ auditsMutations: true });
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+
+    await service.reorderNavigation({ actor: editor, orderedIds: ["nav-1", "nav-2"] });
+
+    expect(repo.reorderNavigation).toHaveBeenCalledWith({
+      orderedIds: ["nav-1", "nav-2"],
+      audit: expect.objectContaining({ actorId: editor.id, action: "NAVIGATION_REORDERED", entityType: "NavigationItem" }),
+    });
+    expect(repo.createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it("rejects unavailable brand media before persisting the setting", async () => {
+    const repo = repository({
+      validateBrandMedia: vi.fn(async () => false),
+    });
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+
+    await expect(service.saveSiteSetting({
+      actor: admin,
+      key: "brand",
+      version: null,
+      value: { logoMediaId: "cm00000000000000000000001" },
+      translations: [{ locale: "en", title: "YueShou", body: "Precision peptides" }],
+    })).rejects.toBeInstanceOf(EditorValidationError);
+    expect(repo.saveSiteSetting).not.toHaveBeenCalled();
+  });
 });

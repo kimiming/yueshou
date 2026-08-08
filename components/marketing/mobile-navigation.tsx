@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -17,6 +17,19 @@ type MobileNavigationProps = {
 export function MobileNavigation({ label, items, menuLabel, closeLabel }: MobileNavigationProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
+  const links = (entries: MarketingLinkViewModel[]): ReactNode => (
+    <ul>
+      {entries
+        .filter((item) => item.enabled)
+        .toSorted((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id))
+        .map((item) => (
+          <li key={item.id}>
+            <Link href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>
+            {item.children?.length ? links(item.children) : null}
+          </li>
+        ))}
+    </ul>
+  );
 
   return (
     <div className="mobile-navigation">
@@ -32,13 +45,7 @@ export function MobileNavigation({ label, items, menuLabel, closeLabel }: Mobile
       </button>
       {open ? (
         <nav id={menuId} className="mobile-navigation__panel" aria-label={label}>
-          <ul>
-            {items.map((item) => (
-              <li key={item.id}>
-                <Link href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>
-              </li>
-            ))}
-          </ul>
+          {links(items)}
         </nav>
       ) : null}
     </div>

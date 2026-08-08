@@ -2,20 +2,22 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PageViewModel } from "@/features/content/view-models";
 
-const { getHomePage } = vi.hoisted(() => ({
+const { getHomePage, getMarketingShell } = vi.hoisted(() => ({
   getHomePage: vi.fn<(locale: string) => Promise<PageViewModel | null>>(),
+  getMarketingShell: vi.fn(),
 }));
 
-vi.mock("@/features/content/service", () => ({ getHomePage }));
+vi.mock("@/features/content/service", () => ({ getHomePage, getMarketingShell }));
 
 import Home from "@/app/[locale]/(marketing)/page";
-import { metadata } from "@/app/[locale]/layout";
+import { generateMetadata } from "@/app/[locale]/layout";
 
 describe("YueShou branding", () => {
   afterEach(cleanup);
 
-  it("uses the required Chinese brand name in root metadata", () => {
-    expect(metadata.title).toBe("粤首");
+  it("uses the required Chinese brand name in root metadata", async () => {
+    getMarketingShell.mockResolvedValueOnce(null);
+    await expect(generateMetadata({ params: Promise.resolve({ locale: "en" }) })).resolves.toMatchObject({ title: "粤首" });
   });
 
   it("does not render starter platform trademarks on the public home page", async () => {

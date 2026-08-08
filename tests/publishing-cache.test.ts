@@ -11,6 +11,7 @@ import {
 } from "@/features/publishing/actions";
 import {
   contentTags,
+  invalidateMarketingShell,
   invalidatePublishedEntity,
 } from "@/features/publishing/cache";
 import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
@@ -98,6 +99,16 @@ describe("publication cache", () => {
       "product:bpc-157",
       "product:list",
     ]);
+  });
+
+  it("invalidates every locale marketing layout and global shell tags", () => {
+    const revalidatePath = vi.fn();
+    const revalidateTag = vi.fn();
+
+    invalidateMarketingShell(SUPPORTED_LOCALES, { revalidatePath, revalidateTag });
+
+    expect(revalidatePath.mock.calls).toEqual(SUPPORTED_LOCALES.map((locale) => [`/${locale}`, "layout"]));
+    expect(revalidateTag.mock.calls).toEqual([["site:global", "max"], ["media:global", "max"]]);
   });
 
   it("repository commits publication and its audit record atomically", async () => {

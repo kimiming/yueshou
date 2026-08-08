@@ -168,7 +168,6 @@ describe("homepage content hydration", () => {
     }));
     expect(navigationFindMany).toHaveBeenCalledWith(expect.objectContaining({
       where: {
-        parentId: null,
         isVisible: true,
         status: "PUBLISHED",
         deletedAt: null,
@@ -296,6 +295,38 @@ describe("homepage content hydration", () => {
         { id: "nav-one", label: "Über uns", href: "/about", sortOrder: 10 },
         { id: "nav-two", label: "Services", href: "/services", sortOrder: 20 },
       ],
+    });
+  });
+
+  it("hydrates published branding assets and configurable footer content", async () => {
+    const repository = {
+      findPublishedSiteSettingByKey: vi.fn(async () => ({
+        id: "brand-setting",
+        key: "brand",
+        value: {
+          logoMediaId: ids.heroMedia,
+          faviconMediaId: ids.aboutMedia,
+          slogan: "Configured peptide research slogan",
+          socialLinks: [{ label: "LinkedIn", href: "https://www.linkedin.com/company/yueshou" }],
+          defaultSeo: { title: "YueShou peptides", description: "Custom peptide synthesis", keywords: ["peptide"] },
+          footerColumns: [{ heading: "Resources", links: [{ label: "Quality", href: "/quality" }] }],
+        },
+        translations: translation("YueShou", "Company summary"),
+      })),
+      findPublishedNavigationItems: vi.fn(async () => []),
+      findPublishedMediaByIds: vi.fn(async () => [media(ids.heroMedia, "Logo"), media(ids.aboutMedia, "Favicon")]),
+    } as unknown as ContentRepository;
+
+    const shell = await createContentService(repository).getMarketingShell("en");
+
+    expect(repository.findPublishedMediaByIds).toHaveBeenCalledWith([ids.heroMedia, ids.aboutMedia]);
+    expect(shell).toMatchObject({
+      slogan: "Configured peptide research slogan",
+      logo: { id: ids.heroMedia, storageKey: `public/${ids.heroMedia}.webp` },
+      favicon: { id: ids.aboutMedia, storageKey: `public/${ids.aboutMedia}.webp` },
+      socialLinks: [{ label: "LinkedIn", href: "https://www.linkedin.com/company/yueshou" }],
+      defaultSeo: { title: "YueShou peptides", keywords: ["peptide"] },
+      footerColumns: [{ heading: "Resources", links: [{ label: "Quality", href: "/quality" }] }],
     });
   });
 });

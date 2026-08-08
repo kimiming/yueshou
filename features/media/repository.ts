@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 
 import type { MediaReferences, MediaRepository } from "./service";
+import type { MediaDeletionJobRepository } from "./deletion-worker";
 
 function jsonContainsMediaId(value: unknown, mediaId: string): boolean {
   if (value === mediaId) return true;
@@ -12,6 +13,25 @@ function jsonContainsMediaId(value: unknown, mediaId: string): boolean {
 }
 
 export const prismaMediaRepository: MediaRepository = {
+  async archiveWithReferences({ actorId, mediaAssetId, archivedAt, deleteAfter }) {
+    return prisma.$transaction(async (tx) => {
+      const media = await tx.mediaAsset.findUnique({ where: { id: mediaAssetId }, select: { id: true } });
+      if (!media) throw new Error("Media asset not found");
+      const [products, articles, sections, settings] = await Promise.all([
+        tx.product.count({ where: { media: { some: { id: mediaAssetId } } } }),
+        tx.article.count({ where: { coverMediaId: mediaAssetId } }),
+        tx.pageSection.findMany({ where: { deletedAt: null }, select: { pageId: true, config: true } }),
+        tx.siteSetting.findMany({ where: { deletedAt: null }, select: { value: true } }),
+      ]);
+      const pages = new Set(sections.filter((section) => jsonContainsMediaId(section.config, mediaAssetId)).map((section) => section.pageId)).size;
+      const settingCount = settings.filter((setting) => jsonContainsMediaId(setting.value, mediaAssetId)).length;
+      const retained = products + articles + pages + settingCount > 0;
+      await tx.mediaAsset.update({ where: { id: mediaAssetId }, data: { status: "ARCHIVED", deletedAt: archivedAt } });
+      if (!retained) await tx.mediaDeletionJob.upsert({ where: { mediaAssetId }, update: { deleteAfter, status: "PENDING", attempts: 0, leaseUntil: null, lastError: null, completedAt: null }, create: { mediaAssetId, storageKey: (await tx.mediaAsset.findUniqueOrThrow({ where: { id: mediaAssetId }, select: { storageKey: true } })).storageKey, deleteAfter } });
+      await tx.auditLog.create({ data: { actorId, action: retained ? "MEDIA_ARCHIVED_RETAINED" : "MEDIA_ARCHIVED_QUEUED", entityType: "MediaAsset", entityId: mediaAssetId, metadata: { retained, deleteAfter: retained ? null : deleteAfter.toISOString() } } });
+      return { retained };
+    });
+  },
   async createUploadIntent(input) {
     return prisma.mediaUploadIntent.create({ data: input });
   },
@@ -86,7 +106,7 @@ export const prismaMediaRepository: MediaRepository = {
     await prisma.$transaction(async (tx) => {
       await tx.mediaDeletionJob.upsert({
         where: { mediaAssetId: input.mediaAssetId },
-        update: { storageKey: input.storageKey, deleteAfter: input.deleteAfter, status: "PENDING", lastError: null },
+        update: { storageKey: input.storageKey, deleteAfter: input.deleteAfter, status: "PENDING", attempts: 0, leaseUntil: null, lastError: null, completedAt: null },
         create: { mediaAssetId: input.mediaAssetId, storageKey: input.storageKey, deleteAfter: input.deleteAfter },
       });
       await tx.auditLog.create({
@@ -100,4 +120,17 @@ export const prismaMediaRepository: MediaRepository = {
       });
     });
   },
+};
+
+export const prismaMediaDeletionJobRepository: MediaDeletionJobRepository = {
+  async claimDue(now) {
+    return prisma.$transaction(async (tx) => {
+      const job = await tx.mediaDeletionJob.findFirst({ where: { deleteAfter: { lte: now }, OR: [{ status: { in: ["PENDING", "FAILED"] } }, { status: "PROCESSING", leaseUntil: { lt: now } }] }, orderBy: { deleteAfter: "asc" } });
+      if (!job) return null;
+      const claimed = await tx.mediaDeletionJob.updateMany({ where: { id: job.id, OR: [{ status: { in: ["PENDING", "FAILED"] } }, { status: "PROCESSING", leaseUntil: { lt: now } }] }, data: { status: "PROCESSING", attempts: { increment: 1 }, leaseUntil: new Date(now.getTime() + 5 * 60_000) } });
+      return claimed.count === 1 ? { id: job.id, storageKey: job.storageKey, attempts: job.attempts + 1 } : null;
+    });
+  },
+  async complete(id, completedAt) { await prisma.mediaDeletionJob.update({ where: { id }, data: { status: "COMPLETED", completedAt, leaseUntil: null, lastError: null } }); },
+  async fail(id, message, failedAt) { await prisma.mediaDeletionJob.update({ where: { id }, data: { status: "FAILED", lastError: message.slice(0, 1_000), leaseUntil: new Date(failedAt.getTime() + 60_000) } }); },
 };

@@ -61,6 +61,7 @@ export interface MediaRepository {
     storageKey: string;
     deleteAfter: Date;
   }): Promise<void>;
+  archiveWithReferences?(input: { actorId: string; mediaAssetId: string; archivedAt: Date; deleteAfter: Date }): Promise<{ retained: boolean }>;
 }
 
 export class MediaDomainError extends Error {
@@ -225,18 +226,22 @@ export async function archiveMediaAsset(
 ) {
   requireAdmin(input.actor);
   const { mediaAssetId } = archiveInputSchema.parse(input);
+  const archivedAt = dependencies.now?.() ?? new Date();
+  const deleteAfter = new Date(archivedAt);
+  deleteAfter.setUTCDate(deleteAfter.getUTCDate() + 30);
+  if (dependencies.repository.archiveWithReferences) {
+    const result = await dependencies.repository.archiveWithReferences({ actorId: input.actor.id, mediaAssetId, archivedAt, deleteAfter });
+    return { archived: true, retained: result.retained, deleteAfter: result.retained ? null : deleteAfter };
+  }
   const media = await dependencies.repository.getMediaAsset(mediaAssetId);
   if (!media) throw new MediaAssetNotFoundError();
 
   const references = await dependencies.repository.countReferences(mediaAssetId);
-  const archivedAt = dependencies.now?.() ?? new Date();
   await dependencies.repository.archiveMediaAsset(mediaAssetId, archivedAt);
 
   const retained = Object.values(references).some((count) => count > 0);
   if (retained) return { archived: true, retained: true, deleteAfter: null };
 
-  const deleteAfter = new Date(archivedAt);
-  deleteAfter.setUTCDate(deleteAfter.getUTCDate() + 30);
   await dependencies.repository.queueObjectDeletion({
     actorId: input.actor.id,
     mediaAssetId,

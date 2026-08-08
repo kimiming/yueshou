@@ -6,7 +6,8 @@ import { prisma } from "@/lib/db/prisma";
 import { toDatabaseLocale } from "@/lib/i18n/config";
 
 import type { AdminDashboardRepository } from "./dashboard";
-import type { AdminEditorRepository } from "./editors";
+import { EditorValidationError, type AdminEditorRepository } from "./editors";
+import { validatePagePublication } from "./publication";
 
 const requiredLocales = new Set(["en", "zh_CN", "de", "fr", "es"]);
 
@@ -66,6 +67,46 @@ async function writeAudit(tx: Prisma.TransactionClient, audit: { actorId: string
   await tx.auditLog.create({ data: { actorId: audit.actorId, action: audit.action, entityType: audit.entityType, entityId: audit.entityId ?? entityId, metadata: audit.metadata ? asJson(audit.metadata) : undefined } });
 }
 
+function publicationRecord(page: { translations: Array<{ locale: string; title: string; body: string }>; sections: Array<{ id: string; isEnabled: boolean; type: string; config: unknown; translations: Array<{ locale: string; title: string; body: string }> }> }): {
+  translations: Array<{ locale: "en" | "zh-CN" | "de" | "fr" | "es"; title: string; body: string }>;
+  sections: Array<{ id: string; isEnabled: boolean; type: string; config: unknown; translations: Array<{ locale: "en" | "zh-CN" | "de" | "fr" | "es"; title: string; body: string }> }>;
+} {
+  const locale = (value: string) => value === "zh_CN" ? "zh-CN" : value as "en" | "de" | "fr" | "es";
+  const type = (value: string) => value.toLowerCase().replaceAll("_", "-");
+  return { translations: page.translations.map((item) => ({ ...item, locale: locale(item.locale) })), sections: page.sections.map((section) => ({ ...section, type: type(section.type), config: section.config, translations: section.translations.map((item) => ({ ...item, locale: locale(item.locale) })) })) };
+}
+
+async function assertNavigationParent(tx: Prisma.TransactionClient, id: string | undefined, parentId: string | null) {
+  if (!parentId) return;
+  if (id === parentId) throw new EditorValidationError("A navigation item cannot be its own parent");
+  let candidate: string | null = parentId;
+  for (let depth = 0; candidate && depth < 100; depth += 1) {
+    if (candidate === id) throw new EditorValidationError("A navigation item cannot be moved below one of its descendants");
+    const current: { parentId: string | null; deletedAt: Date | null } | null = await tx.navigationItem.findUnique({ where: { id: candidate }, select: { parentId: true, deletedAt: true } });
+    if (!current || current.deletedAt) throw new EditorValidationError("The navigation parent no longer exists");
+    candidate = current.parentId;
+  }
+  if (candidate) throw new EditorValidationError("Navigation hierarchy exceeds the supported depth");
+}
+
+function hasEnglishTranslation(translations: Array<{ locale: string; title: string; body?: string }>) {
+  return translations.some((translation) => translation.locale === "en" && translation.title.trim() && (translation.body === undefined || translation.body.trim()));
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+}
+
+function brandMediaIds(value: Record<string, unknown>) {
+  return [...new Set([value.logoMediaId, value.faviconMediaId].filter((id): id is string => typeof id === "string"))];
+}
+
+async function assertUsableBrandMedia(tx: Prisma.TransactionClient, mediaIds: string[]) {
+  if (!mediaIds.length) return;
+  const count = await tx.mediaAsset.count({ where: { id: { in: mediaIds }, status: "PUBLISHED", visibility: "PUBLIC", deletedAt: null } });
+  if (count !== mediaIds.length) throw new EditorValidationError("Brand media must be published, public, and available");
+}
+
 async function replaceTranslations(
   tx: Prisma.TransactionClient,
   entity: "siteSetting" | "navigationItem" | "page" | "pageSection" | "mediaAsset",
@@ -92,8 +133,15 @@ async function replaceTranslations(
 
 export const prismaAdminEditorRepository: AdminEditorRepository = {
   auditsMutations: true,
+  validatesPublicationAtomically: true,
+  async validateBrandMedia(mediaIds) {
+    const uniqueIds = [...new Set(mediaIds)];
+    const count = await prisma.mediaAsset.count({ where: { id: { in: uniqueIds }, status: "PUBLISHED", visibility: "PUBLIC", deletedAt: null } });
+    return count === uniqueIds.length;
+  },
   async saveSiteSetting(input) {
     return prisma.$transaction(async (tx) => {
+      await assertUsableBrandMedia(tx, brandMediaIds(input.value));
       if (input.version === null) {
         try {
           const created = await tx.siteSetting.create({ data: { key: input.key, value: asJson(input.value), status: input.status } });
@@ -114,11 +162,15 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       await replaceTranslations(tx, "siteSetting", record.id, input.translations);
       await writeAudit(tx, input.audit, record.id);
       return { id: record.id, version: version(record.updatedAt) };
+    }, { isolationLevel: "Serializable" }).catch((error) => {
+      if (isUniqueConstraintError(error)) return null;
+      throw error;
     });
   },
 
   async saveNavigationItem(input) {
     return prisma.$transaction(async (tx) => {
+      await assertNavigationParent(tx, input.id, input.parentId);
       if (!input.id) {
         try {
           const created = await tx.navigationItem.create({ data: { slug: input.slug, href: input.href, parentId: input.parentId, position: input.position, isVisible: input.isVisible, status: input.status, publishedAt: input.status === "PUBLISHED" ? new Date() : null } });
@@ -139,6 +191,9 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       await replaceTranslations(tx, "navigationItem", record.id, input.translations);
       await writeAudit(tx, input.audit, record.id);
       return { id: record.id, version: version(record.updatedAt) };
+    }, { isolationLevel: "Serializable" }).catch((error) => {
+      if (isUniqueConstraintError(error)) return null;
+      throw error;
     });
   },
 
@@ -152,11 +207,14 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
     return Boolean(candidate);
   },
 
-  async reorderNavigation({ orderedIds }) {
+  async reorderNavigation({ orderedIds, audit }) {
     await prisma.$transaction(async (tx) => {
+      const records = await tx.navigationItem.findMany({ where: { id: { in: orderedIds }, deletedAt: null }, select: { id: true } });
+      if (records.length !== orderedIds.length) throw new EditorValidationError("Navigation collection changed; reload and try again");
       await tx.navigationItem.updateMany({ where: { id: { in: orderedIds } }, data: { position: { increment: 1_000_000 } } });
       await Promise.all(orderedIds.map((id, position) => tx.navigationItem.update({ where: { id }, data: { position } })));
-    });
+      await writeAudit(tx, audit, "navigation");
+    }, { isolationLevel: "Serializable" });
   },
 
   async getPageTranslations(pageId) {
@@ -172,9 +230,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
   async getPageForPublication(pageId) {
     const page = await prisma.page.findUnique({ where: { id: pageId }, select: { translations: { select: { locale: true, title: true, body: true } }, sections: { where: { deletedAt: null }, select: { id: true, isEnabled: true, type: true, config: true, translations: { select: { locale: true, title: true, body: true } } } } } });
     if (!page) return null;
-    const locale = (value: string) => value === "zh_CN" ? "zh-CN" : value as "en" | "de" | "fr" | "es";
-    const type = (value: string) => value.toLowerCase().replaceAll("_", "-");
-    return { translations: page.translations.map((item) => ({ ...item, locale: locale(item.locale) })), sections: page.sections.map((section) => ({ ...section, type: type(section.type), config: section.config, translations: section.translations.map((item) => ({ ...item, locale: locale(item.locale) })) })) };
+    return publicationRecord(page);
   },
 
   async savePage(input) {
@@ -196,11 +252,36 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       await replaceTranslations(tx, "page", record.id, input.translations);
       await writeAudit(tx, input.audit, record.id);
       return { id: record.id, slug: record.slug, version: version(record.updatedAt) };
+    }, { isolationLevel: "Serializable" }).catch((error) => {
+      if (isUniqueConstraintError(error)) return null;
+      throw error;
     });
+  },
+
+  async savePageAndChangeStatus(input) {
+    const now = new Date();
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.page.updateMany({ where: { id: input.id!, updatedAt: new Date(input.version!), deletedAt: null }, data: { slug: input.slug } });
+      if (updated.count !== 1) return null;
+      const current = await tx.page.findUniqueOrThrow({ where: { id: input.id! }, select: { id: true, slug: true, updatedAt: true, translations: { select: { locale: true, title: true, body: true } }, sections: { where: { deletedAt: null }, select: { id: true, isEnabled: true, type: true, config: true, translations: { select: { locale: true, title: true, body: true } } } } } });
+      await replaceTranslations(tx, "page", current.id, input.translations);
+      const publication = await tx.page.findUniqueOrThrow({ where: { id: current.id }, select: { translations: { select: { locale: true, title: true, body: true } }, sections: { where: { deletedAt: null }, select: { id: true, isEnabled: true, type: true, config: true, translations: { select: { locale: true, title: true, body: true } } } } } });
+      if (input.status === "PUBLISHED") validatePagePublication(publicationRecord(publication));
+      const page = await tx.page.update({ where: { id: current.id }, data: { status: input.status, publishedAt: input.status === "PUBLISHED" ? now : null }, select: { id: true, slug: true, publishedAt: true, updatedAt: true } });
+      if (input.status === "PUBLISHED") await tx.pageSection.updateMany({ where: { pageId: page.id, deletedAt: null, isEnabled: true }, data: { status: "PUBLISHED", publishedAt: now } });
+      await writeAudit(tx, input.audit, page.id);
+      await writeAudit(tx, input.statusAudit, page.id);
+      return { id: page.id, slug: page.slug, publishedAt: page.publishedAt, version: version(page.updatedAt) };
+    }, { isolationLevel: "Serializable" }).catch((error) => { if (isUniqueConstraintError(error)) return null; throw error; });
   },
 
   async savePageSection(input) {
     return prisma.$transaction(async (tx) => {
+      const page = await tx.page.findUnique({ where: { id: input.pageId }, select: { status: true, deletedAt: true } });
+      if (!page || page.deletedAt) return null;
+      if (page.status === "PUBLISHED" && input.isEnabled && !hasEnglishTranslation(input.translations)) {
+        throw new EditorValidationError("English translation is required before enabling a published page section");
+      }
       const data = { pageId: input.pageId, type: sectionTypeByEditorType[input.section.type], config: asJson(input.section.config), position: input.position, isEnabled: input.isEnabled };
       if (!input.id) {
         const created = await tx.pageSection.create({ data });
@@ -214,26 +295,35 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       await replaceTranslations(tx, "pageSection", record.id, input.translations);
       await writeAudit(tx, input.audit, record.id);
       return { id: record.id, version: version(record.updatedAt) };
+    }, { isolationLevel: "Serializable" }).catch((error) => {
+      if (isUniqueConstraintError(error)) return null;
+      throw error;
     });
   },
 
-  async reorderPageSections({ pageId, orderedIds }) {
+  async reorderPageSections({ pageId, orderedIds, audit }) {
     await prisma.$transaction(async (tx) => {
+      const records = await tx.pageSection.findMany({ where: { pageId, id: { in: orderedIds }, deletedAt: null }, select: { id: true } });
+      if (records.length !== orderedIds.length) throw new EditorValidationError("Section collection changed; reload and try again");
       await tx.pageSection.updateMany({ where: { pageId, id: { in: orderedIds }, deletedAt: null }, data: { position: { increment: 1_000_000 } } });
       await Promise.all(orderedIds.map((id, position) => tx.pageSection.update({ where: { id, pageId }, data: { position } })));
-    });
+      await writeAudit(tx, audit, pageId);
+    }, { isolationLevel: "Serializable" });
   },
 
-  async changePageStatus({ pageId, version: expectedVersion, status, actorId }) {
+  async changePageStatus({ pageId, version: expectedVersion, status, audit }) {
     const now = new Date();
     return prisma.$transaction(async (tx) => {
+      const current = await tx.page.findUnique({ where: { id: pageId }, select: { updatedAt: true, deletedAt: true, translations: { select: { locale: true, title: true, body: true } }, sections: { where: { deletedAt: null }, select: { id: true, isEnabled: true, type: true, config: true, translations: { select: { locale: true, title: true, body: true } } } } } });
+      if (!current || current.deletedAt || current.updatedAt.getTime() !== new Date(expectedVersion).getTime()) return null;
+      if (status === "PUBLISHED") validatePagePublication(publicationRecord(current));
       const updated = await tx.page.updateMany({ where: { id: pageId, updatedAt: new Date(expectedVersion), deletedAt: null }, data: { status, publishedAt: status === "PUBLISHED" ? now : null } });
       if (updated.count !== 1) return null;
       const page = await tx.page.findUniqueOrThrow({ where: { id: pageId }, select: { id: true, slug: true, publishedAt: true } });
       if (status === "PUBLISHED") await tx.pageSection.updateMany({ where: { pageId, deletedAt: null, isEnabled: true }, data: { status: "PUBLISHED", publishedAt: now } });
-      if (actorId) await tx.auditLog.create({ data: { actorId, action: status === "PUBLISHED" ? "PUBLISH" : `PAGE_${status}`, entityType: "page", entityId: page.id, metadata: { slug: page.slug, status } } });
+      await writeAudit(tx, audit, page.id);
       return page;
-    });
+    }, { isolationLevel: "Serializable" });
   },
 
   async saveMediaMetadata(input) {

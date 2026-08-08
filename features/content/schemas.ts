@@ -55,9 +55,16 @@ export const homepageItemValueSchema = z.object({
 });
 
 export const marketingShellValueSchema = z.object({
-  email: z.string().trim().email().optional(),
+  logoMediaId: z.string().cuid().optional(),
+  faviconMediaId: z.string().cuid().optional(),
+  companyName: z.string().trim().min(1).max(160).optional(),
+  slogan: z.string().trim().min(1).max(240).optional(),
+  email: z.string().trim().email().optional().or(z.literal("")) .transform((value) => value || undefined),
   phone: z.string().trim().min(3).max(40).optional(),
   addressLines: z.array(z.string().trim().min(1).max(160)).max(6).default([]),
+  socialLinks: z.array(z.object({ label: z.string().trim().min(1).max(80), href: z.string().url().refine((href) => new URL(href).protocol === "https:") })).max(12).default([]),
+  defaultSeo: z.object({ title: z.string().trim().min(1).max(160), description: z.string().trim().min(1).max(320), keywords: z.array(z.string().trim().min(1).max(80)).max(20).default([]) }).optional(),
+  footerColumns: z.array(z.object({ heading: z.string().trim().min(1).max(80), links: z.array(z.object({ label: z.string().trim().min(1).max(80), href: z.string().trim().refine(isSafeCtaHref) })).max(12) })).max(6).default([]),
 });
 
 const referenceIdsSchema = z.array(z.string().cuid()).max(12).optional();

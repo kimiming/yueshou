@@ -6,7 +6,7 @@ import type { Locale } from "@/lib/i18n/config";
 export type { PublishedEntityType } from "@/features/content/types";
 
 type CacheInvalidation = {
-  revalidatePath(path: string): void;
+  revalidatePath(path: string, type?: "layout" | "page"): void;
   revalidateTag(tag: string, profile: "max"): void;
 };
 
@@ -46,4 +46,15 @@ export function invalidatePublishedEntity(
   for (const tag of tags) {
     cache.revalidateTag(tag, "max");
   }
+}
+
+export function invalidateMarketingShell(
+  locales: readonly Locale[],
+  cache: CacheInvalidation = defaultCacheInvalidation,
+) {
+  for (const locale of new Set(locales)) {
+    cache.revalidatePath(`/${locale}`, "layout");
+  }
+  cache.revalidateTag("site:global", "max");
+  cache.revalidateTag("media:global", "max");
 }

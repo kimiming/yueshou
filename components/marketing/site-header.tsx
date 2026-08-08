@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 import { LanguageSwitcher } from "@/components/marketing/language-switcher";
 import { localizeHref } from "@/components/marketing/link-utils";
@@ -20,7 +21,7 @@ export function SiteHeader({ model }: SiteHeaderProps) {
       </div>
       <div className="marketing-container site-header__main">
         <Link className="brand-lockup" href={`/${model.locale}`} aria-label={model.homeLabel}>
-          <span className="brand-lockup__mark" aria-hidden="true">YS</span>
+          {model.logo ? <Image className="brand-lockup__image" src={model.logo.src} alt={model.logo.alt} width={44} height={44} /> : <span className="brand-lockup__mark" aria-hidden="true">YS</span>}
           <span className="brand-lockup__name">{model.brandName}</span>
         </Link>
         <PrimaryNavigation

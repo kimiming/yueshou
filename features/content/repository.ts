@@ -395,7 +395,6 @@ export function createContentRepository(database: ContentDatabase) {
     findPublishedNavigationItems(): Promise<PublishedNavigationRecord[]> {
       return database.navigationItem.findMany({
         where: {
-          parentId: null,
           isVisible: true,
           status: "PUBLISHED",
           deletedAt: null,

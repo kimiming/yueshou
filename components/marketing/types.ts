@@ -17,8 +17,12 @@ export type MarketingContactViewModel = {
 
 export type MarketingShellViewModel = {
   locale: Locale;
-  brandName: "粤首";
+  brandName: string;
   slogan: string;
+  logo?: MarketingMediaViewModel;
+  socialLinks: Array<{ label: string; href: string }>;
+  defaultSeo?: { title: string; description: string; keywords: string[] };
+  footerColumns: Array<{ heading: string; links: Array<{ label: string; href: string }> }>;
   primaryNavigationLabel: string;
   homeLabel: string;
   navigation: MarketingLinkViewModel[];

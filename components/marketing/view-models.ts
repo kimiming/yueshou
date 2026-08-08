@@ -82,16 +82,29 @@ export function createMarketingShellViewModel(
   content: MarketingShellContentViewModel,
   dictionary: Dictionary,
 ): MarketingShellViewModel {
+  const localizeNavigation = (item: MarketingShellContentViewModel["navigation"][number]): MarketingShellViewModel["navigation"][number] => ({
+    ...item,
+    href: localizeHref(item.href, content.locale),
+    children: item.children?.map(localizeNavigation),
+  });
+  const mediaSource = (media: MarketingShellContentViewModel["logo"]) => media ? {
+    src: media.storageKey.startsWith("/") ? media.storageKey : `/${media.storageKey}`,
+    alt: media.alt,
+  } : undefined;
   return {
     locale: content.locale,
-    brandName: "粤首",
-    slogan: BRAND_SLOGAN,
+    brandName: content.brandName || "粤首",
+    slogan: content.slogan || BRAND_SLOGAN,
+    logo: mediaSource(content.logo),
+    socialLinks: content.socialLinks ?? [],
+    defaultSeo: content.defaultSeo,
+    footerColumns: (content.footerColumns ?? []).map((column) => ({
+      ...column,
+      links: column.links.map((link) => ({ ...link, href: localizeHref(link.href, content.locale) })),
+    })),
     primaryNavigationLabel: dictionary.marketing.navigation.primary,
     homeLabel: dictionary.marketing.accessibility.home,
-    navigation: content.navigation.map((item) => ({
-      ...item,
-      href: localizeHref(item.href, content.locale),
-    })),
+    navigation: content.navigation.map(localizeNavigation),
     contact: content.contact,
     quoteLabel: dictionary.actions.requestQuote,
     languageLabel: dictionary.marketing.navigation.language,
@@ -104,7 +117,7 @@ export function createMarketingShellViewModel(
     mobileNavigationLabel: dictionary.marketing.accessibility.mobileNavigation,
     footerSummary: content.summary,
     researchUseOnly: dictionary.marketing.footer.researchUseOnly,
-    copyright: `© ${new Date().getUTCFullYear()} 粤首`,
+    copyright: `© ${new Date().getUTCFullYear()} ${content.brandName || "粤首"}`,
     cookieSettingsLabel: dictionary.consent.manage,
   };
 }

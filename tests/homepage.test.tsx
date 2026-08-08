@@ -20,8 +20,10 @@ vi.mock("next/navigation", async (importOriginal) => ({
 
 import HomePage from "@/app/[locale]/(marketing)/page";
 import MarketingLayout from "@/app/[locale]/(marketing)/layout";
+import { generateMetadata as generateLocaleMetadata } from "@/app/[locale]/layout";
 import { LanguageSwitcher } from "@/components/marketing/language-switcher";
 import { localizeHref } from "@/components/marketing/link-utils";
+import { MobileNavigation } from "@/components/marketing/mobile-navigation";
 
 const shell: MarketingShellContentViewModel = {
   locale: "en",
@@ -229,6 +231,34 @@ describe("semantic marketing homepage", () => {
       "href",
       "/de/about/team",
     );
+  });
+
+  it("renders nested CMS navigation in the opened mobile menu", () => {
+    render(<MobileNavigation
+      label="Mobile navigation"
+      menuLabel="Menu"
+      closeLabel="Close"
+      items={[{ id: "parent", label: "Services", href: "/en/services", enabled: true, sortOrder: 1, children: [{ id: "child", label: "Custom synthesis", href: "/en/services/custom", enabled: true, sortOrder: 1 }] }]}
+    />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Menu" }));
+    const navigation = screen.getByRole("navigation", { name: "Mobile navigation" });
+    expect(within(navigation).getByRole("link", { name: "Custom synthesis" })).toHaveAttribute("href", "/en/services/custom");
+  });
+
+  it("uses configured branding SEO and favicon in the locale metadata", async () => {
+    getMarketingShell.mockResolvedValueOnce({
+      ...shell,
+      defaultSeo: { title: "YueShou peptide synthesis", description: "Precision peptide services", keywords: ["peptide", "synthesis"] },
+      favicon: { id: "favicon", storageKey: "public/favicon.svg", filename: "favicon.svg", mimeType: "image/svg+xml", width: null, height: null, locale: "en", translationLocale: "en", usedFallback: false, title: "Favicon", alt: "YueShou favicon" },
+    });
+
+    await expect(generateLocaleMetadata({ params: Promise.resolve({ locale: "en" }) })).resolves.toMatchObject({
+      title: "YueShou peptide synthesis",
+      description: "Precision peptide services",
+      keywords: ["peptide", "synthesis"],
+      icons: { icon: "/public/favicon.svg" },
+    });
   });
 
   it.each([

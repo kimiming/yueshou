@@ -77,6 +77,19 @@ describe("page section editor", () => {
     expect(invalidate).toHaveBeenCalledWith("page", "about");
   });
 
+  it("passes publication audit data to transactional repositories", async () => {
+    const repo = repository({ auditsMutations: true });
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+
+    await service.publishPage({ actor: editor, pageId: "page-1", version: "2026-08-08T00:00:00.000Z" });
+
+    expect(repo.changePageStatus).toHaveBeenCalledWith(expect.objectContaining({
+      pageId: "page-1",
+      audit: expect.objectContaining({ actorId: editor.id, action: "PUBLISH", entityType: "page" }),
+    }));
+    expect(repo.createAuditLog).not.toHaveBeenCalled();
+  });
+
   it("uses the media safe-delete state rather than physically deleting assets", async () => {
     const repo = repository();
     const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
