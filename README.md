@@ -49,6 +49,13 @@ pnpm build:production
 as skipped until a disposable seeded fixture is explicitly configured. This
 prevents a release gate from touching a developer or production database.
 
+`pnpm test:e2e:release` is the release gate. It fails closed unless
+`E2E_REQUIRED=1`, `E2E_MUTATION_TESTS=1`,
+`E2E_CONFIRM_DATABASE_RESET=RESET_YUESHOU_E2E`, and every fixture value below
+is present. It rejects database hosts/names that look production-like, requires
+the database name to end in `_e2e`, resets that isolated database before and
+after the run, and fails if Playwright skips any journey.
+
 To execute the real production-build browser journeys, provide a resettable
 PostgreSQL database seeded with representative published content and an
 administrator account, then set these variables in the test shell:
@@ -82,7 +89,7 @@ article translation before checking public cache refresh. Never point any
 `E2E_*` value at production.
 
 ```sh
-pnpm test:e2e
+pnpm test:e2e:release
 pnpm test:release
 ```
 

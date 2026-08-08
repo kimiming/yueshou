@@ -39,7 +39,7 @@ export function e2eServerEnvironment(): Record<string, string> {
     return value;
   };
   return {
-    NODE_ENV: "test",
+    NODE_ENV: "production",
     DATABASE_URL: required("E2E_DATABASE_URL"),
     AUTH_SECRET: required("E2E_AUTH_SECRET"),
     INQUIRY_HASH_SECRET: required("E2E_INQUIRY_HASH_SECRET"),

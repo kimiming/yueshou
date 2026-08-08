@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 const { signIn, signOut, replace, refresh } = vi.hoisted(() => ({
@@ -68,6 +69,8 @@ describe("admin route guards", () => {
     render(await GuestPage());
     expect(screen.getByRole("heading", { name: "Staff sign in" })).toBeInTheDocument();
     expect(guestRedirect).not.toHaveBeenCalled();
+
+    expect(renderToStaticMarkup(await GuestPage())).not.toContain("ant-card");
 
     cleanup();
     const redirect = vi.fn(() => { throw new Error("redirected"); });
