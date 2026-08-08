@@ -115,8 +115,6 @@ describeWithDatabase("initial content seed", () => {
       env: {
         ...process.env,
         DATABASE_URL: databaseUrl,
-        INITIAL_ADMIN_EMAIL: "admin@example.test",
-        INITIAL_ADMIN_PASSWORD: "correct-horse-battery-staple",
       },
     });
 

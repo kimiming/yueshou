@@ -5,9 +5,8 @@ import {
   LegalReviewStatus,
   PrismaClient,
   PublishStatus,
-  UserRole,
 } from "@prisma/client";
-import { parseBootstrapAdmin } from "./bootstrap-admin";
+import { createBootstrapAdmin, parseBootstrapAdmin } from "./bootstrap-admin";
 
 function requiredSeedEnvironment(name: "DATABASE_URL"): string {
   const value = process.env[name];
@@ -116,11 +115,10 @@ const navigation = [
 async function main() {
   if (bootstrapAdmin) {
     const passwordHash = await argon2.hash(bootstrapAdmin.password, { type: argon2.argon2id });
-    await prisma.user.upsert({
-      where: { email: bootstrapAdmin.email },
-      update: { passwordHash, role: UserRole.ADMIN, isActive: true, deletedAt: null },
-      create: { email: bootstrapAdmin.email, passwordHash, role: UserRole.ADMIN },
-    });
+    await prisma.$transaction(
+      (transaction) => createBootstrapAdmin(transaction, { email: bootstrapAdmin.email, passwordHash }),
+      { isolationLevel: "Serializable" },
+    );
   }
 
   const brand = await prisma.siteSetting.upsert({

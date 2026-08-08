@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Prisma, UserRole } from "@prisma/client";
 
 const confirmation = "I_UNDERSTAND_BOOTSTRAP_ADMIN";
 const placeholder = /(replace|example|change[-_ ]?me|placeholder|correct-horse|password123|admin123)/i;
@@ -19,4 +20,23 @@ export function parseBootstrapAdmin(input: Record<string, string | undefined>) {
   if (values.every((value) => !value)) return null;
   const parsed = bootstrapSchema.parse(input);
   return { email: parsed.INITIAL_ADMIN_EMAIL.trim().toLowerCase(), password: parsed.INITIAL_ADMIN_PASSWORD };
+}
+
+export async function createBootstrapAdmin(
+  transaction: Pick<Prisma.TransactionClient, "$queryRaw" | "user">,
+  input: { email: string; passwordHash: string },
+) {
+  // This transaction-scoped lock serializes bootstrap attempts even for
+  // different email addresses; the role alone has no database uniqueness key.
+  await transaction.$queryRaw`SELECT pg_advisory_xact_lock(85103429)`;
+  const existingAdmin = await transaction.user.findFirst({ where: { role: UserRole.ADMIN }, select: { id: true } });
+  if (existingAdmin) throw new Error("bootstrap_admin_exists");
+  const existingEmail = await transaction.user.findUnique({ where: { email: input.email }, select: { id: true } });
+  if (existingEmail) throw new Error("bootstrap_admin_exists");
+  try {
+    await transaction.user.create({ data: { email: input.email, passwordHash: input.passwordHash, role: UserRole.ADMIN } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new Error("bootstrap_admin_exists");
+    throw error;
+  }
 }

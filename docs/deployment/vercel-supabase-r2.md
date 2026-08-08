@@ -10,7 +10,7 @@ Copy `.env.example` to a secret manager and replace every `replace-with-...` val
 pnpm env:check:production
 ```
 
-The validator requires a 32-character minimum for `AUTH_SECRET`, `INQUIRY_HASH_SECRET`, and `CRON_SECRET`; requires `INQUIRY_PROXY_MODE=vercel`; and rejects an `r2.dev` media URL. Generate distinct random values for every secret. `NEXT_PUBLIC_*` variables are public at build time and must never contain credentials.
+The validator requires `AUTH_SECRET`, `INQUIRY_HASH_SECRET`, and `CRON_SECRET` to be distinct, high-diversity, 64-character hexadecimal secrets; requires `INQUIRY_PROXY_MODE=vercel`; and rejects placeholders. Generate them with three separate `openssl rand -hex 32` commands. `NEXT_PUBLIC_*` variables are public at build time and must never contain credentials. `NEXT_PUBLIC_R2_PUBLIC_URL` is optional because current marketing media delivery is same-origin and signed.
 
 In Vercel, configure values under **Production** first. Use a separate Supabase project, R2 bucket(s), and non-production secrets for **Preview**; do not point previews at production inquiries, production storage, or production databases. Keep development values in `.env.local`, which remains ignored.
 
@@ -43,7 +43,7 @@ After migrations are complete, set `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWOR
 pnpm db:seed
 ```
 
-`pnpm db:seed` runs `prisma db seed`. Supplying no bootstrap variables performs content seeding only. A bootstrap set must be complete, use a valid email and a 12+ character mixed-case, digit, symbol password that is not a placeholder/common password, and use the exact confirmation value. The seed uses an email upsert and sets that account to `ADMIN`. Record the operator and time in the deployment change log, remove all three bootstrap values immediately afterward, and sign in through `/admin` to rotate to a long, unique password. Never seed from a public Vercel request or a routine deployment build.
+`pnpm db:seed` runs `prisma db seed`. Supplying no bootstrap variables performs content seeding only. A bootstrap set must be complete, use a valid email and a 12+ character mixed-case, digit, symbol password that is not a placeholder/common password, and use the exact confirmation value. In a serializable, transaction-scoped advisory lock, bootstrap refuses to run if any `ADMIN` (including deleted/inactive) or the requested email already exists; it creates one new `ADMIN` only, never upserts, restores, edits, or promotes an account. Record the operator and time in the deployment change log, remove all three bootstrap values immediately afterward, and sign in through `/admin` to rotate to a long, unique password. Never seed from a public Vercel request or a routine deployment build.
 
 ### Backup, migration failure, and rollback
 

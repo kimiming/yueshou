@@ -9,9 +9,9 @@ const completeCloudEnvironment = {
   NODE_ENV: "production",
   DATABASE_URL: "postgresql://postgres:pooled-password@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
   DIRECT_URL: "postgresql://postgres:direct-password@db.project-ref.supabase.co:5432/postgres",
-  AUTH_SECRET: "a".repeat(32),
-  INQUIRY_HASH_SECRET: "b".repeat(32),
-  CRON_SECRET: "c".repeat(32),
+  AUTH_SECRET: "708e41485fa3354b57d802dc053f6a8b5a850586ede86fe984ebec9bc63de43f",
+  INQUIRY_HASH_SECRET: "09dec844504f6de3c76dbd99efa7ca4ab30d23d3295ad6e7ce072b73f85fd7f6",
+  CRON_SECRET: "16db78dfbf36dfad671e058f1a165e9a88cf20c7a964214823cfc7d6f875849c",
   INQUIRY_PROXY_MODE: "vercel",
   STORAGE_BACKEND: "r2",
   STORAGE_ENDPOINT: "https://account-id.r2.cloudflarestorage.com",
@@ -34,7 +34,6 @@ describe("production cloud environment", () => {
     "STORAGE_ACCESS_KEY_ID",
     "STORAGE_SECRET_ACCESS_KEY",
     "NEXT_PUBLIC_SITE_URL",
-    "NEXT_PUBLIC_R2_PUBLIC_URL",
   ] as const)("fails fast when %s is missing", (key) => {
     const input = { ...completeCloudEnvironment, [key]: undefined };
 
@@ -56,6 +55,12 @@ describe("production cloud environment", () => {
     expect(parseProductionEnv(runtimeOnlyEnvironment)).toMatchObject({ DATABASE_URL: completeCloudEnvironment.DATABASE_URL });
   });
 
+  it("does not require an unused R2 public custom-domain setting for same-origin media delivery", () => {
+    const runtimeOnlyEnvironment = { ...completeCloudEnvironment, NEXT_PUBLIC_R2_PUBLIC_URL: undefined };
+
+    expect(parseProductionEnv(runtimeOnlyEnvironment)).toMatchObject({ DATABASE_URL: completeCloudEnvironment.DATABASE_URL });
+  });
+
   it("rejects weak secrets, direct proxying, and R2 development URLs", () => {
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, AUTH_SECRET: "short" })).toThrow("AUTH_SECRET");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, CRON_SECRET: "short" })).toThrow("CRON_SECRET");
@@ -71,6 +76,8 @@ describe("production cloud environment", () => {
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, AUTH_SECRET: completeCloudEnvironment.CRON_SECRET })).toThrow("AUTH_SECRET");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, STORAGE_BACKEND: "minio" })).toThrow("STORAGE_BACKEND");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, STORAGE_ENDPOINT: "http://account-id.r2.cloudflarestorage.com" })).toThrow("STORAGE_ENDPOINT");
+    expect(() => parseProductionEnv({ ...completeCloudEnvironment, AUTH_SECRET: "a".repeat(64) })).toThrow("AUTH_SECRET");
+    expect(() => parseProductionEnv({ ...completeCloudEnvironment, CRON_SECRET: "0123456789abcdef".repeat(4) })).toThrow("CRON_SECRET");
   });
 
   it("documents all production values without committing secrets", async () => {
