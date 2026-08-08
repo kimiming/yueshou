@@ -2,10 +2,12 @@
 
 import { Button, Card, Space, Typography, Upload } from "antd";
 import type { UploadProps } from "antd";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function MediaPicker({ value, onChange, upload, available = [] }: { value?: { id: string; alt?: string }; onChange?(id: string | undefined): void; upload?: UploadProps; available?: Array<{ id: string; filename: string; alt: string }> }) {
   const [selected, setSelected] = useState(value?.id);
+  const [catalogue, setCatalogue] = useState(available);
+  useEffect(() => { if (available.length) return; void fetch("/api/admin/media/available", { cache: "no-store" }).then(async (response) => response.ok ? response.json() as Promise<Array<{ id: string; filename: string; alt: string }>> : []).then(setCatalogue).catch(() => undefined); }, [available.length]);
   const select = (id: string | undefined) => { setSelected(id); onChange?.(id); };
   const customRequest: NonNullable<UploadProps["customRequest"]> = async (request) => {
     try {
@@ -29,6 +31,6 @@ export function MediaPicker({ value, onChange, upload, available = [] }: { value
     }
   };
   return <Card size="small" title="Media asset">
-    <Space direction="vertical"><Typography.Text>{selected ? `Selected asset: ${selected}` : "No media selected"}</Typography.Text>{available.map((asset) => <Button key={asset.id} type={selected === asset.id ? "primary" : "default"} onClick={() => select(asset.id)} title={asset.alt}>{asset.filename}{asset.alt ? ` — ${asset.alt}` : ""}</Button>)}<Upload {...upload} customRequest={upload?.customRequest ?? customRequest} accept="image/jpeg,image/png,image/webp,image/avif" showUploadList><Button>Upload image</Button></Upload><Button onClick={() => select(undefined)} disabled={!selected}>Clear selection</Button></Space>
+    <Space direction="vertical"><Typography.Text>{selected ? `Selected asset: ${selected}` : "No media selected"}</Typography.Text>{catalogue.map((asset) => <Button key={asset.id} type={selected === asset.id ? "primary" : "default"} onClick={() => select(asset.id)} title={asset.alt}>{asset.filename}{asset.alt ? ` — ${asset.alt}` : ""}</Button>)}<Upload {...upload} customRequest={upload?.customRequest ?? customRequest} accept="image/jpeg,image/png,image/webp,image/avif" showUploadList><Button>Upload image</Button></Upload><Button onClick={() => select(undefined)} disabled={!selected}>Clear selection</Button></Space>
   </Card>;
 }
