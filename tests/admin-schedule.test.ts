@@ -1,3 +1,3 @@
 import { describe, expect, it } from "vitest";
 import { isoToLocalDateTime, localDateTimeToIso } from "@/features/admin/schedule";
-describe("admin schedule conversion", () => { it("round-trips a datetime-local value through UTC", () => { const local = "2026-08-08T13:45"; const iso = localDateTimeToIso(local); expect(iso).toBeTruthy(); expect(isoToLocalDateTime(iso)).toBe(local); }); it("preserves an unchanged edit for a non-UTC browser offset", () => { const local = "2026-08-08T13:45"; const iso = localDateTimeToIso(local, -480); expect(iso).toBe("2026-08-08T05:45:00.000Z"); expect(isoToLocalDateTime(iso, -480)).toBe(local); }); });
+describe("admin schedule conversion", () => { it.each(["2026-01-08T13:45", "2026-07-08T13:45"])("round-trips the target local date across seasonal offsets: %s", (local) => { const iso = localDateTimeToIso(local); expect(iso).toBeTruthy(); expect(isoToLocalDateTime(iso)).toBe(local); }); });

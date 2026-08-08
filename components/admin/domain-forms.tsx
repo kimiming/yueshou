@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Card, Form, Input, Select, Space, Tabs } from "antd";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
 import { localDateTimeToIso } from "@/features/admin/schedule";
 import { isoToLocalDateTime } from "@/features/admin/schedule";
@@ -88,7 +88,8 @@ function SeoPreview({ form }: { form: ReturnType<typeof Form.useForm>[0] }) { re
 
 export function ExistingContentForm({ kind, initial, categories, tags = [], save }: { kind: ContentKind; initial: Record<string, unknown>; categories: Array<{ id: string; label: string }>; tags?: Array<{ id: string; name: string }>; save: Action }) {
   const [form] = Form.useForm(); const [pending, start] = useTransition(); const [error, setError] = useState<string>();
-  return <Card title={`Edit ${kind}`}><Form form={form} layout="vertical" initialValues={{ ...initial, scheduledAt: isoToLocalDateTime(initial.scheduledAt as string | null | undefined), translations: Object.fromEntries((initial.translations as Array<{ locale: string }>).map((item) => [item.locale, item])) }} onValuesChange={(changed) => { if (changed.status && changed.status !== "DRAFT") form.setFieldValue("scheduledAt", ""); }} onFinish={(value) => start(async () => {
+  useEffect(() => { form.setFieldValue("scheduledAt", isoToLocalDateTime(initial.scheduledAt as string | null | undefined)); }, [form, initial.scheduledAt]);
+  return <Card title={`Edit ${kind}`}><Form form={form} layout="vertical" initialValues={{ ...initial, scheduledAt: "", translations: Object.fromEntries((initial.translations as Array<{ locale: string }>).map((item) => [item.locale, item])) }} onValuesChange={(changed) => { if (changed.status && changed.status !== "DRAFT") form.setFieldValue("scheduledAt", ""); }} onFinish={(value) => start(async () => {
     try { setError(undefined); await save({ ...initial, ...value, translations: collectTranslations(value.translations ?? {}), mediaIds: kind === "product" ? value.mediaIds ?? [] : undefined, tagIds: kind === "article" ? value.tagIds ?? [] : undefined, coverMediaId: kind === "article" ? value.coverMediaId ?? null : undefined, scheduledAt: localDateTimeToIso(value.scheduledAt) }); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save content"); }
   })}>

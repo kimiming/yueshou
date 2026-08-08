@@ -39,7 +39,7 @@ describe("product administration", () => {
       invalidate: () => undefined,
     });
 
-    await expect(service.archiveCategory({ actor: { id: "admin-1", role: "ADMIN" }, categoryId: "category-1" }))
+    await expect(service.archiveCategory({ actor: { id: "admin-1", role: "ADMIN" }, categoryId: "category-1", version: "2026-08-08T00:00:00.000Z" }))
       .rejects.toThrow("referenced");
   });
 

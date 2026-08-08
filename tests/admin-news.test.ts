@@ -23,7 +23,7 @@ describe("news administration", () => {
       invalidate: () => undefined,
     });
 
-    await expect(service.archiveCategory({ actor: { id: "editor-1", role: "EDITOR" }, categoryId: "category-1" }))
+    await expect(service.archiveCategory({ actor: { id: "editor-1", role: "EDITOR" }, categoryId: "category-1", version: "2026-08-08T00:00:00.000Z" }))
       .rejects.toThrow("Administrator");
   });
 
