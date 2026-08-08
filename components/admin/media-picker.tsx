@@ -4,7 +4,7 @@ import { Button, Card, Space, Typography, Upload } from "antd";
 import type { UploadProps } from "antd";
 import { useState } from "react";
 
-export function MediaPicker({ value, onChange, upload }: { value?: { id: string; alt?: string }; onChange?(id: string | undefined): void; upload?: UploadProps }) {
+export function MediaPicker({ value, onChange, upload, available = [] }: { value?: { id: string; alt?: string }; onChange?(id: string | undefined): void; upload?: UploadProps; available?: Array<{ id: string; filename: string; alt: string }> }) {
   const [selected, setSelected] = useState(value?.id);
   const select = (id: string | undefined) => { setSelected(id); onChange?.(id); };
   const customRequest: NonNullable<UploadProps["customRequest"]> = async (request) => {
@@ -29,6 +29,6 @@ export function MediaPicker({ value, onChange, upload }: { value?: { id: string;
     }
   };
   return <Card size="small" title="Media asset">
-    <Space direction="vertical"><Typography.Text>{selected ? `Selected asset: ${selected}` : "No media selected"}</Typography.Text><Upload {...upload} customRequest={upload?.customRequest ?? customRequest} accept="image/jpeg,image/png,image/webp,image/avif" showUploadList><Button>Upload image</Button></Upload><Button onClick={() => select(undefined)} disabled={!selected}>Clear selection</Button></Space>
+    <Space direction="vertical"><Typography.Text>{selected ? `Selected asset: ${selected}` : "No media selected"}</Typography.Text>{available.map((asset) => <Button key={asset.id} type={selected === asset.id ? "primary" : "default"} onClick={() => select(asset.id)} title={asset.alt}>{asset.filename}{asset.alt ? ` — ${asset.alt}` : ""}</Button>)}<Upload {...upload} customRequest={upload?.customRequest ?? customRequest} accept="image/jpeg,image/png,image/webp,image/avif" showUploadList><Button>Upload image</Button></Upload><Button onClick={() => select(undefined)} disabled={!selected}>Clear selection</Button></Space>
   </Card>;
 }
