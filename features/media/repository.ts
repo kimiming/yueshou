@@ -83,17 +83,21 @@ export const prismaMediaRepository: MediaRepository = {
   },
 
   async queueObjectDeletion(input) {
-    await prisma.auditLog.create({
-      data: {
-        actorId: input.actorId,
-        action: "MEDIA_DELETE_SCHEDULED",
-        entityType: "MediaAsset",
-        entityId: input.mediaAssetId,
-        metadata: {
-          storageKey: input.storageKey,
-          deleteAfter: input.deleteAfter.toISOString(),
+    await prisma.$transaction(async (tx) => {
+      await tx.mediaDeletionJob.upsert({
+        where: { mediaAssetId: input.mediaAssetId },
+        update: { storageKey: input.storageKey, deleteAfter: input.deleteAfter, status: "PENDING", lastError: null },
+        create: { mediaAssetId: input.mediaAssetId, storageKey: input.storageKey, deleteAfter: input.deleteAfter },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: input.actorId,
+          action: "MEDIA_DELETE_SCHEDULED",
+          entityType: "MediaAsset",
+          entityId: input.mediaAssetId,
+          metadata: { storageKey: input.storageKey, deleteAfter: input.deleteAfter.toISOString() },
         },
-      },
+      });
     });
   },
 };

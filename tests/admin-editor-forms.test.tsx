@@ -8,7 +8,7 @@ globalThis.ResizeObserver = class ResizeObserver { observe() {} unobserve() {} d
 
 it("submits visible page fields as a validated five-language editor payload", async () => {
   const save = vi.fn(async () => undefined);
-  render(<PageEditorForm initial={{ id: "page-1", slug: "about", version: "2026-08-08T00:00:00.000Z", translations: [{ locale: "en", title: "About", body: "Research" }] }} save={save} publish={vi.fn(async () => undefined)} archive={vi.fn(async () => undefined)} />);
+  render(<PageEditorForm initial={{ id: "page-1", slug: "about", version: "2026-08-08T00:00:00.000Z", translations: [{ locale: "en", title: "About", body: "Research" }] }} save={save} publish={vi.fn(async () => undefined)} archive={vi.fn(async () => undefined)} allowArchive />);
 
   fireEvent.change(screen.getByLabelText("Slug"), { target: { value: "our-research" } });
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));

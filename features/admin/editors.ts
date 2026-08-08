@@ -245,6 +245,7 @@ export function createAdminEditorService(dependencies: {
     async setPageStatus(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
       requireActor(input.actor);
       const payload = z.object({ pageId: z.string().min(1), version: z.string().datetime(), status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]) }).parse(input);
+      if (payload.status === "ARCHIVED") requireAdmin(input.actor);
       if (payload.status === "PUBLISHED") {
         const publication = await repository.getPageForPublication?.(payload.pageId);
         if (publication) validatePagePublication(publication);

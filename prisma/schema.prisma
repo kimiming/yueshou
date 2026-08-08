@@ -43,6 +43,13 @@ enum MediaVisibility {
   PRIVATE
 }
 
+enum MediaDeletionJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 enum PageSectionType {
   HERO
   SERVICES
@@ -366,6 +373,23 @@ model MediaAsset {
   translations  MediaAssetTranslation[]
   products      Product[]               @relation("ProductMedia")
   articleCovers Article[]               @relation("ArticleCover")
+  deletionJob  MediaDeletionJob?
+}
+
+model MediaDeletionJob {
+  id           String                 @id @default(cuid())
+  mediaAssetId String                 @unique
+  storageKey   String
+  status       MediaDeletionJobStatus @default(PENDING)
+  deleteAfter  DateTime
+  attempts     Int                    @default(0)
+  lastError    String?
+  completedAt  DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  mediaAsset   MediaAsset             @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@index([status, deleteAfter])
 }
 
 model MediaUploadIntent {
