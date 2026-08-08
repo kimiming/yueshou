@@ -257,7 +257,7 @@ describe("semantic marketing homepage", () => {
       title: "YueShou peptide synthesis",
       description: "Precision peptide services",
       keywords: ["peptide", "synthesis"],
-      icons: { icon: "/public/favicon.svg" },
+      icons: { icon: "/api/media/public/favicon" },
     });
   });
 

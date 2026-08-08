@@ -1,6 +1,8 @@
 import "dotenv/config";
 
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
+
+import { prismaConfigurationUrl } from "./lib/deployment/migration-env";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -9,8 +11,8 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    // Runtime uses DATABASE_URL through the PrismaPg adapter. Schema changes
-    // must bypass Supabase's transaction pooler with the direct URL.
-    url: env("DIRECT_URL"),
+    // Generation/builds need no database connection. Migration preflight is
+    // enforced by scripts/migrate-deploy.ts before it invokes Prisma.
+    url: prismaConfigurationUrl(process.env),
   },
 });

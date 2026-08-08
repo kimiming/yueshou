@@ -17,6 +17,7 @@ describe("cloud deployment configuration", () => {
     const config = JSON.parse(await readFile("vercel.json", "utf8")) as { crons: Array<{ path: string; schedule: string }> };
 
     expect(config.crons).toContainEqual({ path: "/api/internal/publish-scheduled", schedule: "*/5 * * * *" });
+    expect(config.crons).toContainEqual({ path: "/api/internal/media-deletion-jobs", schedule: "2-59/5 * * * *" });
   });
 
   it("pins database, storage, and native authentication handlers to the Node runtime", async () => {
@@ -43,8 +44,9 @@ describe("cloud deployment configuration", () => {
       expect(guide).toContain(phrase);
     }
     const scripts = JSON.parse(packageJson).scripts as Record<string, string>;
-    expect(scripts["db:migrate:deploy"]).toBe("prisma migrate deploy");
+    expect(scripts["db:migrate:deploy"]).toContain("migrate-deploy");
     expect(scripts["db:seed"]).toBe("prisma db seed");
     expect(scripts["env:check:production"]).toContain("production-env");
+    expect(scripts["build:production"]).toContain("env:check:production");
   });
 });

@@ -34,5 +34,6 @@ export interface PrivateDownloadStorage {
     key: string;
     filename: string;
     expiresIn: number;
+    disposition?: "attachment" | "inline";
   }): Promise<{ url: string; expiresAt: Date }>;
 }

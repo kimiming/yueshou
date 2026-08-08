@@ -23,7 +23,7 @@ The application has two intentional connection strings:
 | `DATABASE_URL` | Vercel runtime via `PrismaPg` | Supabase pooled connection (normally port 6543) |
 | `DIRECT_URL` | Prisma CLI migration commands | direct database connection (normally port 5432) |
 
-`prisma.config.ts` uses `DIRECT_URL` so `prisma migrate deploy` never attempts DDL through the transaction pooler. The runtime client in `lib/db/prisma.ts` separately reads `DATABASE_URL`. Keep both URLs scoped to the same environment and never swap production with preview.
+The runtime client in `lib/db/prisma.ts` reads `DATABASE_URL`. `prisma.config.ts` can fall back to `DATABASE_URL` (or a non-connectable syntactic URL) only so `prisma generate` and builds do not require live migration credentials. `pnpm db:migrate:deploy` runs an explicit preflight that requires `DIRECT_URL` to be PostgreSQL and rejects Supabase pooler hosts, port `6543`, and `pgbouncer=true` before invoking `prisma migrate deploy`. Keep both URLs scoped to the same environment and never swap production with preview.
 
 Release database changes in this order, from a controlled CI job or trusted workstation with production secrets loaded:
 
@@ -37,13 +37,13 @@ Do **not** run `prisma migrate dev`, `prisma db push`, or `prisma migrate reset`
 
 ### First administrator bootstrap
 
-After migrations are complete, set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` temporarily in the one-off operator shell, then run:
+After migrations are complete, set `INITIAL_ADMIN_EMAIL`, `INITIAL_ADMIN_PASSWORD`, and `BOOTSTRAP_ADMIN_CONFIRM=I_UNDERSTAND_BOOTSTRAP_ADMIN` temporarily in the one-off operator shell, then run:
 
 ```bash
 pnpm db:seed
 ```
 
-`pnpm db:seed` runs `prisma db seed`. The seed uses an email upsert and sets that account to `ADMIN`. Record the operator and time in the deployment change log, remove the two bootstrap values immediately afterward, and sign in through `/admin` to rotate to a long, unique password. Never seed from a public Vercel request or a routine deployment build.
+`pnpm db:seed` runs `prisma db seed`. Supplying no bootstrap variables performs content seeding only. A bootstrap set must be complete, use a valid email and a 12+ character mixed-case, digit, symbol password that is not a placeholder/common password, and use the exact confirmation value. The seed uses an email upsert and sets that account to `ADMIN`. Record the operator and time in the deployment change log, remove all three bootstrap values immediately afterward, and sign in through `/admin` to rotate to a long, unique password. Never seed from a public Vercel request or a routine deployment build.
 
 ### Backup, migration failure, and rollback
 
@@ -63,14 +63,9 @@ R2 presigned URLs use the S3 API endpoint; they cannot use an R2 custom domain. 
 
 ### Buckets and delivery boundary
 
-Use separate buckets:
+Use a **private application bucket** (`STORAGE_BUCKET`) for inquiry attachments, upload staging, and CMS assets. Keep it private; do not enable a public URL or attach a public custom domain. Public website media is delivered through the same-origin `/api/media/public/<media-id>` route only after the database confirms `PUBLISHED`, `PUBLIC`, and not deleted; it then redirects to a 60-second inline signed R2 GET with `no-store`. Draft, private, deleted, malformed, and unknown IDs all receive the same `404` response.
 
-- **Private application bucket** (`STORAGE_BUCKET`): inquiry attachments, upload staging, and all objects handled by the current storage adapter. Keep it private; do not enable a public URL or attach a public custom domain.
-- **Public media bucket**: only reviewed public marketing assets. Attach `media.example.com` as the custom domain and set `NEXT_PUBLIC_R2_PUBLIC_URL=https://media.example.com`. Disable the `r2.dev` development URL in production.
-
-The current adapter is deliberately configured with one `STORAGE_BUCKET`, so it must remain the private application bucket. Do not place inquiry attachments in a public bucket. Publishing direct R2 media delivery requires an explicit bucket-aware copy/serving integration before this hostname is used in page content; the Next Image allowlist is not an authorization mechanism.
-
-For the public bucket, use a Cloudflare custom domain in the same Cloudflare zone, enforce HTTPS, and add WAF/cache rules appropriate for public, non-sensitive assets. Do not CNAME an `r2.dev` URL. Cloudflare documents `r2.dev` as development-only; a custom domain is required for production controls.
+Do not place inquiry attachments in a public bucket. A distinct public-media bucket/custom domain is optional only for a future reviewed copy pipeline; it is not part of the current delivery path. If introduced later, use a Cloudflare custom domain in the same zone, enforce HTTPS, disable `r2.dev`, and add WAF/cache rules appropriate for non-sensitive assets. The Next Image custom-host allowlist is not an authorization mechanism.
 
 ### R2 CORS
 
@@ -96,21 +91,23 @@ Apply CORS through the R2 dashboard or S3-compatible `PutBucketCors` workflow, t
 
 ## 4. Vercel build, Cron, and probes
 
-Set Vercel's Install Command to `pnpm install --frozen-lockfile` and Build Command to `pnpm build`. Confirm Node.js is supported by the pinned Next.js and native `argon2` release. Database, storage, auth, and cron route handlers export the Node.js runtime; do not switch them to an Edge runtime.
+Set Vercel's Install Command to `pnpm install --frozen-lockfile` and Build Command to `pnpm build:production` (also declared in `vercel.json`). This command first runs the production environment gate, then generates Prisma Client and builds Next.js. The gate rejects template/placeholder values, weak or duplicate secrets, non-R2 storage, and insecure endpoints. Confirm Node.js is supported by the pinned Next.js and native `argon2` release. Database, storage, auth, and cron route handlers export the Node.js runtime; do not switch them to an Edge runtime.
 
-`vercel.json` schedules `GET /api/internal/publish-scheduled` every five minutes. Vercel Cron invokes configured paths with **GET** and sends `Authorization: Bearer <CRON_SECRET>` when `CRON_SECRET` is configured. The route validates the exact 32+-character bearer secret. Its existing `POST` endpoint retains timestamped HMAC authentication for a separately configured external scheduler; do not turn off POST authentication or use an unauthenticated GET adapter.
+`vercel.json` schedules `GET /api/internal/publish-scheduled` every five minutes and `GET /api/internal/media-deletion-jobs` two minutes later on the same cadence. Vercel Cron invokes configured paths with **GET** and sends `Authorization: Bearer <CRON_SECRET>` when `CRON_SECRET` is configured. Both routes validate the exact 32+-character bearer secret and respond with `Cache-Control: no-store`. Their `POST` endpoints retain timestamped HMAC authentication for separately configured external schedulers; do not turn off POST authentication or use an unauthenticated GET adapter.
+
+For external POST calls, set `x-cron-timestamp` to Unix seconds and `x-cron-signature` to the lowercase hexadecimal `HMAC-SHA256(CRON_SECRET, "<timestamp>.")`. The server requires exactly 64 hexadecimal signature characters and rejects timestamps more than five minutes from its clock. This format deliberately has no request body; send no secrets in the URL or body, use HTTPS, and rotate `CRON_SECRET` through the deployment secret manager.
 
 Vercel plan limits can restrict cron frequency. If the selected plan cannot run every five minutes, use a trusted external scheduler that sends the documented HMAC POST request to the same endpoint; do not weaken the endpoint to make an unauthenticated scheduler work.
 
 - `GET /api/health` is a liveness probe and does not query PostgreSQL.
-- `GET /api/ready` is a readiness probe and returns `503` unless PostgreSQL accepts `SELECT 1`.
+- `GET /api/ready` is a readiness probe and returns `503` unless PostgreSQL accepts `SELECT 1` within two seconds. The Promise timeout limits this HTTP response but cannot forcibly cancel an already-started Prisma/PostgreSQL query; set database-side statement/connection timeouts too.
 
 Configure external monitoring to request both over HTTPS and alert on non-2xx responses. These responses are `no-store` and intentionally do not expose database details.
 
 ## 5. Release checklist
 
 1. Review migration SQL and confirm a current backup/PITR marker.
-2. Run `pnpm env:check:production`, `pnpm prisma validate`, tests, lint, and `pnpm build` with production-safe build variables.
+2. Run `pnpm env:check:production`, `pnpm prisma validate`, tests, lint, and `pnpm build:production` with production-safe build variables.
 3. Run `pnpm db:migrate:deploy` once from the controlled release job.
 4. Bootstrap the first administrator only when required, then remove bootstrap credentials.
 5. Deploy Vercel, verify `/api/health`, `/api/ready`, a protected Cron invocation, public pages, `/admin`, and a presigned R2 upload.

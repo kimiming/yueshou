@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { parse as parseDotenv } from "dotenv";
 
 import { describe, expect, it } from "vitest";
 
@@ -18,14 +19,13 @@ const completeCloudEnvironment = {
   STORAGE_BUCKET: "yueshou-private-production",
   STORAGE_ACCESS_KEY_ID: "r2-access-key",
   STORAGE_SECRET_ACCESS_KEY: "r2-secret-key",
-  NEXT_PUBLIC_SITE_URL: "https://www.yueshou.example",
-  NEXT_PUBLIC_R2_PUBLIC_URL: "https://media.yueshou.example",
+  NEXT_PUBLIC_SITE_URL: "https://www.yueshou.test",
+  NEXT_PUBLIC_R2_PUBLIC_URL: "https://media.yueshou.test",
 };
 
 describe("production cloud environment", () => {
   it.each([
     "DATABASE_URL",
-    "DIRECT_URL",
     "AUTH_SECRET",
     "INQUIRY_HASH_SECRET",
     "CRON_SECRET",
@@ -50,6 +50,12 @@ describe("production cloud environment", () => {
     });
   });
 
+  it("does not require a migration-only direct URL for Vercel build validation", () => {
+    const runtimeOnlyEnvironment = { ...completeCloudEnvironment, DIRECT_URL: undefined };
+
+    expect(parseProductionEnv(runtimeOnlyEnvironment)).toMatchObject({ DATABASE_URL: completeCloudEnvironment.DATABASE_URL });
+  });
+
   it("rejects weak secrets, direct proxying, and R2 development URLs", () => {
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, AUTH_SECRET: "short" })).toThrow("AUTH_SECRET");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, CRON_SECRET: "short" })).toThrow("CRON_SECRET");
@@ -60,6 +66,13 @@ describe("production cloud environment", () => {
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, DIRECT_URL: "https://database.example" })).toThrow("DIRECT_URL");
   });
 
+  it("rejects placeholder values, duplicate secrets, non-R2 storage, and an insecure storage endpoint", () => {
+    expect(() => parseProductionEnv({ ...completeCloudEnvironment, STORAGE_ACCESS_KEY_ID: "replace-with-key" })).toThrow("STORAGE_ACCESS_KEY_ID");
+    expect(() => parseProductionEnv({ ...completeCloudEnvironment, AUTH_SECRET: completeCloudEnvironment.CRON_SECRET })).toThrow("AUTH_SECRET");
+    expect(() => parseProductionEnv({ ...completeCloudEnvironment, STORAGE_BACKEND: "minio" })).toThrow("STORAGE_BACKEND");
+    expect(() => parseProductionEnv({ ...completeCloudEnvironment, STORAGE_ENDPOINT: "http://account-id.r2.cloudflarestorage.com" })).toThrow("STORAGE_ENDPOINT");
+  });
+
   it("documents all production values without committing secrets", async () => {
     const example = await readFile(".env.example", "utf8");
 
@@ -68,5 +81,11 @@ describe("production cloud environment", () => {
     }
     expect(example).not.toContain(completeCloudEnvironment.AUTH_SECRET);
     expect(example).not.toContain(completeCloudEnvironment.STORAGE_SECRET_ACCESS_KEY);
+  });
+
+  it("intentionally rejects the non-secret placeholder template", async () => {
+    const template = parseDotenv(await readFile(".env.example", "utf8"));
+
+    expect(() => parseProductionEnv(template)).toThrow();
   });
 });

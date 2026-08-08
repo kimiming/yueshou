@@ -4,6 +4,7 @@ import type {
 } from "@/features/content/view-models";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { localizeHref } from "@/components/marketing/link-utils";
+import { publicMediaUrl } from "@/features/media/public-url";
 import type {
   MarketingCtaViewModel,
   MarketingHomePageViewModel,
@@ -41,9 +42,7 @@ function mapSection(section: PageViewModel["sections"][number]): MarketingSectio
       href: item.href ? localizeHref(item.href, section.locale) : undefined,
     })),
     media: section.media ? {
-      src: section.media.storageKey.startsWith("/")
-        ? section.media.storageKey
-        : `/${section.media.storageKey}`,
+      src: publicMediaUrl(section.media.id),
       alt: section.media.alt,
     } : undefined,
     primaryCta: readCta(config.primaryCta, section.locale),
@@ -88,7 +87,7 @@ export function createMarketingShellViewModel(
     children: item.children?.map(localizeNavigation),
   });
   const mediaSource = (media: MarketingShellContentViewModel["logo"]) => media ? {
-    src: media.storageKey.startsWith("/") ? media.storageKey : `/${media.storageKey}`,
+    src: publicMediaUrl(media.id),
     alt: media.alt,
   } : undefined;
   return {

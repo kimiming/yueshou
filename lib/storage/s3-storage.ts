@@ -31,10 +31,10 @@ type Presign = {
 }["bivarianceHack"];
 type S3Sender = Pick<S3Client, "send">;
 
-function downloadDisposition(filename: string): string {
+function downloadDisposition(filename: string, disposition: "attachment" | "inline" = "attachment"): string {
   const withoutControls = filename.replace(/[\u0000-\u001f\u007f]/g, "_");
   const ascii = withoutControls.replace(/[^\u0020-\u007e]|["\\]/g, "_").slice(0, 180) || "attachment";
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(withoutControls)}`;
+  return `${disposition}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(withoutControls)}`;
 }
 
 export function createS3ClientConfig(config: S3StorageConfig): S3ClientConfig {
@@ -90,7 +90,7 @@ export function createS3Storage(
       const command = new GetObjectCommand({
         Bucket: config.bucket,
         Key: input.key,
-        ResponseContentDisposition: downloadDisposition(input.filename),
+        ResponseContentDisposition: downloadDisposition(input.filename, input.disposition),
       });
       const url = await presign(client as S3Client, command, { expiresIn });
       const now = dependencies.now?.() ?? new Date();

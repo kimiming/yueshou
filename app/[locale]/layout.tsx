@@ -4,16 +4,13 @@ import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { isLocale, SUPPORTED_LOCALES } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { getMarketingShell } from "@/features/content/service";
+import { publicMediaUrl } from "@/features/media/public-url";
 import "../globals.css";
 
 const fallbackMetadata: Metadata = {
   title: "粤首",
   description: "Precision Peptide Synthesis for Global Scientific Research",
 };
-function publicMediaUrl(storageKey: string) {
-  return storageKey.startsWith("/") ? storageKey : `/${storageKey}`;
-}
-
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   if (!isLocale(locale)) return fallbackMetadata;
@@ -24,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       title: seo?.title ?? fallbackMetadata.title,
       description: seo?.description ?? fallbackMetadata.description,
       keywords: seo?.keywords,
-      icons: shell?.favicon ? { icon: publicMediaUrl(shell.favicon.storageKey) } : undefined,
+      icons: shell?.favicon ? { icon: publicMediaUrl(shell.favicon.id) } : undefined,
     };
   } catch {
     return fallbackMetadata;

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
 import { RichContent } from "@/components/marketing/rich-content";
@@ -9,6 +10,7 @@ import { buildMetadata } from "@/features/seo/metadata";
 import { isPublicContentSlug } from "@/features/content/public-slug";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { publicMediaUrl } from "@/features/media/public-url";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +58,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {product.sequence ? <div><dt>{dictionary.marketing.public.sequence}</dt><dd>{product.sequence}</dd></div> : null}
           </dl>
         ) : null}
+        {product.media.length ? <ul aria-label="Product media">{product.media.map((media) => <li key={media.id}><Image src={publicMediaUrl(media.id)} alt={media.alt} width={media.width ?? 1200} height={media.height ?? 675} /></li>)}</ul> : null}
         <RichContent html={product.body} />
       </article>
     </main>
