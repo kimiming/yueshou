@@ -98,13 +98,34 @@ function isUniqueConstraintError(error: unknown) {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
 
+export function uniqueConstraintConflict(error: unknown) {
+  const target = typeof error === "object" && error !== null && "meta" in error && typeof error.meta === "object" && error.meta !== null && "target" in error.meta ? String(error.meta.target) : "";
+  if (target.includes("slug")) return new EditorValidationError("This slug is already in use");
+  if (target.includes("locale")) return new EditorValidationError("A translation already exists for this locale");
+  if (target.includes("domain")) return new EditorValidationError("This domain is already in use");
+  return new EditorValidationError("This content conflicts with an existing record");
+}
+
 function brandMediaIds(value: Record<string, unknown>) {
   return [...new Set([value.logoMediaId, value.faviconMediaId].filter((id): id is string => typeof id === "string"))];
 }
 
+function sectionMediaIds(config: unknown) {
+  if (!config || typeof config !== "object" || Array.isArray(config)) return [];
+  const imageId = (config as Record<string, unknown>).imageId;
+  return typeof imageId === "string" ? [imageId] : [];
+}
+
+async function assertUsableReferencedMedia(tx: Prisma.TransactionClient, mediaIds: string[]) {
+  const uniqueIds = [...new Set(mediaIds)];
+  if (!uniqueIds.length) return;
+  const count = await tx.mediaAsset.count({ where: { id: { in: uniqueIds }, status: "PUBLISHED", visibility: "PUBLIC", deletedAt: null, OR: [{ deletionJob: { is: null } }, { deletionJob: { is: { status: "COMPLETED" } } }] } });
+  if (count !== uniqueIds.length) throw new EditorValidationError("Referenced media must be published and not queued for deletion");
+}
+
 async function assertUsableBrandMedia(tx: Prisma.TransactionClient, mediaIds: string[]) {
   if (!mediaIds.length) return;
-  const count = await tx.mediaAsset.count({ where: { id: { in: mediaIds }, status: "PUBLISHED", visibility: "PUBLIC", deletedAt: null } });
+  const count = await tx.mediaAsset.count({ where: { id: { in: mediaIds }, status: "PUBLISHED", visibility: "PUBLIC", deletedAt: null, OR: [{ deletionJob: { is: null } }, { deletionJob: { is: { status: "COMPLETED" } } }] } });
   if (count !== mediaIds.length) throw new EditorValidationError("Brand media must be published, public, and available");
 }
 
@@ -137,7 +158,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
   validatesPublicationAtomically: true,
   async validateBrandMedia(mediaIds) {
     const uniqueIds = [...new Set(mediaIds)];
-    const count = await prisma.mediaAsset.count({ where: { id: { in: uniqueIds }, status: "PUBLISHED", visibility: "PUBLIC", deletedAt: null } });
+    const count = await prisma.mediaAsset.count({ where: { id: { in: uniqueIds }, status: "PUBLISHED", visibility: "PUBLIC", deletedAt: null, OR: [{ deletionJob: { is: null } }, { deletionJob: { is: { status: "COMPLETED" } } }] } });
     return count === uniqueIds.length;
   },
   async saveSiteSetting(input) {
@@ -145,12 +166,12 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       await assertUsableBrandMedia(tx, brandMediaIds(input.value));
       if (input.version === null) {
         try {
-          const created = await tx.siteSetting.create({ data: { key: input.key, value: asJson(input.value), status: input.status } });
+          const created = await tx.siteSetting.create({ data: { key: input.key, value: asJson(input.value), status: input.status, publishedAt: input.status === "PUBLISHED" ? new Date() : null } });
           await replaceTranslations(tx, "siteSetting", created.id, input.translations);
           await writeAudit(tx, input.audit, created.id);
           return { id: created.id, version: version(created.updatedAt) };
         } catch (error) {
-          if (typeof error === "object" && error && "code" in error && error.code === "P2002") return null;
+          if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error);
           throw error;
         }
       }
@@ -164,7 +185,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       await writeAudit(tx, input.audit, record.id);
       return { id: record.id, version: version(record.updatedAt) };
     }, { isolationLevel: "Serializable" }).catch((error) => {
-      if (isUniqueConstraintError(error)) return null;
+      if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error);
       throw error;
     });
   },
@@ -179,7 +200,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
           await writeAudit(tx, input.audit, created.id);
           return { id: created.id, version: version(created.updatedAt) };
         } catch (error) {
-          if (typeof error === "object" && error && "code" in error && error.code === "P2002") return null;
+          if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error);
           throw error;
         }
       }
@@ -193,7 +214,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       await writeAudit(tx, input.audit, record.id);
       return { id: record.id, version: version(record.updatedAt) };
     }, { isolationLevel: "Serializable" }).catch((error) => {
-      if (isUniqueConstraintError(error)) return null;
+      if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error);
       throw error;
     });
   },
@@ -246,7 +267,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
           await writeAudit(tx, input.audit, created.id);
           return { id: created.id, slug: created.slug, version: version(created.updatedAt) };
         } catch (error) {
-          if (typeof error === "object" && error && "code" in error && error.code === "P2002") return null;
+          if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error);
           throw error;
         }
       }
@@ -261,7 +282,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       await writeAudit(tx, input.audit, record.id);
       return { id: record.id, slug: record.slug, version: version(record.updatedAt) };
     }, { isolationLevel: "Serializable" }).catch((error) => {
-      if (isUniqueConstraintError(error)) return null;
+      if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error);
       throw error;
     });
   },
@@ -280,11 +301,12 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       await writeAudit(tx, input.audit, page.id);
       await writeAudit(tx, input.statusAudit, page.id);
       return { id: page.id, slug: page.slug, publishedAt: page.publishedAt, version: version(page.updatedAt) };
-    }, { isolationLevel: "Serializable" }).catch((error) => { if (isUniqueConstraintError(error)) return null; throw error; });
+    }, { isolationLevel: "Serializable" }).catch((error) => { if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error); throw error; });
   },
 
   async savePageSection(input) {
     return prisma.$transaction(async (tx) => {
+      await assertUsableReferencedMedia(tx, sectionMediaIds(input.section.config));
       const page = await tx.page.findUnique({ where: { id: input.pageId }, select: { status: true, deletedAt: true } });
       if (!page || page.deletedAt) return null;
       if (page.status === "PUBLISHED" && input.isEnabled && !hasEnglishTranslation(input.translations)) {
@@ -304,7 +326,7 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       await writeAudit(tx, input.audit, record.id);
       return { id: record.id, version: version(record.updatedAt) };
     }, { isolationLevel: "Serializable" }).catch((error) => {
-      if (isUniqueConstraintError(error)) return null;
+      if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error);
       throw error;
     });
   },

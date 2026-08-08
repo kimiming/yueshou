@@ -129,7 +129,7 @@ export const prismaMediaDeletionJobRepository: MediaDeletionJobRepository = {
       const job = await tx.mediaDeletionJob.findFirst({ where: { deleteAfter: { lte: now }, OR: [{ status: "PENDING" }, { status: "FAILED", leaseUntil: { lt: now } }, { status: "PROCESSING", leaseUntil: { lt: now } }] }, orderBy: { deleteAfter: "asc" } });
       if (!job) return null;
       const leaseToken = randomUUID();
-      const claimed = await tx.mediaDeletionJob.updateMany({ where: { id: job.id, OR: [{ status: "PENDING" }, { status: "FAILED", leaseUntil: { lt: now } }, { status: "PROCESSING", leaseUntil: { lt: now } }] }, data: { status: "PROCESSING", attempts: { increment: 1 }, leaseUntil: new Date(now.getTime() + 5 * 60_000), leaseToken } });
+      const claimed = await tx.mediaDeletionJob.updateMany({ where: { id: job.id, deleteAfter: job.deleteAfter, OR: [{ status: "PENDING", leaseToken: null }, { status: "FAILED", leaseUntil: { lt: now }, leaseToken: null }, { status: "PROCESSING", leaseUntil: { lt: now } }] }, data: { status: "PROCESSING", attempts: { increment: 1 }, leaseUntil: new Date(now.getTime() + 5 * 60_000), leaseToken } });
       return claimed.count === 1 ? { id: job.id, storageKey: job.storageKey, attempts: job.attempts + 1, leaseToken } : null;
     });
   },
@@ -144,7 +144,10 @@ export const prismaMediaDeletionJobRepository: MediaDeletionJobRepository = {
         tx.siteSetting.findMany({ where: { deletedAt: null }, select: { value: true } }),
       ]);
       const referenced = products + articles + sections.filter((section) => jsonContainsMediaId(section.config, job.mediaAssetId)).length + settings.filter((setting) => jsonContainsMediaId(setting.value, job.mediaAssetId)).length > 0;
-      if (referenced) await tx.mediaDeletionJob.updateMany({ where: { id, status: "PROCESSING", leaseToken }, data: { status: "COMPLETED", completedAt: new Date(), leaseUntil: null, leaseToken: null, lastError: "Deletion cancelled because the asset was referenced again" } });
+      if (referenced) {
+        const cancelled = await tx.mediaDeletionJob.updateMany({ where: { id, status: "PROCESSING", leaseToken }, data: { status: "COMPLETED", completedAt: new Date(), leaseUntil: null, leaseToken: null, lastError: "Deletion cancelled because the asset was referenced again" } });
+        if (cancelled.count === 1) await tx.auditLog.create({ data: { action: "MEDIA_DELETION_CANCELLED_REFERENCED", entityType: "MediaAsset", entityId: job.mediaAssetId, metadata: { jobId: id } } });
+      }
       return !referenced;
     });
   },

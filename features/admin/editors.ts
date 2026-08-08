@@ -30,6 +30,9 @@ export class EditorValidationError extends Error {
 }
 
 const versionSchema = z.string().datetime().nullable();
+const uniqueLocales = <T extends { locale: string }>(items: T[], context: z.RefinementCtx) => {
+  if (new Set(items.map((item) => item.locale)).size !== items.length) context.addIssue({ code: "custom", message: "Each locale may appear only once" });
+};
 const localeTitleSchema = z.object({
   locale: z.enum(contentLocales),
   title: z.string().trim().min(1).max(160),
@@ -63,7 +66,7 @@ const settingInputSchema = z.object({
   key: z.literal("brand"),
   version: versionSchema,
   value: z.record(z.string(), z.unknown()),
-  translations: z.array(translationSchema).max(contentLocales.length),
+  translations: z.array(translationSchema).max(contentLocales.length).superRefine(uniqueLocales),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).default("DRAFT"),
 });
 
@@ -75,7 +78,7 @@ const navigationInputSchema = z.object({
   position: z.coerce.number().int().min(0),
   isVisible: z.boolean(),
   version: versionSchema,
-  translations: z.array(localeTitleSchema).min(1).max(contentLocales.length),
+  translations: z.array(localeTitleSchema).min(1).max(contentLocales.length).superRefine(uniqueLocales),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).default("DRAFT"),
 });
 
@@ -83,7 +86,7 @@ const pageInputSchema = z.object({
   id: z.string().min(1).optional(),
   slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   version: versionSchema,
-  translations: z.array(translationSchema.extend({ seoTitle: z.string().trim().max(160).optional(), seoDescription: z.string().trim().max(320).optional() })).min(1).max(contentLocales.length).superRefine((items, context) => { if (new Set(items.map((item) => item.locale)).size !== items.length) context.addIssue({ code: "custom", message: "Each locale may appear only once" }); }),
+  translations: z.array(translationSchema.extend({ seoTitle: z.string().trim().max(160).optional(), seoDescription: z.string().trim().max(320).optional() })).min(1).max(contentLocales.length).superRefine(uniqueLocales),
 });
 
 const pageSectionInputSchema = z.object({
@@ -94,7 +97,7 @@ const pageSectionInputSchema = z.object({
   position: z.coerce.number().int().min(0),
   isEnabled: z.boolean(),
   version: versionSchema,
-  translations: z.array(translationSchema).max(contentLocales.length),
+  translations: z.array(translationSchema).max(contentLocales.length).superRefine(uniqueLocales),
 }).transform((input, context) => {
   const section = pageSectionSchema.safeParse({ type: input.type, config: input.config });
   if (!section.success) {
@@ -112,7 +115,7 @@ const mediaInputSchema = z.object({
     title: z.string().trim().min(1).max(160),
     body: z.string().trim().max(4_000).default(""),
     alt: z.string().trim().min(1).max(250),
-  })).max(contentLocales.length),
+  })).max(contentLocales.length).superRefine(uniqueLocales),
 });
 
 export type AdminEditorRepository = {
@@ -192,9 +195,10 @@ export function createAdminEditorService(dependencies: {
         throw new EditorValidationError("Brand media must be published, public, and available");
       }
       if (payload.status === "PUBLISHED") assertEnglish(payload.translations);
-      const result = await repository.saveSiteSetting({ ...payload, audit: { actorId: input.actor.id, action: "SITE_SETTING_SAVED", entityType: "SiteSetting", metadata: { key: payload.key, status: payload.status } } });
+      const action = payload.status === "PUBLISHED" ? "SITE_SETTING_PUBLISHED" : payload.status === "ARCHIVED" ? "SITE_SETTING_ARCHIVED" : "SITE_SETTING_DRAFTED";
+      const result = await repository.saveSiteSetting({ ...payload, audit: { actorId: input.actor.id, action, entityType: "SiteSetting", metadata: { key: payload.key, status: payload.status } } });
       if (!result) throw new EditorConflictError();
-      if (!repository.auditsMutations) await audit(repository, input.actor, "SITE_SETTING_SAVED", "SiteSetting", result.id, { key: payload.key, status: payload.status });
+      if (!repository.auditsMutations) await audit(repository, input.actor, action, "SiteSetting", result.id, { key: payload.key, status: payload.status });
       return result;
     },
 
@@ -277,12 +281,12 @@ export function createAdminEditorService(dependencies: {
         ...page,
         status,
         audit: { actorId: input.actor.id, action: "PAGE_SAVED", entityType: "Page", metadata: { slug: page.slug } },
-        statusAudit: { actorId: input.actor.id, action: status === "PUBLISHED" ? "PUBLISH" : "PAGE_ARCHIVED", entityType: "page", metadata: { status } },
+        statusAudit: { actorId: input.actor.id, action: status === "PUBLISHED" ? "PUBLISH" : status === "ARCHIVED" ? "PAGE_ARCHIVED" : "PAGE_DRAFTED", entityType: "page", metadata: { status } },
       });
       if (!result) throw new EditorConflictError();
       if (!repository.auditsMutations) {
         await audit(repository, input.actor, "PAGE_SAVED", "Page", result.id, { slug: result.slug });
-        await audit(repository, input.actor, status === "PUBLISHED" ? "PUBLISH" : "PAGE_ARCHIVED", "page", result.id, { slug: result.slug, status });
+        await audit(repository, input.actor, status === "PUBLISHED" ? "PUBLISH" : status === "ARCHIVED" ? "PAGE_ARCHIVED" : "PAGE_DRAFTED", "page", result.id, { slug: result.slug, status });
       }
       if (status === "PUBLISHED") invalidate("page", result.slug);
       return { ...result, status };

@@ -307,6 +307,7 @@ describe("homepage content hydration", () => {
           logoMediaId: ids.heroMedia,
           faviconMediaId: ids.aboutMedia,
           slogan: "Configured peptide research slogan",
+          companyName: "YueShou Life Sciences",
           socialLinks: [{ label: "LinkedIn", href: "https://www.linkedin.com/company/yueshou" }],
           defaultSeo: { title: "YueShou peptides", description: "Custom peptide synthesis", keywords: ["peptide"] },
           footerColumns: [{ heading: "Resources", links: [{ label: "Quality", href: "/quality" }] }],
@@ -321,6 +322,7 @@ describe("homepage content hydration", () => {
 
     expect(repository.findPublishedMediaByIds).toHaveBeenCalledWith([ids.heroMedia, ids.aboutMedia]);
     expect(shell).toMatchObject({
+      brandName: "YueShou Life Sciences",
       slogan: "Configured peptide research slogan",
       logo: { id: ids.heroMedia, storageKey: `public/${ids.heroMedia}.webp` },
       favicon: { id: ids.aboutMedia, storageKey: `public/${ids.aboutMedia}.webp` },

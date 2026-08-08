@@ -428,7 +428,7 @@ function serviceFromRepository(repository: ContentRepository) {
         translationLocale: settingTranslation.translationLocale,
         usedFallback: settingTranslation.usedFallback,
         summary: settingTranslation.body,
-        brandName: settingTranslation.title,
+        brandName: contact.companyName ?? settingTranslation.title,
         slogan: contact.slogan ?? settingTranslation.body,
         logo: contact.logoMediaId && mediaById.get(contact.logoMediaId) ? mapMedia(mediaById.get(contact.logoMediaId)!, locale) : null,
         favicon: contact.faviconMediaId && mediaById.get(contact.faviconMediaId) ? mapMedia(mediaById.get(contact.faviconMediaId)!, locale) : null,

@@ -134,4 +134,11 @@ describe("site settings and navigation editors", () => {
     })).rejects.toBeInstanceOf(EditorValidationError);
     expect(repo.saveSiteSetting).not.toHaveBeenCalled();
   });
+
+  it("records a draft-specific setting audit action", async () => {
+    const repo = repository();
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+    await service.saveSiteSetting({ actor: admin, key: "brand", version: null, status: "DRAFT", value: { companyName: "YueShou" }, translations: [{ locale: "en", title: "Translated", body: "Summary" }] });
+    expect(repo.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: "SITE_SETTING_DRAFTED", metadata: expect.objectContaining({ status: "DRAFT" }) }));
+  });
 });

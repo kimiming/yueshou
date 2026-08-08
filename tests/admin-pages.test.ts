@@ -118,4 +118,24 @@ describe("page section editor", () => {
     await expect(service.savePage({ actor: editor, id: "page-1", slug: "about", version: "2026-08-08T00:00:00.000Z", translations: [{ locale: "en", title: "About", body: "Research" }, { locale: "en", title: "About again", body: "Research" }] })).rejects.toBeInstanceOf(EditorValidationError);
     expect(repo.savePage).not.toHaveBeenCalled();
   });
+
+  it("records an atomic draft save as drafted rather than archived", async () => {
+    const savePageAndChangeStatus = vi.fn(async () => ({ id: "page-1", slug: "about", publishedAt: null, version: "2026-08-08T00:00:02.000Z" }));
+    const repo = repository({ auditsMutations: true, savePageAndChangeStatus });
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+
+    await service.savePageAndSetStatus({
+      actor: editor,
+      id: "page-1",
+      slug: "about",
+      version: "2026-08-08T00:00:00.000Z",
+      status: "DRAFT",
+      translations: [{ locale: "en", title: "About", body: "Research" }],
+    });
+
+    expect(savePageAndChangeStatus).toHaveBeenCalledWith(expect.objectContaining({
+      status: "DRAFT",
+      statusAudit: expect.objectContaining({ action: "PAGE_DRAFTED" }),
+    }));
+  });
 });
