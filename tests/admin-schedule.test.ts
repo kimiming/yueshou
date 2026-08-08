@@ -1,3 +1,3 @@
 import { describe, expect, it } from "vitest";
 import { isoToLocalDateTime, localDateTimeToIso } from "@/features/admin/schedule";
-describe("admin schedule conversion", () => { it.each(["2026-01-08T13:45", "2026-07-08T13:45"])("round-trips the target local date across seasonal offsets: %s", (local) => { const iso = localDateTimeToIso(local); expect(iso).toBeTruthy(); expect(isoToLocalDateTime(iso)).toBe(local); }); });
+describe("admin schedule conversion", () => { it.each(["2026-01-08T13:45", "2026-07-08T13:45"])("round-trips the target local date across seasonal offsets: %s", (local) => { const iso = localDateTimeToIso(local); expect(iso).toBeTruthy(); expect(isoToLocalDateTime(iso)).toBe(local); }); it.each(["2026-02-31T12:00", "2025-02-29T12:00", "2026-13-01T12:00", "2026-01-01T24:00"])("rejects invalid local calendar values: %s", (value) => expect(localDateTimeToIso(value)).toBeNull()); });
