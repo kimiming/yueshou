@@ -22,7 +22,7 @@ function pageFixture(status: "DRAFT" | "PUBLISHED" = "PUBLISHED") {
     status,
     publishedAt: new Date("2026-08-08T00:00:00.000Z"),
     legalReviewStatus: "NOT_REQUIRED",
-    legalReviewedAt: null,
+    legalReviewedAt: null as Date | null,
     createdAt: new Date("2026-08-01T00:00:00.000Z"),
     updatedAt: new Date("2026-08-08T00:00:00.000Z"),
     deletedAt: null,
@@ -181,6 +181,54 @@ describe("content service", () => {
     const repository = createContentRepository(client);
 
     await expect(repository.findPublishedPageBySlug("about")).resolves.toBeNull();
+  });
+
+  it("legal repository rejects a published NOT_REQUIRED page", async () => {
+    const fixture = pageFixture();
+    fixture.slug = "privacy";
+    const findFirst = vi.fn(async (query: {
+      where: {
+        slug: string;
+        status: string;
+        deletedAt: null;
+        legalReviewStatus: string;
+        legalReviewedAt: { not: null };
+      };
+    }) => {
+      if (
+        fixture.slug !== query.where.slug ||
+        fixture.status !== query.where.status ||
+        fixture.legalReviewStatus !== query.where.legalReviewStatus ||
+        fixture.legalReviewedAt === null
+      ) return null;
+      return fixture;
+    });
+    const repository = createContentRepository({ page: { findFirst } } as unknown as PrismaClient);
+
+    await expect(repository.findApprovedLegalPageBySlug("privacy")).resolves.toBeNull();
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        slug: "privacy",
+        status: "PUBLISHED",
+        deletedAt: null,
+        legalReviewStatus: "APPROVED",
+        legalReviewedAt: { not: null },
+      },
+    }));
+  });
+
+  it("returns an approved published legal page with a review timestamp", async () => {
+    const fixture = pageFixture();
+    fixture.slug = "privacy";
+    fixture.legalReviewStatus = "APPROVED";
+    fixture.legalReviewedAt = new Date("2026-08-08T04:00:00.000Z");
+    const repository = {
+      findApprovedLegalPageBySlug: vi.fn(async () => fixture),
+    } as unknown as ContentRepository;
+
+    const result = await createContentService(repository).getApprovedLegalPageBySlug("en", "privacy");
+
+    expect(result).toMatchObject({ slug: "privacy", title: "About us" });
   });
 
   it("maps the URL locale to the database locale explicitly", async () => {

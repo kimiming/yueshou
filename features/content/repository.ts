@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 
 import type { PublishedEntityType } from "@/features/content/types";
+import { isLegalPageSlug } from "@/features/content/public-slug";
 import { prisma } from "@/lib/db/prisma";
 import type { DatabaseLocale } from "@/lib/i18n/config";
 
@@ -196,6 +197,7 @@ export type PublishedProductRecord = {
 
 export interface ContentRepository {
   findPublishedPageBySlug(slug: string): Promise<PublishedPageRecord | null>;
+  findApprovedLegalPageBySlug(slug: string): Promise<PublishedPageRecord | null>;
   findPublishedArticleBySlug(slug: string): Promise<PublishedArticleRecord | null>;
   findPublishedProductBySlug(slug: string): Promise<PublishedProductRecord | null>;
   findPublishedServiceBySlug(slug: string): Promise<PublishedServiceRecord | null>;
@@ -240,6 +242,20 @@ export function createContentRepository(database: ContentDatabase) {
     findPublishedPageBySlug(slug: string): Promise<PublishedPageRecord | null> {
       return database.page.findFirst({
         where: { slug, status: "PUBLISHED", deletedAt: null },
+        include: pageInclude,
+      });
+    },
+
+    findApprovedLegalPageBySlug(slug: string): Promise<PublishedPageRecord | null> {
+      if (!isLegalPageSlug(slug)) return Promise.resolve(null);
+      return database.page.findFirst({
+        where: {
+          slug,
+          status: "PUBLISHED",
+          deletedAt: null,
+          legalReviewStatus: "APPROVED",
+          legalReviewedAt: { not: null },
+        },
         include: pageInclude,
       });
     },

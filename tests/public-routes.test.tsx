@@ -5,9 +5,11 @@ import { RichContent } from "@/components/marketing/rich-content";
 import type { ArticleViewModel, PageViewModel, ProductViewModel } from "@/features/content/view-models";
 
 const contentMocks = vi.hoisted(() => ({
+  getApprovedLegalPageBySlug: vi.fn(),
   getPageBySlug: vi.fn(),
   getPublishedArticle: vi.fn(),
   getPublishedProduct: vi.fn(),
+  getPublishedService: vi.fn(),
 }));
 
 vi.mock("@/features/content/service", () => contentMocks);
@@ -77,7 +79,7 @@ describe("public content routes", () => {
   it.each(["terms", "privacy", "ruo-policy", "shipping-compliance", "cookie-policy"])(
     "renders %s as its own legal article with exactly one heading level one",
     async (slug) => {
-      contentMocks.getPageBySlug.mockResolvedValue(page(slug));
+      contentMocks.getApprovedLegalPageBySlug.mockResolvedValue(page(slug));
       const { default: LegalPage } = await import(
         "@/app/[locale]/(marketing)/legal/[slug]/page"
       );
@@ -88,7 +90,7 @@ describe("public content routes", () => {
       expect(screen.getByRole("article")).toBeInTheDocument();
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(`Title for ${slug}`);
       expect(container.querySelectorAll("h1")).toHaveLength(1);
-      expect(contentMocks.getPageBySlug).toHaveBeenCalledWith("en", slug);
+      expect(contentMocks.getApprovedLegalPageBySlug).toHaveBeenCalledWith("en", slug);
     },
   );
 
@@ -100,7 +102,18 @@ describe("public content routes", () => {
     await expect(
       LegalPage({ params: Promise.resolve({ locale: "en", slug: "invented-policy" }) }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(contentMocks.getPageBySlug).not.toHaveBeenCalled();
+    expect(contentMocks.getApprovedLegalPageBySlug).not.toHaveBeenCalled();
+  });
+
+  it("rejects a published legal page that is not approved", async () => {
+    contentMocks.getApprovedLegalPageBySlug.mockResolvedValue(null);
+    const { default: LegalPage } = await import(
+      "@/app/[locale]/(marketing)/legal/[slug]/page"
+    );
+
+    await expect(
+      LegalPage({ params: Promise.resolve({ locale: "en", slug: "privacy" }) }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("renders a published product detail and rejects an unavailable draft", async () => {
@@ -137,6 +150,82 @@ describe("public content routes", () => {
     await expect(
       NewsArticlePage({ params: Promise.resolve({ locale: "en", slug: "draft-article" }) }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("renders a non-reserved published CMS page through the generic route", async () => {
+    contentMocks.getPageBySlug.mockResolvedValue(page("quality"));
+    const { default: GenericContentPage } = await import(
+      "@/app/[locale]/(marketing)/[slug]/page"
+    );
+
+    const view = await GenericContentPage({
+      params: Promise.resolve({ locale: "en", slug: "quality" }),
+    });
+    const { container } = render(view);
+
+    expect(screen.getByRole("article")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Title for quality");
+    expect(container.querySelectorAll("h1")).toHaveLength(1);
+    expect(contentMocks.getPageBySlug).toHaveBeenCalledWith("en", "quality");
+  });
+
+  it("rejects an invalid detail slug without querying the service", async () => {
+    const { default: ProductPage } = await import(
+      "@/app/[locale]/(marketing)/products/[slug]/page"
+    );
+
+    await expect(
+      ProductPage({ params: Promise.resolve({ locale: "en", slug: "../draft" }) }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(contentMocks.getPublishedProduct).not.toHaveBeenCalled();
+  });
+
+  it("does not turn an unexpected product lookup failure into not-found", async () => {
+    const failure = new Error("database unavailable");
+    contentMocks.getPublishedProduct.mockRejectedValue(failure);
+    const { default: ProductPage } = await import(
+      "@/app/[locale]/(marketing)/products/[slug]/page"
+    );
+
+    await expect(
+      ProductPage({ params: Promise.resolve({ locale: "en", slug: "published-product" }) }),
+    ).rejects.toBe(failure);
+  });
+
+  it("does not turn an unexpected article lookup failure into not-found", async () => {
+    const failure = new Error("translation mapping failed");
+    contentMocks.getPublishedArticle.mockRejectedValue(failure);
+    const { default: NewsArticlePage } = await import(
+      "@/app/[locale]/(marketing)/news/[slug]/page"
+    );
+
+    await expect(
+      NewsArticlePage({ params: Promise.resolve({ locale: "en", slug: "published-article" }) }),
+    ).rejects.toBe(failure);
+  });
+
+  it("does not turn an unexpected service lookup failure into not-found", async () => {
+    const failure = new Error("service database unavailable");
+    contentMocks.getPublishedService.mockRejectedValue(failure);
+    const { default: ServicePage } = await import(
+      "@/app/[locale]/(marketing)/services/[slug]/page"
+    );
+
+    await expect(
+      ServicePage({ params: Promise.resolve({ locale: "en", slug: "peptide-synthesis" }) }),
+    ).rejects.toBe(failure);
+  });
+
+  it("does not turn an unexpected generic page failure into not-found", async () => {
+    const failure = new Error("page database unavailable");
+    contentMocks.getPageBySlug.mockRejectedValue(failure);
+    const { default: GenericContentPage } = await import(
+      "@/app/[locale]/(marketing)/[slug]/page"
+    );
+
+    await expect(
+      GenericContentPage({ params: Promise.resolve({ locale: "en", slug: "quality" }) }),
+    ).rejects.toBe(failure);
   });
 });
 

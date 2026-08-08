@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
 import { RichContent } from "@/components/marketing/rich-content";
 import { getPublishedProduct } from "@/features/content/service";
+import { isPublicContentSlug } from "@/features/content/public-slug";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
@@ -10,13 +11,8 @@ export const dynamic = "force-dynamic";
 
 export default async function ProductPage({ params }: { params: Promise<{ locale: string; slug: string }> }) {
   const { locale, slug } = await params;
-  if (!isLocale(locale)) notFound();
-  let product;
-  try {
-    product = await getPublishedProduct(locale, slug);
-  } catch {
-    notFound();
-  }
+  if (!isLocale(locale) || !isPublicContentSlug(slug)) notFound();
+  const product = await getPublishedProduct(locale, slug);
   if (!product) notFound();
   const dictionary = await getDictionary(locale);
 

@@ -61,3 +61,51 @@ The four skipped tests are existing environment-gated integration tests.
 ## Concerns
 
 - Legal, contact, quote, list, and company pages intentionally return 404 until their corresponding database records are published; legal publication additionally requires the existing approved-review constraint.
+
+## Review Fix Round 1/5
+
+Base: `ec7ba03`
+
+### Findings addressed
+
+1. Added a legal-only repository/service read boundary. It accepts only the five legal slugs and requires `PUBLISHED`, non-deleted, `legalReviewStatus: APPROVED`, and a non-null `legalReviewedAt`. The legal route no longer uses the generic page reader. Page search applies the same approval requirement so an unapproved legal title/body cannot leak through results.
+2. Added the generic `/{locale}/[slug]` CMS page route for non-reserved published page slugs. Search now maps `home` to `/{locale}`, the five legal slugs to `/{locale}/legal/{slug}`, and other CMS pages to `/{locale}/{slug}`.
+3. Added a focused public-slug domain validator. Product, news, service, legal, and generic detail routes reject invalid slugs before lookup, return not-found only for invalid/missing/unpublished content, and allow unexpected repository/database/mapping exceptions to propagate.
+
+### RED evidence
+
+- Legal tests failed because `findApprovedLegalPageBySlug` / `getApprovedLegalPageBySlug` did not exist and the legal route still called the generic reader.
+- Slug tests failed because the focused public-slug domain module did not exist.
+- Generic route/search tests failed because `/{locale}/[slug]` did not exist and `home` mapped to `/{locale}/home`.
+- Error-boundary tests failed because product, article, and service routes converted rejected lookups to `NEXT_NOT_FOUND`; invalid detail slugs also reached the service.
+- Search defense test failed because page search did not require legal approval metadata.
+
+### GREEN evidence
+
+Focused command:
+
+```text
+pnpm vitest run tests/public-routes.test.tsx tests/search.test.ts tests/public-slug.test.ts tests/content-service.test.ts
+4 files passed; 46 tests passed
+```
+
+Final fresh gate:
+
+```text
+pnpm vitest run
+15 files passed, 2 skipped; 135 tests passed, 4 skipped
+
+pnpm exec tsc --noEmit
+Exit 0
+
+pnpm lint
+0 errors, 0 warnings
+
+DATABASE_URL=<disposable-valid-url> pnpm exec prisma validate
+Schema valid
+
+pnpm build
+Exit 0; compilation and TypeScript passed; /[locale]/[slug] and all static public routes emitted
+```
+
+The four skipped tests remain existing environment-gated integration tests. Prisma validation used a disposable syntactically valid URL and did not connect to a database.

@@ -6,6 +6,7 @@ import {
   type Locale,
 } from "@/lib/i18n/config";
 import { resolveTranslation } from "@/lib/i18n/resolve-translation";
+import { isLegalPageSlug, LEGAL_PAGE_SLUGS } from "@/features/content/public-slug";
 
 export const SEARCH_QUERY_MAX_LENGTH = 100;
 export const SEARCH_RESULT_LIMIT = 30;
@@ -95,19 +96,12 @@ function excerpt(body: string) {
   return Array.from(text).slice(0, 180).join("");
 }
 
-const LEGAL_SLUGS = new Set([
-  "terms",
-  "privacy",
-  "ruo-policy",
-  "shipping-compliance",
-  "cookie-policy",
-]);
-
 function resultHref(type: SearchResultType, slug: string, locale: Locale) {
   if (type === "product") return `/${locale}/products/${slug}`;
   if (type === "service") return `/${locale}/services/${slug}`;
   if (type === "article") return `/${locale}/news/${slug}`;
-  return LEGAL_SLUGS.has(slug) ? `/${locale}/legal/${slug}` : `/${locale}/${slug}`;
+  if (slug === "home") return `/${locale}`;
+  return isLegalPageSlug(slug) ? `/${locale}/legal/${slug}` : `/${locale}/${slug}`;
 }
 
 function mapResult(
@@ -195,6 +189,10 @@ export function createContentSearch(database: ContentSearchDatabase) {
         where: {
           status: "PUBLISHED",
           deletedAt: null,
+          OR: [
+            { slug: { notIn: [...LEGAL_PAGE_SLUGS] } },
+            { legalReviewStatus: "APPROVED", legalReviewedAt: { not: null } },
+          ],
           translations: { some: translationWhere },
         },
         orderBy: { id: "asc" },

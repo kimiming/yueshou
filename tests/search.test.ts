@@ -137,6 +137,43 @@ describe("content search", () => {
     ]);
   });
 
+  it("maps home, generic CMS, and legal page results to routable localized URLs", async () => {
+    const database = createDatabase();
+    database.page.findMany.mockResolvedValue([
+      { id: "home", slug: "home", translations: translation("Needle home", "Needle") },
+      { id: "about", slug: "about", translations: translation("Needle about", "Needle") },
+      { id: "quality", slug: "quality", translations: translation("Needle quality", "Needle") },
+      { id: "privacy", slug: "privacy", translations: translation("Needle privacy", "Needle") },
+    ]);
+
+    const results = await createContentSearch(database as never)("en", "needle");
+
+    expect(Object.fromEntries(results.map((result) => [result.id, result.href]))).toEqual({
+      home: "/en",
+      about: "/en/about",
+      quality: "/en/quality",
+      privacy: "/en/legal/privacy",
+    });
+  });
+
+  it("requires approved review metadata before legal pages can appear in search", async () => {
+    const database = createDatabase();
+
+    await createContentSearch(database as never)("en", "privacy");
+
+    expect(database.page.findMany.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        OR: [
+          { slug: { notIn: ["terms", "privacy", "ruo-policy", "shipping-compliance", "cookie-policy"] } },
+          {
+            legalReviewStatus: "APPROVED",
+            legalReviewedAt: { not: null },
+          },
+        ],
+      },
+    });
+  });
+
   it("returns no results and performs no query for blank input", async () => {
     const database = createDatabase();
     const search = createContentSearch(database as never);

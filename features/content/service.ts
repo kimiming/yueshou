@@ -25,6 +25,7 @@ import type {
   ServiceViewModel,
 } from "@/features/content/view-models";
 import type { PageSectionType } from "@/features/content/types";
+import { isLegalPageSlug, isPublicContentSlug } from "@/features/content/public-slug";
 import {
   fromDatabaseLocale,
   isLocale,
@@ -34,14 +35,12 @@ import {
 } from "@/lib/i18n/config";
 import { resolveTranslation } from "@/lib/i18n/resolve-translation";
 
-const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
 function validateLookup(locale: string, slug: string): Locale {
   if (!isLocale(locale)) {
     throw new Error(`Invalid locale: ${locale}`);
   }
 
-  if (!slugPattern.test(slug)) {
+  if (!isPublicContentSlug(slug)) {
     throw new Error(`Invalid slug: ${slug}`);
   }
 
@@ -376,6 +375,13 @@ function serviceFromRepository(repository: ContentRepository) {
     return record ? mapPage(record, locale) : null;
   };
 
+  const getApprovedLegalPageBySlug = async (localeInput: string, slug: string) => {
+    const locale = validateLookup(localeInput, slug);
+    if (!isLegalPageSlug(slug)) throw new Error(`Invalid legal page slug: ${slug}`);
+    const record = await repository.findApprovedLegalPageBySlug(slug);
+    return record ? mapPage(record, locale) : null;
+  };
+
   return {
     async getHomePage(localeInput: string) {
       const locale = validateLookup(localeInput, "home");
@@ -383,6 +389,7 @@ function serviceFromRepository(repository: ContentRepository) {
       return record ? hydrateHomePage(repository, record, locale) : null;
     },
     getPageBySlug,
+    getApprovedLegalPageBySlug,
     async getMarketingShell(localeInput: string): Promise<MarketingShellContentViewModel | null> {
       const locale = validateLookup(localeInput, "home");
       const [setting, navigationRecords] = await Promise.all([
@@ -452,6 +459,7 @@ const contentService = createContentService(contentRepository);
 export const getHomePage = contentService.getHomePage;
 export const getMarketingShell = contentService.getMarketingShell;
 export const getPageBySlug = contentService.getPageBySlug;
+export const getApprovedLegalPageBySlug = contentService.getApprovedLegalPageBySlug;
 export const getPublishedArticle = contentService.getPublishedArticle;
 export const getPublishedProduct = contentService.getPublishedProduct;
 export const getPublishedService = contentService.getPublishedService;
