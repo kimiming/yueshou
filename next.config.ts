@@ -13,6 +13,7 @@ export function r2ImageRemotePatterns(publicUrl: string | undefined) {
 }
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   images: {
     remotePatterns: r2ImageRemotePatterns(process.env.NEXT_PUBLIC_R2_PUBLIC_URL),
   },

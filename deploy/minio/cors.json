@@ -1,0 +1,9 @@
+[
+  {
+    "AllowedOrigins": ["https://www.example.com"],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["content-type", "content-length", "x-amz-*"],
+    "ExposeHeaders": ["etag"],
+    "MaxAgeSeconds": 300
+  }
+]
