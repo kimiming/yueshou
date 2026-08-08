@@ -129,11 +129,11 @@ export const prismaMediaRepository: MediaRepository = {
 export const prismaMediaDeletionJobRepository: MediaDeletionJobRepository = {
   async claimDue(now) {
     return prisma.$transaction(async (tx) => {
-      const job = await tx.mediaDeletionJob.findFirst({ where: { deleteAfter: { lte: now }, OR: [{ status: "PENDING" }, { status: "FAILED", leaseUntil: { lt: now } }, { status: "PROCESSING", leaseUntil: { lt: now } }] }, orderBy: { deleteAfter: "asc" } });
+      const job = await tx.mediaDeletionJob.findFirst({ where: { deleteAfter: { lte: now }, OR: [{ status: "PENDING" }, { status: "FAILED", leaseUntil: { lt: now } }, { status: "PROCESSING", leaseUntil: { lt: now } }, { status: "DELETING", leaseUntil: { lt: now } }] }, orderBy: { deleteAfter: "asc" } });
       if (!job) return null;
       const leaseToken = randomUUID();
-      const claimed = await tx.mediaDeletionJob.updateMany({ where: { id: job.id, deleteAfter: job.deleteAfter, OR: [{ status: "PENDING", leaseToken: null }, { status: "FAILED", leaseUntil: { lt: now }, leaseToken: null }, { status: "PROCESSING", leaseUntil: { lt: now } }] }, data: { status: "PROCESSING", attempts: { increment: 1 }, leaseUntil: new Date(now.getTime() + 5 * 60_000), leaseToken } });
-      return claimed.count === 1 ? { id: job.id, storageKey: job.storageKey, attempts: job.attempts + 1, leaseToken } : null;
+      const claimed = await tx.mediaDeletionJob.updateMany({ where: { id: job.id, status: job.status, deleteAfter: job.deleteAfter, leaseUntil: job.leaseUntil, leaseToken: job.leaseToken }, data: { status: job.status === "DELETING" ? "DELETING" : "PROCESSING", attempts: { increment: 1 }, leaseUntil: new Date(now.getTime() + 5 * 60_000), leaseToken } });
+      return claimed.count === 1 ? { id: job.id, storageKey: job.storageKey, attempts: job.attempts + 1, leaseToken, alreadyAuthorized: job.status === "DELETING" } : null;
     });
   },
   async confirmDeletable(id, leaseToken) {

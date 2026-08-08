@@ -75,4 +75,47 @@ describe("media deletion authorization protocol", () => {
     expect(tx.mediaDeletionJob.create).not.toHaveBeenCalled();
     expect(tx.auditLog.create).not.toHaveBeenCalled();
   });
+
+  it("reclaims an expired DELETING authorization with a rotated token and keeps it authorized", async () => {
+    const now = new Date("2026-09-07T00:10:00.000Z");
+    const expiredLease = new Date("2026-09-07T00:05:00.000Z");
+    const updateMany = vi.fn(async () => ({ count: 1 }));
+    const tx = {
+      mediaDeletionJob: {
+        findFirst: vi.fn(async () => ({ id: "job-1", storageKey: "media/a.webp", attempts: 2, status: "DELETING", deleteAfter, leaseUntil: expiredLease, leaseToken: "old-token" })),
+        updateMany,
+      },
+    };
+    withTransaction(tx);
+
+    const claimed = await prismaMediaDeletionJobRepository.claimDue(now);
+
+    expect(claimed).toMatchObject({ id: "job-1", storageKey: "media/a.webp", attempts: 3, alreadyAuthorized: true });
+    expect(claimed?.leaseToken).not.toBe("old-token");
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "job-1", status: "DELETING", deleteAfter, leaseUntil: expiredLease, leaseToken: "old-token" },
+      data: expect.objectContaining({ status: "DELETING" }),
+    }));
+  });
+
+  it("does not claim an unexpired DELETING authorization", async () => {
+    const findFirst = vi.fn(async () => null);
+    const tx = { mediaDeletionJob: { findFirst, updateMany: vi.fn() } };
+    withTransaction(tx);
+
+    await expect(prismaMediaDeletionJobRepository.claimDue(new Date("2026-09-07T00:00:00.000Z"))).resolves.toBeNull();
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ OR: expect.arrayContaining([expect.objectContaining({ status: "DELETING", leaseUntil: { lt: new Date("2026-09-07T00:00:00.000Z") } })]) }),
+    }));
+  });
+
+  it("makes stale completion and failure tokens no-ops after authorization is reclaimed", async () => {
+    const updateMany = vi.spyOn(prisma.mediaDeletionJob, "updateMany").mockResolvedValue({ count: 0 } as never);
+
+    await prismaMediaDeletionJobRepository.complete("job-1", "old-token", new Date("2026-09-07T00:10:00.000Z"));
+    await prismaMediaDeletionJobRepository.fail("job-1", "old-token", "late worker", new Date("2026-09-07T00:10:00.000Z"));
+
+    expect(updateMany).toHaveBeenNthCalledWith(1, expect.objectContaining({ where: { id: "job-1", status: "DELETING", leaseToken: "old-token" } }));
+    expect(updateMany).toHaveBeenNthCalledWith(2, expect.objectContaining({ where: { id: "job-1", status: "DELETING", leaseToken: "old-token" } }));
+  });
 });

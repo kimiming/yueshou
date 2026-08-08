@@ -49,3 +49,18 @@ it("uses the irreversible deletion authorization rather than the rearrangeable c
   await expect(processDueMediaDeletionJobs({ repository, storage })).resolves.toEqual({ processed: 1, failed: 0 });
   expect(repository.complete).toHaveBeenCalledWith("job-1", "delete-authorization", expect.any(Date));
 });
+
+it("retries an expired deletion authorization without reopening its confirmation window", async () => {
+  const repository = {
+    claimDue: vi.fn(async () => ({ id: "job-1", storageKey: "media/2026/08/a.webp", attempts: 2, leaseToken: "replacement-authorization", alreadyAuthorized: true })),
+    confirmDeletable: vi.fn(async () => null),
+    complete: vi.fn(async () => undefined),
+    fail: vi.fn(async () => undefined),
+  };
+  const storage = { deleteObject: vi.fn(async () => undefined) };
+
+  await expect(processDueMediaDeletionJobs({ repository, storage })).resolves.toEqual({ processed: 1, failed: 0 });
+  expect(repository.confirmDeletable).not.toHaveBeenCalled();
+  expect(storage.deleteObject).toHaveBeenCalledWith("media/2026/08/a.webp");
+  expect(repository.complete).toHaveBeenCalledWith("job-1", "replacement-authorization", expect.any(Date));
+});
