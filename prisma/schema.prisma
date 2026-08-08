@@ -398,18 +398,19 @@ model MediaAssetTranslation {
 }
 
 model Inquiry {
-  id             String              @id @default(cuid())
+  id             String                @id @default(cuid())
   companyName    String
   contactName    String
   email          String
   country        String?
   message        String
-  status         InquiryStatus       @default(NEW)
+  status         InquiryStatus         @default(NEW)
   internalNotes  String?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
   attachments    InquiryAttachment[]
   consentRecords ConsentRecord[]
+  uploadIntents  InquiryUploadIntent[]
 
   @@index([status, createdAt])
 }
@@ -425,6 +426,35 @@ model InquiryAttachment {
   inquiry    Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
 
   @@index([inquiryId])
+}
+
+model InquiryUploadIntent {
+  id               String    @id @default(cuid())
+  inquiryId        String
+  storageKey       String    @unique
+  inquiryTokenHash String
+  sessionHash      String
+  actorHash        String
+  filename         String
+  mimeType         String
+  extension        String
+  sizeBytes        Int
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  inquiry          Inquiry   @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
+model InquiryRateLimit {
+  key       String   @id
+  count     Int
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
 }
 
 model ConsentRecord {

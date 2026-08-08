@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 
+import { AnalyticsConsentBoundary } from "@/components/consent/analytics-consent-boundary";
+import { CookieConsentBanner } from "@/components/consent/cookie-consent-banner";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { SeoJsonLd } from "@/components/marketing/seo-json-ld";
@@ -13,6 +16,7 @@ import type { MarketingShellContentViewModel } from "@/features/content/view-mod
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 import { organizationJsonLd, websiteJsonLd } from "@/features/seo/json-ld";
+import { CONSENT_COOKIE_NAME, parseConsentCookie } from "@/features/consent/preferences";
 
 type MarketingLayoutProps = {
   children: ReactNode;
@@ -36,7 +40,8 @@ export default async function MarketingLayout({ children, params }: MarketingLay
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
 
-  const [dictionary, result] = await Promise.all([getDictionary(locale), loadShell(locale)]);
+  const [dictionary, result, cookieStore] = await Promise.all([getDictionary(locale), loadShell(locale), cookies()]);
+  const consentPreferences = parseConsentCookie(cookieStore.get(CONSENT_COOKIE_NAME)?.value);
   if (result.status === "error") {
     return (
       <div className="server-error-state shell-error-state" role="alert">
@@ -57,6 +62,10 @@ export default async function MarketingLayout({ children, params }: MarketingLay
       <SiteHeader model={shell} />
       {children}
       <SiteFooter model={shell} />
+      <CookieConsentBanner labels={dictionary.consent} initialPreferences={consentPreferences} />
+      <AnalyticsConsentBoundary preferences={consentPreferences}>
+        <div data-analytics-enabled hidden />
+      </AnalyticsConsentBoundary>
     </>
   );
 }

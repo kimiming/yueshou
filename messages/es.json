@@ -15,6 +15,8 @@
     "requestQuote": "Solicitar un presupuesto",
     "learnMore": "Más información"
   },
+  "consent": { "title": "Opciones de cookies", "description": "Las cookies necesarias mantienen el sitio en funcionamiento. Las analíticas son opcionales y solo se ejecutan si da su consentimiento.", "necessary": "Necesarias", "necessaryDescription": "Requeridas para la seguridad y las funciones básicas del sitio.", "analytics": "Analíticas", "analyticsDescription": "Nos ayuda a entender el uso del sitio.", "rejectAll": "Rechazar todo", "acceptAll": "Aceptar todo", "manage": "Configuración de cookies", "save": "Guardar preferencias", "close": "Cerrar configuración de cookies" },
+  "inquiry": { "company": "Empresa o institución", "contact": "Nombre de contacto", "email": "Correo institucional", "country": "País", "details": "Detalles del proyecto", "consent": "Consiento el uso de mi información para procesar esta consulta.", "submit": "Enviar consulta", "submitting": "Enviando…", "success": "Gracias. Hemos recibido su consulta.", "required": "Todos los campos son obligatorios." },
   "marketing": {
     "accessibility": {
       "home": "Inicio de YueShou",

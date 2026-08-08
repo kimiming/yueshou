@@ -15,6 +15,8 @@
     "requestQuote": "Request a Quote",
     "learnMore": "Learn More"
   },
+  "consent": { "title": "Cookie choices", "description": "Necessary cookies keep this site working. Analytics is optional and runs only if you opt in.", "necessary": "Necessary", "necessaryDescription": "Required for security and core site functions.", "analytics": "Analytics", "analyticsDescription": "Helps us understand site usage.", "rejectAll": "Reject all", "acceptAll": "Accept all", "manage": "Cookie settings", "save": "Save preferences", "close": "Close cookie settings" },
+  "inquiry": { "company": "Company or institution", "contact": "Contact name", "email": "Institutional email", "country": "Country", "details": "Project details", "consent": "I consent to the use of my information to process this inquiry.", "submit": "Submit inquiry", "submitting": "Submitting…", "success": "Thank you. Your inquiry has been received.", "required": "All fields are required." },
   "marketing": {
     "accessibility": {
       "home": "YueShou home",

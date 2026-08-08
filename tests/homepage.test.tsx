@@ -10,6 +10,9 @@ const { getHomePage, getMarketingShell, pathname } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/features/content/service", () => ({ getHomePage, getMarketingShell }));
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ get: vi.fn(() => undefined) })),
+}));
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   usePathname: () => pathname.value,

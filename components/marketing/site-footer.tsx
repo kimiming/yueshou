@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { CookieSettingsButton } from "@/components/consent/cookie-settings-button";
 import type { MarketingShellViewModel } from "@/components/marketing/types";
 
 type SiteFooterProps = {
@@ -44,6 +45,7 @@ export function SiteFooter({ model }: SiteFooterProps) {
       </div>
       <div className="marketing-container site-footer__bottom">
         <small>{model.copyright}</small>
+        <CookieSettingsButton label={model.cookieSettingsLabel} />
       </div>
     </footer>
   );

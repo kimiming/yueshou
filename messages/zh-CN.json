@@ -15,6 +15,8 @@
     "requestQuote": "询价",
     "learnMore": "了解更多"
   },
+  "consent": { "title": "Cookie 选择", "description": "必要 Cookie 用于保障网站正常运行。分析 Cookie 为可选项，仅在您选择同意后运行。", "necessary": "必要", "necessaryDescription": "网站安全和核心功能所必需。", "analytics": "分析", "analyticsDescription": "帮助我们了解网站使用情况。", "rejectAll": "全部拒绝", "acceptAll": "全部接受", "manage": "Cookie 设置", "save": "保存偏好", "close": "关闭 Cookie 设置" },
+  "inquiry": { "company": "公司或机构", "contact": "联系人姓名", "email": "机构邮箱", "country": "国家或地区", "details": "项目详情", "consent": "我同意使用本人提供的信息来处理本次询价。", "submit": "提交询价", "submitting": "正在提交…", "success": "感谢您，我们已收到您的询价。", "required": "所有字段均为必填项。" },
   "marketing": {
     "accessibility": {
       "home": "YueShou 首页",

@@ -15,6 +15,8 @@
     "requestQuote": "Angebot anfordern",
     "learnMore": "Mehr erfahren"
   },
+  "consent": { "title": "Cookie-Auswahl", "description": "Notwendige Cookies halten diese Website funktionsfähig. Analysen sind optional und werden nur nach Ihrer Zustimmung ausgeführt.", "necessary": "Notwendig", "necessaryDescription": "Für Sicherheit und zentrale Website-Funktionen erforderlich.", "analytics": "Analyse", "analyticsDescription": "Hilft uns, die Nutzung der Website zu verstehen.", "rejectAll": "Alle ablehnen", "acceptAll": "Alle akzeptieren", "manage": "Cookie-Einstellungen", "save": "Einstellungen speichern", "close": "Cookie-Einstellungen schließen" },
+  "inquiry": { "company": "Unternehmen oder Institution", "contact": "Kontaktname", "email": "Institutionelle E-Mail", "country": "Land", "details": "Projektdetails", "consent": "Ich stimme der Verwendung meiner Angaben zur Bearbeitung dieser Anfrage zu.", "submit": "Anfrage senden", "submitting": "Wird gesendet…", "success": "Vielen Dank. Ihre Anfrage ist eingegangen.", "required": "Alle Felder sind erforderlich." },
   "marketing": {
     "accessibility": {
       "home": "YueShou Startseite",

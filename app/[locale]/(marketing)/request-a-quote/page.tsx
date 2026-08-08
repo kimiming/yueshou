@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
 import { RichContent } from "@/components/marketing/rich-content";
+import { QuoteForm } from "@/components/marketing/quote-form";
 import { getPageBySlug } from "@/features/content/service";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
@@ -46,7 +47,7 @@ export default async function RequestAQuotePage({ params }: RequestAQuotePagePro
         <section aria-labelledby="quote-form-heading" data-quote-form-container>
           <h2 id="quote-form-heading">{dictionary.marketing.public.quoteDetails}</h2>
           <p>{dictionary.marketing.public.gdprNotice} <Link href={`/${locale}/legal/privacy`}>{dictionary.marketing.public.privacyPolicy}</Link></p>
-          <div data-quote-form-placeholder aria-labelledby="quote-form-heading" />
+          <QuoteForm labels={dictionary.inquiry} />
         </section>
       </article>
     </main>

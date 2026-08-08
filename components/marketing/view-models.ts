@@ -105,5 +105,6 @@ export function createMarketingShellViewModel(
     footerSummary: content.summary,
     researchUseOnly: dictionary.marketing.footer.researchUseOnly,
     copyright: `© ${new Date().getUTCFullYear()} 粤首`,
+    cookieSettingsLabel: dictionary.consent.manage,
   };
 }

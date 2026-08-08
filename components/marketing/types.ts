@@ -34,6 +34,7 @@ export type MarketingShellViewModel = {
   footerSummary: string;
   researchUseOnly: string;
   copyright: string;
+  cookieSettingsLabel: string;
 };
 
 export type MarketingCtaViewModel = {
