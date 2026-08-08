@@ -269,6 +269,7 @@ model Product {
   specifications Json?
   status         PublishStatus        @default(DRAFT)
   publishedAt    DateTime?
+  scheduledAt    DateTime?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   deletedAt      DateTime?
@@ -322,6 +323,7 @@ model Article {
   coverMediaId String?
   status       PublishStatus        @default(DRAFT)
   publishedAt  DateTime?
+  scheduledAt  DateTime?
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   deletedAt    DateTime?

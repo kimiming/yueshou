@@ -13,11 +13,14 @@ const { Header, Content, Sider } = Layout;
 const navigation: Array<{ key: string; label: string; href: string; permission?: Permission }> = [
   { key: "dashboard", label: "Dashboard", href: "/admin" },
   { key: "content", label: "Content", href: "/admin/content", permission: "content:read" },
+  { key: "products", label: "Products", href: "/admin/products", permission: "content:read" },
+  { key: "news", label: "News", href: "/admin/news", permission: "content:read" },
   { key: "navigation", label: "Navigation", href: "/admin/navigation", permission: "content:read" },
   { key: "media", label: "Media", href: "/admin/media", permission: "media:read" },
   { key: "inquiries", label: "Inquiries", href: "/admin/inquiries", permission: "inquiries:read" },
   { key: "settings", label: "Settings", href: "/admin/settings", permission: "settings:read" },
   { key: "users", label: "Users", href: "/admin/users", permission: "users:read" },
+  { key: "audit", label: "Audit", href: "/admin/audit", permission: "users:read" },
 ];
 
 export function AdminShell({ user, children }: { user: AuthenticatedUser; children: ReactNode }) {
