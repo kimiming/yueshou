@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ObjectStorage, PrivateFinalizationStorage } from "@/lib/storage";
+import type { ObjectStorage, PrivateDownloadStorage, PrivateFinalizationStorage } from "@/lib/storage";
 import { validateAttachmentBytes } from "./attachment-signatures";
 import { createInquiryAttachmentKey, getInquiryAttachmentExtension, inquiryAttachmentKeySchema, inquiryAttachmentSchema, MAX_INQUIRY_ATTACHMENT_BYTES, type InquiryAttachmentInput } from "./schemas";
 import { reserveUploadQuota, verifyUploadSession, type UploadCapability, type UploadSessionRepository } from "./upload-session";
@@ -14,6 +14,20 @@ export interface InquiryAttachmentRepository {
 }
 export class InquiryAttachmentError extends Error { constructor(readonly code: string) { super(code); this.name = "InquiryAttachmentError"; } }
 export class InquiryAttachmentAuthorizationError extends InquiryAttachmentError { constructor() { super("inquiry_attachment_forbidden"); } }
+export type InquiryAttachmentDownloadActor = { id: string; role: "ADMIN" | "EDITOR" };
+export type InquiryAttachmentDownloadRecord = {
+  id: string;
+  inquiryId: string;
+  storageKey: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  inquiryStatus: "NEW" | "IN_PROGRESS" | "RESOLVED" | "ARCHIVED";
+};
+export interface InquiryAttachmentDownloadRepository {
+  findAttachmentForDownload(id: string): Promise<InquiryAttachmentDownloadRecord | null>;
+  auditAttachmentDownload(input: { actorId: string; attachmentId: string; inquiryId: string; accessedAt: Date }): Promise<void>;
+}
 type Dependencies = { repository: InquiryAttachmentRepository; sessions: UploadSessionRepository; storage: ObjectStorage & PrivateFinalizationStorage; secret: string; now?: () => Date; uuid?: () => string };
 
 export async function createInquiryAttachmentUpload(dependencies: Dependencies, input: { binding: InquiryAttachmentBinding; upload: InquiryAttachmentInput }) {
@@ -40,4 +54,53 @@ export async function completeInquiryAttachmentUpload(dependencies: Dependencies
   try { await dependencies.storage.deleteObject(storageKey); } catch { await dependencies.repository.queueTempObjectDeletion(storageKey); }
   return { token: finalized.id, storageKey: finalized.finalStorageKey, sha256 };
 }
-export async function getInquiryAttachmentDownload(input: { actor: unknown; attachmentId: string }): Promise<never> { void input; throw new InquiryAttachmentAuthorizationError(); }
+export function getInquiryAttachmentDownload(
+  input: { actor: null; attachmentId: string },
+): Promise<never>;
+export function getInquiryAttachmentDownload(
+  dependencies: { repository: InquiryAttachmentDownloadRepository; storage: PrivateDownloadStorage; now?: () => Date },
+  input: { actor: InquiryAttachmentDownloadActor | null; attachmentId: string },
+): Promise<{ url: string; expiresAt: Date }>;
+export async function getInquiryAttachmentDownload(
+  dependenciesOrInput:
+    | { repository: InquiryAttachmentDownloadRepository; storage: PrivateDownloadStorage; now?: () => Date }
+    | { actor: null; attachmentId: string },
+  maybeInput?: { actor: InquiryAttachmentDownloadActor | null; attachmentId: string },
+) {
+  if (!maybeInput || !("repository" in dependenciesOrInput)) {
+    throw new InquiryAttachmentAuthorizationError();
+  }
+  const dependencies = dependenciesOrInput;
+  const input = maybeInput;
+  if (!input.actor || (input.actor.role !== "ADMIN" && input.actor.role !== "EDITOR")) {
+    throw new InquiryAttachmentAuthorizationError();
+  }
+  if (!input.attachmentId.trim()) throw new InquiryAttachmentError("inquiry_attachment_unavailable");
+
+  const attachment = await dependencies.repository.findAttachmentForDownload(input.attachmentId);
+  if (!attachment || attachment.inquiryStatus === "ARCHIVED") {
+    throw new InquiryAttachmentError("inquiry_attachment_unavailable");
+  }
+
+  try {
+    const metadata = await dependencies.storage.headObject(attachment.storageKey);
+    if (metadata.contentLength !== attachment.sizeBytes || metadata.contentType !== attachment.mimeType) {
+      throw new Error("private_object_metadata_mismatch");
+    }
+  } catch {
+    throw new InquiryAttachmentError("inquiry_attachment_unavailable");
+  }
+
+  const signed = await dependencies.storage.presignDownload({
+    key: attachment.storageKey,
+    filename: attachment.filename,
+    expiresIn: 5 * 60,
+  });
+  await dependencies.repository.auditAttachmentDownload({
+    actorId: input.actor.id,
+    attachmentId: attachment.id,
+    inquiryId: attachment.inquiryId,
+    accessedAt: dependencies.now?.() ?? new Date(),
+  });
+  return signed;
+}

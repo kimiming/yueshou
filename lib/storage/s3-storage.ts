@@ -8,7 +8,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-import type { ObjectStorage, PrivateFinalizationStorage } from "./types";
+import type { ObjectStorage, PrivateDownloadStorage, PrivateFinalizationStorage } from "./types";
 
 export type S3StorageBackend = "r2" | "minio";
 
@@ -21,12 +21,21 @@ export type S3StorageConfig = {
   secretAccessKey: string;
 };
 
-type Presign = (
-  client: S3Client,
-  command: PutObjectCommand,
-  options: { expiresIn: number; signableHeaders: Set<string> },
-) => Promise<string>;
+type PresignCommand = PutObjectCommand | GetObjectCommand;
+type Presign = {
+  bivarianceHack(
+    client: S3Client,
+    command: PresignCommand,
+    options: { expiresIn: number; signableHeaders?: Set<string> },
+  ): Promise<string>;
+}["bivarianceHack"];
 type S3Sender = Pick<S3Client, "send">;
+
+function downloadDisposition(filename: string): string {
+  const withoutControls = filename.replace(/[\u0000-\u001f\u007f]/g, "_");
+  const ascii = withoutControls.replace(/[^\u0020-\u007e]|["\\]/g, "_").slice(0, 180) || "attachment";
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(withoutControls)}`;
+}
 
 export function createS3ClientConfig(config: S3StorageConfig): S3ClientConfig {
   return {
@@ -43,8 +52,8 @@ export function createS3ClientConfig(config: S3StorageConfig): S3ClientConfig {
 
 export function createS3Storage(
   config: S3StorageConfig,
-  dependencies: { presign?: Presign; client?: S3Sender } = {},
-): ObjectStorage & PrivateFinalizationStorage {
+  dependencies: { presign?: Presign; client?: S3Sender; now?: () => Date } = {},
+): ObjectStorage & PrivateFinalizationStorage & PrivateDownloadStorage {
   const client = dependencies.client ?? new S3Client(createS3ClientConfig(config));
   const presign = dependencies.presign ?? getSignedUrl;
 
@@ -74,6 +83,18 @@ export function createS3Storage(
         contentLength: result.ContentLength,
         etag: result.ETag,
       };
+    },
+
+    async presignDownload(input) {
+      const expiresIn = Math.min(300, Math.max(1, Math.floor(input.expiresIn)));
+      const command = new GetObjectCommand({
+        Bucket: config.bucket,
+        Key: input.key,
+        ResponseContentDisposition: downloadDisposition(input.filename),
+      });
+      const url = await presign(client as S3Client, command, { expiresIn });
+      const now = dependencies.now?.() ?? new Date();
+      return { url, expiresAt: new Date(now.getTime() + expiresIn * 1000) };
     },
 
     async deleteObject(key) {

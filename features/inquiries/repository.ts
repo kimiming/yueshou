@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 
-import type { InquiryAttachmentRepository } from "./attachments";
+import type { InquiryAttachmentDownloadRepository, InquiryAttachmentRepository } from "./attachments";
 import type { RateLimitAdapter, RateLimitInput } from "./rate-limit";
 import type { InquiryRepository } from "./service";
 import type { UploadSessionRepository } from "./upload-session";
@@ -93,5 +93,43 @@ export const prismaInquiryAttachmentRepository: InquiryAttachmentRepository = {
 
   async queueTempObjectDeletion(storageKey) {
     await prisma.auditLog.create({ data: { action: "INQUIRY_TEMP_DELETE_QUEUED", entityType: "InquiryUploadIntent", metadata: { storageKey } } });
+  },
+};
+
+export const prismaInquiryAttachmentDownloadRepository: InquiryAttachmentDownloadRepository = {
+  async findAttachmentForDownload(id) {
+    const attachment = await prisma.inquiryAttachment.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        inquiryId: true,
+        storageKey: true,
+        filename: true,
+        mimeType: true,
+        sizeBytes: true,
+        inquiry: { select: { status: true } },
+      },
+    });
+    return attachment ? {
+      id: attachment.id,
+      inquiryId: attachment.inquiryId,
+      storageKey: attachment.storageKey,
+      filename: attachment.filename,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      inquiryStatus: attachment.inquiry.status,
+    } : null;
+  },
+
+  async auditAttachmentDownload(input) {
+    await prisma.auditLog.create({
+      data: {
+        actorId: input.actorId,
+        action: "INQUIRY_ATTACHMENT_DOWNLOADED",
+        entityType: "InquiryAttachment",
+        entityId: input.attachmentId,
+        metadata: { inquiryId: input.inquiryId, accessedAt: input.accessedAt.toISOString() },
+      },
+    });
   },
 };

@@ -123,4 +123,25 @@ describe.each(fixtures)("$backend object storage contract", ({ backend, forcePat
     expect(commands[0]).toBeInstanceOf(GetObjectCommand);
     expect((commands[1] as PutObjectCommand).input).toMatchObject({ IfNoneMatch: "*", Metadata: { sha256: "a".repeat(64) } });
   });
+
+  it("signs a five-minute private GET without exposing storage credentials", async () => {
+    const commands: unknown[] = [];
+    const presign = vi.fn(async (_client: S3Client, command: PutObjectCommand | GetObjectCommand, options: { expiresIn: number }) => {
+      commands.push(command);
+      expect(options.expiresIn).toBe(300);
+      return "https://objects.example.test/signed-download";
+    });
+    const storage = createS3Storage(
+      { backend, endpoint: "https://objects.example.test", region: "auto", bucket: "private", accessKeyId: "access-secret", secretAccessKey: "credential-secret" },
+      { presign, now: () => new Date("2026-08-08T10:00:00.000Z") },
+    );
+
+    await expect(storage.presignDownload({ key: "inquiry/final/abc.pdf", filename: "brief\r\n.pdf", expiresIn: 300 })).resolves.toEqual({
+      url: "https://objects.example.test/signed-download",
+      expiresAt: new Date("2026-08-08T10:05:00.000Z"),
+    });
+    expect(commands[0]).toBeInstanceOf(GetObjectCommand);
+    expect((commands[0] as GetObjectCommand).input.ResponseContentDisposition).not.toMatch(/[\r\n]/);
+    expect(JSON.stringify(await storage.presignDownload({ key: "inquiry/final/abc.pdf", filename: "brief.pdf", expiresIn: 300 }))).not.toContain("credential-secret");
+  });
 });

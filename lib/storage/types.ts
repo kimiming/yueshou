@@ -27,3 +27,12 @@ export interface PrivateFinalizationStorage {
   putImmutableObject(input: { key: string; body: Uint8Array; contentType: string; sha256: string }): Promise<void>;
   deleteObject(key: string): Promise<void>;
 }
+
+export interface PrivateDownloadStorage {
+  headObject(key: string): Promise<ObjectMetadata>;
+  presignDownload(input: {
+    key: string;
+    filename: string;
+    expiresIn: number;
+  }): Promise<{ url: string; expiresAt: Date }>;
+}

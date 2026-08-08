@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  POST as defaultCompletePost,
   createCompleteUploadHandler,
-} from "@/app/api/media/complete/route";
+  createMediaRouteAuthorization,
+  createPresignUploadHandler,
+} from "@/features/media/routes";
+import { POST as defaultCompletePost } from "@/app/api/media/complete/route";
 import {
   POST as defaultPresignPost,
-  createPresignUploadHandler,
 } from "@/app/api/media/presign/route";
 import {
   MediaAuthorizationError,
@@ -23,18 +24,20 @@ import type { ObjectStorage } from "@/lib/storage";
 const uploadBody = { name: "lab.webp", type: "image/webp", size: 2_000_000 };
 const objectKey = "media/2026/08/123e4567-e89b-42d3-a456-426614174000.webp";
 
+function mutationRequest(path: string, body: unknown, origin = "https://cms.example.test") {
+  return new Request(`https://cms.example.test${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin },
+    body: JSON.stringify(body),
+  });
+}
+
 describe("media route authorization", () => {
   it.each([
     ["presign", defaultPresignPost, uploadBody],
     ["complete", defaultCompletePost, { key: objectKey, ...uploadBody }],
   ])("fails closed by default for the %s route", async (_name, handler, body) => {
-    const response = await handler(
-      new Request("https://cms.example.test/api/media", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    );
+    const response = await handler(mutationRequest("/api/media", body));
 
     expect(response.status).toBe(401);
   });
@@ -51,13 +54,7 @@ describe("media route authorization", () => {
       createPendingUpload: service,
     });
 
-    const response = await handler(
-      new Request("https://cms.example.test/api/media/presign", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(uploadBody),
-      }),
-    );
+    const response = await handler(mutationRequest("/api/media/presign", uploadBody));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ key: objectKey });
@@ -69,13 +66,7 @@ describe("media route authorization", () => {
       completeUpload: async () => ({ id: "media-1", storageKey: objectKey }),
     });
 
-    const response = await handler(
-      new Request("https://cms.example.test/api/media/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ key: objectKey, ...uploadBody }),
-      }),
-    );
+    const response = await handler(mutationRequest("/api/media/complete", { key: objectKey, ...uploadBody }));
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ id: "media-1", storageKey: objectKey });
@@ -88,13 +79,7 @@ describe("media route authorization", () => {
       createPendingUpload: service,
     });
 
-    const response = await handler(
-      new Request("https://cms.example.test/api/media/presign", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "payload.svg", type: "image/svg+xml", size: 100 }),
-      }),
-    );
+    const response = await handler(mutationRequest("/api/media/presign", { name: "payload.svg", type: "image/svg+xml", size: 100 }));
 
     expect(response.status).toBe(400);
     expect(service).not.toHaveBeenCalled();
@@ -134,13 +119,7 @@ describe("media route authorization", () => {
         ),
     });
 
-    const response = await handler(
-      new Request("https://cms.example.test/api/media/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ key: objectKey, ...uploadBody }),
-      }),
-    );
+    const response = await handler(mutationRequest("/api/media/complete", { key: objectKey, ...uploadBody }));
 
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({
@@ -165,17 +144,38 @@ describe("media route authorization", () => {
         throw error;
       },
     });
-    const response = await handler(
-      new Request("https://cms.example.test/api/media/complete", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ key: objectKey, ...uploadBody }),
-      }),
-    );
+    const response = await handler(mutationRequest("/api/media/complete", { key: objectKey, ...uploadBody }));
     const body = await response.json();
 
     expect(response.status).toBe(status);
     expect(body.error.code).toBe(code);
     expect(JSON.stringify(body)).not.toContain("credential");
+  });
+
+  it("rejects cross-origin mutations before invoking the media service", async () => {
+    const service = vi.fn();
+    const handler = createPresignUploadHandler({
+      authorize: async () => ({ id: "editor-1", role: "EDITOR" }),
+      createPendingUpload: service,
+    });
+
+    const response = await handler(mutationRequest("/api/media/presign", uploadBody, "https://evil.example.test"));
+
+    expect(response.status).toBe(403);
+    expect(service).not.toHaveBeenCalled();
+  });
+
+  it("turns only a freshly checked staff user into a media actor", async () => {
+    const authorize = createMediaRouteAuthorization(async () => ({
+      id: "editor-1",
+      email: "editor@example.test",
+      name: "Editor",
+      role: "EDITOR",
+      version: "2026-08-08T10:00:00.000Z",
+    }));
+    const deny = createMediaRouteAuthorization(async () => { throw new Error("session_stale"); });
+
+    await expect(authorize()).resolves.toEqual({ id: "editor-1", role: "EDITOR" });
+    await expect(deny()).resolves.toBeNull();
   });
 });
