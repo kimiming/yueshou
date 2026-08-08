@@ -32,7 +32,7 @@ export const prismaProductAdminRepository: ProductAdminRepository = {
       await assertActiveCategory(tx, "product", input.categoryId, input.status === "PUBLISHED");
       await assertUsableMedia(tx, input.mediaIds);
       const existing = input.id ? await tx.product.findUniqueOrThrow({ where: { id: input.id }, select: { publishedAt: true } }) : null;
-      const publication = input.status === "PUBLISHED" ? { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? new Date() } : { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: null };
+      const publication = input.status === "PUBLISHED" ? { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? new Date() } : { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? null };
       const payload = { categoryId: input.categoryId, slug: input.slug, casNumber: input.casNumber ?? null, sequence: input.sequence ?? null, specifications: input.specifications ? json(input.specifications) : undefined, ...publication };
       let record;
       if (input.id) { if (!input.version) throw new Error("content_conflict"); const updated = await tx.product.updateMany({ where: { id: input.id, updatedAt: new Date(input.version) }, data: payload }); if (updated.count !== 1) throw new Error("content_conflict"); record = await tx.product.update({ where: { id: input.id }, data: { media: { set: input.mediaIds.map((id) => ({ id })) } } }); } else record = await tx.product.create({ data: { ...payload, media: { connect: input.mediaIds.map((id) => ({ id })) } } });
@@ -53,7 +53,7 @@ export const prismaNewsAdminRepository: NewsAdminRepository = {
       await assertActiveTags(tx, input.tagIds);
       await assertUsableMedia(tx, input.coverMediaId ? [input.coverMediaId] : []);
       const existing = input.id ? await tx.article.findUniqueOrThrow({ where: { id: input.id }, select: { publishedAt: true } }) : null;
-      const publication = input.status === "PUBLISHED" ? { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? new Date() } : { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: null };
+      const publication = input.status === "PUBLISHED" ? { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? new Date() } : { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? null };
       const common = { categoryId: input.categoryId, authorId: input.actorId, slug: input.slug, coverMediaId: input.coverMediaId ?? null, ...publication };
       let record;
       if (input.id) { if (!input.version) throw new Error("content_conflict"); const updated = await tx.article.updateMany({ where: { id: input.id, updatedAt: new Date(input.version) }, data: common }); if (updated.count !== 1) throw new Error("content_conflict"); record = await tx.article.update({ where: { id: input.id }, data: { tags: { set: input.tagIds.map((id) => ({ id })) } } }); } else record = await tx.article.create({ data: { ...common, tags: { connect: input.tagIds.map((id) => ({ id })) } } });
