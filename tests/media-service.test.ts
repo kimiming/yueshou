@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   MediaAuthorizationError,
   MediaMetadataMismatchError,
+  MediaUploadIntentConflictError,
+  MediaUploadIntentExpiredError,
+  MediaUploadIntentMismatchError,
+  MediaUploadIntentReplayError,
   archiveMediaAsset,
   completeUpload,
   createMediaService,
@@ -15,6 +19,17 @@ const admin = { id: "admin-1", role: "ADMIN" as const };
 const editor = { id: "editor-1", role: "EDITOR" as const };
 const upload = { name: "lab.webp", type: "image/webp" as const, size: 2_000_000 };
 const objectKey = "media/2026/08/123e4567-e89b-42d3-a456-426614174000.webp";
+const intent = {
+  id: "intent-1",
+  storageKey: objectKey,
+  actorId: editor.id,
+  filename: upload.name,
+  mimeType: upload.type,
+  extension: "webp",
+  sizeBytes: upload.size,
+  expiresAt: new Date("2026-08-08T00:15:00.000Z"),
+  consumedAt: null,
+};
 
 function createStorage(overrides: Partial<ObjectStorage> = {}): ObjectStorage {
   return {
@@ -35,7 +50,9 @@ function createStorage(overrides: Partial<ObjectStorage> = {}): ObjectStorage {
 
 function createRepository(overrides: Partial<MediaRepository> = {}): MediaRepository {
   return {
-    createMediaAsset: vi.fn(async (input) => ({ id: "media-1", ...input })),
+    createUploadIntent: vi.fn(async (input) => ({ id: "intent-1", consumedAt: null, ...input })),
+    findUploadIntent: vi.fn(async () => intent),
+    consumeUploadIntent: vi.fn(async (input) => ({ id: "media-1", storageKey: input.storageKey })),
     getMediaAsset: vi.fn(async () => ({ id: "media-1", storageKey: objectKey })),
     countReferences: vi.fn(async () => ({ pages: 0, products: 0, articles: 0, settings: 0 })),
     archiveMediaAsset: vi.fn(async () => undefined),
@@ -46,9 +63,11 @@ function createRepository(overrides: Partial<MediaRepository> = {}): MediaReposi
 
 describe("createPendingUpload", () => {
   it("permits authenticated editors and returns only the upload contract", async () => {
+    const repository = createRepository();
     const result = await createPendingUpload(
       {
         storage: createStorage(),
+        repository,
         now: () => new Date("2026-08-08T00:00:00.000Z"),
         uuid: () => "123e4567-e89b-42d3-a456-426614174000",
       },
@@ -62,11 +81,20 @@ describe("createPendingUpload", () => {
       headers: { "content-type": "image/webp" },
     });
     expect(JSON.stringify(result)).not.toContain("credential");
+    expect(repository.createUploadIntent).toHaveBeenCalledWith({
+      storageKey: objectKey,
+      actorId: "editor-1",
+      filename: "lab.webp",
+      mimeType: "image/webp",
+      extension: "webp",
+      sizeBytes: 2_000_000,
+      expiresAt: new Date("2026-08-08T00:15:00.000Z"),
+    });
   });
 
   it("rejects unauthenticated callers", async () => {
     await expect(
-      createPendingUpload({ storage: createStorage() }, { actor: null, upload }),
+      createPendingUpload({ storage: createStorage(), repository: createRepository() }, { actor: null, upload }),
     ).rejects.toBeInstanceOf(MediaAuthorizationError);
   });
 });
@@ -91,11 +119,12 @@ describe("completeUpload", () => {
   it("creates a media record only after object metadata matches", async () => {
     const repository = createRepository();
     const result = await completeUpload(
-      { storage: createStorage(), repository },
+      { storage: createStorage(), repository, now: () => new Date("2026-08-08T00:01:00.000Z") },
       { actor: editor, key: objectKey, upload },
     );
 
     expect(result).toMatchObject({ id: "media-1", storageKey: objectKey });
+    expect(repository.consumeUploadIntent).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a content-type mismatch without creating a media record", async () => {
@@ -106,11 +135,11 @@ describe("completeUpload", () => {
 
     await expect(
       completeUpload(
-        { storage, repository },
-        { actor: admin, key: objectKey, upload },
+        { storage, repository, now: () => new Date("2026-08-08T00:01:00.000Z") },
+        { actor: editor, key: objectKey, upload },
       ),
     ).rejects.toBeInstanceOf(MediaMetadataMismatchError);
-    expect(repository.createMediaAsset).not.toHaveBeenCalled();
+    expect(repository.consumeUploadIntent).not.toHaveBeenCalled();
   });
 
   it("rejects a content-length mismatch without creating a media record", async () => {
@@ -121,11 +150,71 @@ describe("completeUpload", () => {
 
     await expect(
       completeUpload(
-        { storage, repository },
-        { actor: admin, key: objectKey, upload },
+        { storage, repository, now: () => new Date("2026-08-08T00:01:00.000Z") },
+        { actor: editor, key: objectKey, upload },
       ),
     ).rejects.toBeInstanceOf(MediaMetadataMismatchError);
-    expect(repository.createMediaAsset).not.toHaveBeenCalled();
+    expect(repository.consumeUploadIntent).not.toHaveBeenCalled();
+  });
+
+  it("rejects completing a WebP key as PNG", async () => {
+    const repository = createRepository();
+    await expect(
+      completeUpload(
+        { storage: createStorage(), repository, now: () => new Date("2026-08-08T00:01:00.000Z") },
+        {
+          actor: editor,
+          key: objectKey,
+          upload: { name: "lab.png", type: "image/png", size: 2_000_000 },
+        },
+      ),
+    ).rejects.toBeInstanceOf(MediaUploadIntentMismatchError);
+    expect(repository.consumeUploadIntent).not.toHaveBeenCalled();
+  });
+
+  it("rejects completion by a different authenticated actor", async () => {
+    const repository = createRepository();
+    await expect(
+      completeUpload(
+        { storage: createStorage(), repository, now: () => new Date("2026-08-08T00:01:00.000Z") },
+        { actor: { id: "editor-2", role: "EDITOR" }, key: objectKey, upload },
+      ),
+    ).rejects.toBeInstanceOf(MediaUploadIntentMismatchError);
+    expect(repository.consumeUploadIntent).not.toHaveBeenCalled();
+  });
+
+  it("rejects expired upload intents before inspecting storage", async () => {
+    const repository = createRepository();
+    const storage = createStorage();
+    await expect(
+      completeUpload(
+        { storage, repository, now: () => new Date("2026-08-08T00:15:00.000Z") },
+        { actor: editor, key: objectKey, upload },
+      ),
+    ).rejects.toBeInstanceOf(MediaUploadIntentExpiredError);
+    expect(storage.headObject).not.toHaveBeenCalled();
+  });
+
+  it("rejects replaying a consumed upload intent", async () => {
+    const repository = createRepository({
+      findUploadIntent: vi.fn(async () => ({ ...intent, consumedAt: new Date("2026-08-08T00:02:00.000Z") })),
+    });
+    await expect(
+      completeUpload(
+        { storage: createStorage(), repository, now: () => new Date("2026-08-08T00:03:00.000Z") },
+        { actor: editor, key: objectKey, upload },
+      ),
+    ).rejects.toBeInstanceOf(MediaUploadIntentReplayError);
+  });
+
+  it("reports an atomic consumption conflict when another completion wins", async () => {
+    const repository = createRepository({ consumeUploadIntent: vi.fn(async () => null) });
+    await expect(
+      completeUpload(
+        { storage: createStorage(), repository, now: () => new Date("2026-08-08T00:01:00.000Z") },
+        { actor: editor, key: objectKey, upload },
+      ),
+    ).rejects.toBeInstanceOf(MediaUploadIntentConflictError);
   });
 });
 

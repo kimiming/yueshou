@@ -55,18 +55,19 @@ enum PageSectionType {
 }
 
 model User {
-  id           String           @id @default(cuid())
-  email        String           @unique
-  name         String?
-  passwordHash String
-  role         UserRole         @default(EDITOR)
-  isActive     Boolean          @default(true)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  deletedAt    DateTime?
-  auditLogs    AuditLog[]
-  articles     Article[]        @relation("ArticleAuthor")
-  sessions     AccountSession[]
+  id                 String              @id @default(cuid())
+  email              String              @unique
+  name               String?
+  passwordHash       String
+  role               UserRole            @default(EDITOR)
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deletedAt          DateTime?
+  auditLogs          AuditLog[]
+  articles           Article[]           @relation("ArticleAuthor")
+  sessions           AccountSession[]
+  mediaUploadIntents MediaUploadIntent[]
 }
 
 model AccountSession {
@@ -363,6 +364,23 @@ model MediaAsset {
   translations  MediaAssetTranslation[]
   products      Product[]               @relation("ProductMedia")
   articleCovers Article[]               @relation("ArticleCover")
+}
+
+model MediaUploadIntent {
+  id         String    @id @default(cuid())
+  storageKey String    @unique
+  actorId    String
+  filename   String
+  mimeType   String
+  extension  String
+  sizeBytes  Int
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  actor      User      @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId, expiresAt])
+  @@index([expiresAt, consumedAt])
 }
 
 model MediaAssetTranslation {

@@ -28,6 +28,10 @@ export const uploadSchema = z
 
 export type UploadInput = z.infer<typeof uploadSchema>;
 
+export function getMediaExtension(filenameOrKey: string): string {
+  return filenameOrKey.split(".").pop()?.toLowerCase() ?? "";
+}
+
 export const mediaObjectKeySchema = z.string().regex(
   /^media\/\d{4}\/(?:0[1-9]|1[0-2])\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpe?g|png|webp|avif)$/i,
   "Invalid media object key",
@@ -41,7 +45,7 @@ export function createMediaObjectKey(
   uuid: () => string = randomUUID,
 ): string {
   const parsed = uploadSchema.parse(input);
-  const extension = parsed.name.split(".").pop()!.toLowerCase();
+  const extension = getMediaExtension(parsed.name);
   const year = now.getUTCFullYear();
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
   return `media/${year}/${month}/${uuid()}.${extension}`;

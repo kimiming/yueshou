@@ -23,7 +23,7 @@ export type S3StorageConfig = {
 type Presign = (
   client: S3Client,
   command: PutObjectCommand,
-  options: { expiresIn: number },
+  options: { expiresIn: number; signableHeaders: Set<string> },
 ) => Promise<string>;
 type S3Sender = Pick<S3Client, "send">;
 
@@ -36,6 +36,7 @@ export function createS3ClientConfig(config: S3StorageConfig): S3ClientConfig {
       secretAccessKey: config.secretAccessKey,
     },
     forcePathStyle: config.backend === "minio",
+    requestChecksumCalculation: "WHEN_REQUIRED",
   };
 }
 
@@ -56,7 +57,10 @@ export function createS3Storage(
       });
 
       return {
-        url: await presign(client as S3Client, command, { expiresIn: 15 * 60 }),
+        url: await presign(client as S3Client, command, {
+          expiresIn: 15 * 60,
+          signableHeaders: new Set(["content-type"]),
+        }),
         method: "PUT",
         headers: { "content-type": input.contentType },
       };

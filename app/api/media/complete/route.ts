@@ -1,7 +1,7 @@
 import { ZodError } from "zod";
 
 import { completeUploadSchema } from "@/features/media/schemas";
-import type { MediaActor } from "@/features/media/service";
+import { MediaDomainError, type MediaActor } from "@/features/media/service";
 import type { MediaRouteAuthorization } from "../presign/route";
 
 type CompleteService = (
@@ -15,7 +15,12 @@ export function createCompleteUploadHandler(dependencies: {
 }) {
   return async function POST(request: Request): Promise<Response> {
     const actor = await dependencies.authorize();
-    if (!actor) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    if (!actor) {
+      return Response.json(
+        { error: { code: "unauthorized", message: "Authentication required" } },
+        { status: 401 },
+      );
+    }
 
     try {
       const body = completeUploadSchema.parse(await request.json());
@@ -23,7 +28,16 @@ export function createCompleteUploadHandler(dependencies: {
       return Response.json(result);
     } catch (error) {
       if (error instanceof ZodError || error instanceof SyntaxError) {
-        return Response.json({ error: "Invalid upload completion" }, { status: 400 });
+        return Response.json(
+          { error: { code: "invalid_upload_completion", message: "Invalid upload completion" } },
+          { status: 400 },
+        );
+      }
+      if (error instanceof MediaDomainError) {
+        return Response.json(
+          { error: { code: error.code, message: error.message } },
+          { status: error.status },
+        );
       }
       throw error;
     }

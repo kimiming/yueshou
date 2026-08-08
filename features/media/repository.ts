@@ -12,8 +12,37 @@ function jsonContainsStorageKey(value: unknown, storageKey: string): boolean {
 }
 
 export const prismaMediaRepository: MediaRepository = {
-  async createMediaAsset(input) {
-    return prisma.mediaAsset.create({ data: input });
+  async createUploadIntent(input) {
+    return prisma.mediaUploadIntent.create({ data: input });
+  },
+
+  async findUploadIntent(storageKey) {
+    return prisma.mediaUploadIntent.findUnique({ where: { storageKey } });
+  },
+
+  async consumeUploadIntent(input) {
+    return prisma.$transaction(async (transaction) => {
+      const consumed = await transaction.mediaUploadIntent.updateMany({
+        where: {
+          id: input.intentId,
+          actorId: input.actorId,
+          storageKey: input.storageKey,
+          consumedAt: null,
+          expiresAt: { gt: input.completedAt },
+        },
+        data: { consumedAt: input.completedAt },
+      });
+      if (consumed.count !== 1) return null;
+
+      return transaction.mediaAsset.create({
+        data: {
+          storageKey: input.storageKey,
+          filename: input.filename,
+          mimeType: input.mimeType,
+          sizeBytes: input.sizeBytes,
+        },
+      });
+    });
   },
 
   async getMediaAsset(id) {

@@ -9,6 +9,31 @@ const fixtures: Array<{ backend: S3StorageBackend; forcePathStyle: boolean }> = 
 ];
 
 describe.each(fixtures)("$backend object storage contract", ({ backend, forcePathStyle }) => {
+  it("real presigning omits empty-body checksums and signs the required content type", async () => {
+    const storage = createS3Storage({
+      backend,
+      endpoint: "https://objects.example.test",
+      region: "auto",
+      bucket: "media",
+      accessKeyId: "test-access-key",
+      secretAccessKey: "test-secret-key",
+    });
+
+    const result = await storage.presignUpload({
+      key: "media/2026/08/123e4567-e89b-42d3-a456-426614174000.webp",
+      contentType: "image/webp",
+      contentLength: 321,
+    });
+    const url = new URL(result.url);
+
+    expect(url.searchParams.get("x-amz-checksum-crc32")).toBeNull();
+    expect(url.searchParams.get("x-amz-sdk-checksum-algorithm")).toBeNull();
+    expect(url.searchParams.get("X-Amz-SignedHeaders")?.split(";")).toEqual(
+      expect.arrayContaining(["content-length", "content-type", "host"]),
+    );
+    expect(result.headers).toEqual({ "content-type": "image/webp" });
+  });
+
   it("configures addressing for the backend without exposing credentials", async () => {
     const observed: { client?: S3Client; command?: PutObjectCommand } = {};
     const presign = vi.fn(async (client: S3Client, command: PutObjectCommand) => {

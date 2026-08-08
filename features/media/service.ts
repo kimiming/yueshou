@@ -5,6 +5,7 @@ import type { ObjectStorage } from "@/lib/storage";
 import {
   completeUploadSchema,
   createMediaObjectKey,
+  getMediaExtension,
   uploadSchema,
   type UploadInput,
 } from "./schemas";
@@ -27,13 +28,30 @@ export type MediaReferences = {
   settings: number;
 };
 
+export type MediaUploadIntentRecord = {
+  id: string;
+  storageKey: string;
+  actorId: string;
+  filename: string;
+  mimeType: string;
+  extension: string;
+  sizeBytes: number;
+  expiresAt: Date;
+  consumedAt: Date | null;
+};
+
 export interface MediaRepository {
-  createMediaAsset(input: {
+  createUploadIntent(input: Omit<MediaUploadIntentRecord, "id" | "consumedAt">): Promise<MediaUploadIntentRecord>;
+  findUploadIntent(storageKey: string): Promise<MediaUploadIntentRecord | null>;
+  consumeUploadIntent(input: {
+    intentId: string;
+    actorId: string;
+    completedAt: Date;
     storageKey: string;
     filename: string;
     mimeType: string;
     sizeBytes: number;
-  }): Promise<MediaAssetRecord>;
+  }): Promise<MediaAssetRecord | null>;
   getMediaAsset(id: string): Promise<{ id: string; storageKey: string } | null>;
   countReferences(id: string): Promise<MediaReferences>;
   archiveMediaAsset(id: string, archivedAt: Date): Promise<void>;
@@ -45,30 +63,71 @@ export interface MediaRepository {
   }): Promise<void>;
 }
 
-export class MediaAuthorizationError extends Error {
-  readonly status = 403;
+export class MediaDomainError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "MediaDomainError";
+  }
+}
+
+export class MediaAuthorizationError extends MediaDomainError {
 
   constructor(message = "Media operation is not authorized") {
-    super(message);
+    super("media_forbidden", message, 403);
     this.name = "MediaAuthorizationError";
   }
 }
 
-export class MediaMetadataMismatchError extends Error {
-  readonly status = 409;
-
+export class MediaMetadataMismatchError extends MediaDomainError {
   constructor() {
-    super("Stored object metadata does not match the requested upload");
+    super("media_metadata_mismatch", "Stored object metadata does not match the upload intent", 409);
     this.name = "MediaMetadataMismatchError";
   }
 }
 
-export class MediaAssetNotFoundError extends Error {
-  readonly status = 404;
-
+export class MediaAssetNotFoundError extends MediaDomainError {
   constructor() {
-    super("Media asset not found");
+    super("media_asset_not_found", "Media asset not found", 404);
     this.name = "MediaAssetNotFoundError";
+  }
+}
+
+export class MediaUploadIntentNotFoundError extends MediaDomainError {
+  constructor() {
+    super("upload_intent_not_found", "Upload intent not found", 404);
+    this.name = "MediaUploadIntentNotFoundError";
+  }
+}
+
+export class MediaUploadIntentExpiredError extends MediaDomainError {
+  constructor() {
+    super("upload_intent_expired", "Upload intent has expired", 410);
+    this.name = "MediaUploadIntentExpiredError";
+  }
+}
+
+export class MediaUploadIntentReplayError extends MediaDomainError {
+  constructor() {
+    super("upload_intent_consumed", "Upload intent has already been consumed", 409);
+    this.name = "MediaUploadIntentReplayError";
+  }
+}
+
+export class MediaUploadIntentMismatchError extends MediaDomainError {
+  constructor() {
+    super("upload_intent_mismatch", "Upload completion does not match its intent", 409);
+    this.name = "MediaUploadIntentMismatchError";
+  }
+}
+
+export class MediaUploadIntentConflictError extends MediaDomainError {
+  constructor() {
+    super("upload_intent_conflict", "Upload intent could not be consumed", 409);
+    this.name = "MediaUploadIntentConflictError";
   }
 }
 
@@ -87,6 +146,7 @@ function requireAdmin(actor: MediaActor | null): asserts actor is MediaActor & {
 export async function createPendingUpload(
   dependencies: {
     storage: ObjectStorage;
+    repository: MediaRepository;
     now?: () => Date;
     uuid?: () => string;
   },
@@ -94,7 +154,18 @@ export async function createPendingUpload(
 ) {
   requireStaff(input.actor);
   const upload = uploadSchema.parse(input.upload);
-  const key = createMediaObjectKey(upload, dependencies.now?.() ?? new Date(), dependencies.uuid);
+  const now = dependencies.now?.() ?? new Date();
+  const key = createMediaObjectKey(upload, now, dependencies.uuid);
+  const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
+  await dependencies.repository.createUploadIntent({
+    storageKey: key,
+    actorId: input.actor.id,
+    filename: upload.name,
+    mimeType: upload.type,
+    extension: getMediaExtension(key),
+    sizeBytes: upload.size,
+    expiresAt,
+  });
   const presigned = await dependencies.storage.presignUpload({
     key,
     contentType: upload.type,
@@ -104,23 +175,46 @@ export async function createPendingUpload(
 }
 
 export async function completeUpload(
-  dependencies: { storage: ObjectStorage; repository: MediaRepository },
+  dependencies: { storage: ObjectStorage; repository: MediaRepository; now?: () => Date },
   input: { actor: MediaActor | null; key: string; upload: UploadInput },
 ): Promise<MediaAssetRecord> {
   requireStaff(input.actor);
   const completed = completeUploadSchema.parse({ key: input.key, ...input.upload });
+  const intent = await dependencies.repository.findUploadIntent(completed.key);
+  if (!intent) throw new MediaUploadIntentNotFoundError();
+  if (intent.consumedAt) throw new MediaUploadIntentReplayError();
+
+  const completedAt = dependencies.now?.() ?? new Date();
+  if (intent.expiresAt.getTime() <= completedAt.getTime()) throw new MediaUploadIntentExpiredError();
+
+  if (
+    intent.actorId !== input.actor.id ||
+    intent.storageKey !== completed.key ||
+    intent.mimeType !== completed.type ||
+    intent.sizeBytes !== completed.size ||
+    intent.extension !== getMediaExtension(completed.key) ||
+    intent.extension !== getMediaExtension(completed.name)
+  ) {
+    throw new MediaUploadIntentMismatchError();
+  }
+
   const metadata = await dependencies.storage.headObject(completed.key);
 
-  if (metadata.contentType !== completed.type || metadata.contentLength !== completed.size) {
+  if (metadata.contentType !== intent.mimeType || metadata.contentLength !== intent.sizeBytes) {
     throw new MediaMetadataMismatchError();
   }
 
-  return dependencies.repository.createMediaAsset({
-    storageKey: completed.key,
-    filename: completed.name,
-    mimeType: completed.type,
-    sizeBytes: completed.size,
+  const media = await dependencies.repository.consumeUploadIntent({
+    intentId: intent.id,
+    actorId: input.actor.id,
+    completedAt,
+    storageKey: intent.storageKey,
+    filename: intent.filename,
+    mimeType: intent.mimeType,
+    sizeBytes: intent.sizeBytes,
   });
+  if (!media) throw new MediaUploadIntentConflictError();
+  return media;
 }
 
 const archiveInputSchema = z.object({ mediaAssetId: z.string().min(1) });
