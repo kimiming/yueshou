@@ -13,6 +13,7 @@ const { Header, Content, Sider } = Layout;
 const navigation: Array<{ key: string; label: string; href: string; permission?: Permission }> = [
   { key: "dashboard", label: "Dashboard", href: "/admin" },
   { key: "content", label: "Content", href: "/admin/content", permission: "content:read" },
+  { key: "navigation", label: "Navigation", href: "/admin/navigation", permission: "content:read" },
   { key: "media", label: "Media", href: "/admin/media", permission: "media:read" },
   { key: "inquiries", label: "Inquiries", href: "/admin/inquiries", permission: "inquiries:read" },
   { key: "settings", label: "Settings", href: "/admin/settings", permission: "settings:read" },
