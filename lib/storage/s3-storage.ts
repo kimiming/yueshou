@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -7,7 +8,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-import type { ObjectStorage } from "./types";
+import type { ObjectStorage, PrivateFinalizationStorage } from "./types";
 
 export type S3StorageBackend = "r2" | "minio";
 
@@ -43,7 +44,7 @@ export function createS3ClientConfig(config: S3StorageConfig): S3ClientConfig {
 export function createS3Storage(
   config: S3StorageConfig,
   dependencies: { presign?: Presign; client?: S3Sender } = {},
-): ObjectStorage {
+): ObjectStorage & PrivateFinalizationStorage {
   const client = dependencies.client ?? new S3Client(createS3ClientConfig(config));
   const presign = dependencies.presign ?? getSignedUrl;
 
@@ -77,6 +78,29 @@ export function createS3Storage(
 
     async deleteObject(key) {
       await client.send(new DeleteObjectCommand({ Bucket: config.bucket, Key: key }));
+    },
+
+    async readPrivateObject(key, maxBytes) {
+      const result = await client.send(new GetObjectCommand({ Bucket: config.bucket, Key: key }));
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      for await (const chunk of result.Body as AsyncIterable<Uint8Array>) {
+        size += chunk.byteLength;
+        if (size > maxBytes) throw new Error("private_object_too_large");
+        chunks.push(chunk);
+      }
+      const bytes = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+      return bytes;
+    },
+
+    async putImmutableObject(input) {
+      try {
+        await client.send(new PutObjectCommand({ Bucket: config.bucket, Key: input.key, Body: input.body, ContentType: input.contentType, Metadata: { sha256: input.sha256 }, IfNoneMatch: "*" }));
+      } catch (error) {
+        if (!error || typeof error !== "object" || !("$metadata" in error) || (error.$metadata as { httpStatusCode?: number }).httpStatusCode !== 412) throw error;
+      }
     },
   };
 }

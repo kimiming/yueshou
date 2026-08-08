@@ -398,19 +398,18 @@ model MediaAssetTranslation {
 }
 
 model Inquiry {
-  id             String                @id @default(cuid())
+  id             String              @id @default(cuid())
   companyName    String
   contactName    String
   email          String
   country        String?
   message        String
-  status         InquiryStatus         @default(NEW)
+  status         InquiryStatus       @default(NEW)
   internalNotes  String?
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
   attachments    InquiryAttachment[]
   consentRecords ConsentRecord[]
-  uploadIntents  InquiryUploadIntent[]
 
   @@index([status, createdAt])
 }
@@ -418,33 +417,37 @@ model Inquiry {
 model InquiryAttachment {
   id         String   @id @default(cuid())
   inquiryId  String
-  storageKey String   @unique
+  storageKey String
   filename   String
   mimeType   String
   sizeBytes  Int
+  sha256     String
   createdAt  DateTime @default(now())
   inquiry    Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
 
   @@index([inquiryId])
+  @@index([storageKey])
 }
 
 model InquiryUploadIntent {
-  id               String    @id @default(cuid())
-  inquiryId        String
-  storageKey       String    @unique
-  inquiryTokenHash String
-  sessionHash      String
-  actorHash        String
-  filename         String
-  mimeType         String
-  extension        String
-  sizeBytes        Int
-  expiresAt        DateTime
-  consumedAt       DateTime?
-  createdAt        DateTime  @default(now())
-  inquiry          Inquiry   @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  id              String    @id @default(cuid())
+  storageKey      String    @unique
+  submissionHash  String
+  sessionHash     String
+  actorHash       String
+  filename        String
+  mimeType        String
+  extension       String
+  sizeBytes       Int
+  expiresAt       DateTime
+  finalStorageKey String?
+  sha256          String?
+  finalizedAt     DateTime?
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
 
-  @@index([inquiryId, expiresAt])
+  @@index([submissionHash, expiresAt])
+  @@index([finalStorageKey])
   @@index([expiresAt, consumedAt])
 }
 

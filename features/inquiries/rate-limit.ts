@@ -28,10 +28,10 @@ export function hashRateLimitIdentity(namespace: "ip" | "email", value: string, 
 
 export async function applyInquiryRateLimits(
   adapter: RateLimitAdapter,
-  input: { ip: string; email: string; now: Date; secret: string },
+  input: { ip?: string; email: string; now: Date; secret: string },
 ): Promise<void> {
   const requests = [
-    { key: hashRateLimitIdentity("ip", input.ip, input.secret), limit: 3 },
+    ...(input.ip ? [{ key: hashRateLimitIdentity("ip", input.ip, input.secret), limit: 3 }] : []),
     { key: hashRateLimitIdentity("email", input.email, input.secret), limit: 3 },
   ];
   for (const request of requests) {

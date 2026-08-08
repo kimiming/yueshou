@@ -18,7 +18,7 @@ import {
   applyInquiryRateLimits,
   hashRateLimitIdentity,
 } from "@/features/inquiries/rate-limit";
-import type { ObjectStorage } from "@/lib/storage";
+import type { ObjectStorage, PrivateFinalizationStorage } from "@/lib/storage";
 
 const validFields = {
   company: "Research Institute",
@@ -107,7 +107,7 @@ describe("persistent rate limit contract", () => {
 });
 
 describe("private inquiry attachments", () => {
-  const upload = { name: "requirements.pdf", type: "application/pdf" as const, size: 1_024 };
+  const upload = { name: "requirements.pdf", type: "application/pdf" as const, size: 8 };
   const key = "inquiry/2026/08/123e4567-e89b-42d3-a456-426614174000.pdf";
 
   it("accepts the allowlist and 15 MB boundary and creates a private dated key", () => {
@@ -118,9 +118,9 @@ describe("private inquiry attachments", () => {
 
   it("binds upload intent to inquiry, session, actor, metadata and expiry, then consumes once", async () => {
     const intent = {
-      id: "intent-1", inquiryId: "inquiry-token", storageKey: key, inquiryTokenHash: "inquiry-hash", sessionHash: "session-hash", actorHash: "actor-hash",
+      id: "intent-1", storageKey: key, submissionHash: "submission-hash", sessionHash: "session-hash", actorHash: "actor-hash",
       filename: upload.name, mimeType: upload.type, extension: "pdf", sizeBytes: upload.size,
-      expiresAt: new Date("2026-08-08T00:15:00Z"), consumedAt: null,
+      expiresAt: new Date("2026-08-08T00:15:00Z"), finalStorageKey: null, sha256: null, finalizedAt: null, consumedAt: null,
     };
     let storedIntent = intent;
     const repository: InquiryAttachmentRepository = {
@@ -129,19 +129,32 @@ describe("private inquiry attachments", () => {
         return storedIntent;
       }),
       findUploadIntent: vi.fn(async () => storedIntent),
-      consumeUploadIntent: vi.fn(async () => ({ id: "attachment-1", storageKey: key })),
+      finalizeUploadIntent: vi.fn(async (input) => {
+        storedIntent = { ...storedIntent, finalStorageKey: input.finalStorageKey, sha256: input.sha256, finalizedAt: input.completedAt };
+        return { id: "intent-1", finalStorageKey: input.finalStorageKey };
+      }),
+      queueTempObjectDeletion: vi.fn(async () => undefined),
     };
-    const storage: ObjectStorage = {
+    const storage: ObjectStorage & PrivateFinalizationStorage = {
       presignUpload: vi.fn(async () => ({ url: "https://upload.example/signed", method: "PUT" as const, headers: { "content-type": upload.type } })),
       headObject: vi.fn(async () => ({ contentType: upload.type, contentLength: upload.size, etag: "etag" })),
       deleteObject: vi.fn(),
+      readPrivateObject: vi.fn(async () => new TextEncoder().encode("%PDF-1.7")),
+      putImmutableObject: vi.fn(async () => undefined),
     };
     const dependencies = { repository, storage, secret: "a sufficiently long private keyed hashing secret", now: () => new Date("2026-08-08T00:00:00Z"), uuid: () => "123e4567-e89b-42d3-a456-426614174000" };
-    const binding = { inquiryId: "inquiry-token", inquiryToken: "inquiry-capability", sessionToken: "session-token", actorToken: "actor-token" };
+    const binding = { submissionToken: "submission-token", sessionToken: "session-token", actorToken: "actor-token" };
 
     await expect(createInquiryAttachmentUpload(dependencies, { binding, upload })).resolves.toEqual({ key, url: "https://upload.example/signed", method: "PUT", headers: { "content-type": upload.type } });
-    await expect(completeInquiryAttachmentUpload({ ...dependencies, now: () => new Date("2026-08-08T00:01:00Z") }, { binding, key, upload })).resolves.toEqual({ id: "attachment-1", storageKey: key });
-    expect(repository.consumeUploadIntent).toHaveBeenCalledTimes(1);
+    storedIntent = { ...storedIntent, expiresAt: new Date("2026-08-08T00:00:30Z") };
+    await expect(completeInquiryAttachmentUpload({ ...dependencies, now: () => new Date("2026-08-08T00:01:00Z") }, { binding, key, upload })).rejects.toMatchObject({ code: "inquiry_upload_intent_expired" });
+    storedIntent = { ...storedIntent, expiresAt: new Date("2026-08-08T00:15:00Z") };
+    await expect(completeInquiryAttachmentUpload({ ...dependencies, now: () => new Date("2026-08-08T00:01:00Z") }, { binding, key, upload })).resolves.toMatchObject({ token: "intent-1", storageKey: expect.stringMatching(/^inquiry\/final\/[a-f0-9]{64}\.pdf$/) });
+    const immutableWrite = vi.mocked(storage.putImmutableObject).mock.calls[0][0];
+    vi.mocked(storage.readPrivateObject).mockResolvedValue(new TextEncoder().encode("overwritten temp"));
+    expect(new TextDecoder().decode(immutableWrite.body)).toBe("%PDF-1.7");
+    await expect(completeInquiryAttachmentUpload({ ...dependencies, now: () => new Date("2026-08-08T00:02:00Z") }, { binding, key, upload })).rejects.toMatchObject({ code: "inquiry_upload_intent_consumed" });
+    expect(repository.finalizeUploadIntent).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed for attachment downloads until staff authorization wiring exists", async () => {

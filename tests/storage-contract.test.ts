@@ -1,4 +1,4 @@
-import { DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, type S3Client } from "@aws-sdk/client-s3";
 import { describe, expect, it, vi } from "vitest";
 
 import { createS3Storage, type S3StorageBackend } from "@/lib/storage/s3-storage";
@@ -108,5 +108,19 @@ describe.each(fixtures)("$backend object storage contract", ({ backend, forcePat
     expect((commands[0] as HeadObjectCommand).input).toEqual({ Bucket: "media", Key: "media/2026/08/id.avif" });
     expect(commands[1]).toBeInstanceOf(DeleteObjectCommand);
     expect((commands[1] as DeleteObjectCommand).input).toEqual({ Bucket: "media", Key: "media/2026/08/id.avif" });
+  });
+
+  it("reads private bytes with a hard cap and writes the final object immutably", async () => {
+    const commands: unknown[] = [];
+    const client = { send: vi.fn(async (command: unknown) => {
+      commands.push(command);
+      if (command instanceof GetObjectCommand) return { Body: { async *[Symbol.asyncIterator]() { yield new Uint8Array([1, 2]); yield new Uint8Array([3]); } } };
+      return {};
+    }) };
+    const storage = createS3Storage({ backend, endpoint: "https://objects.example.test", region: "auto", bucket: "private", accessKeyId: "key", secretAccessKey: "secret" }, { client });
+    await expect(storage.readPrivateObject("inquiry/temp.pdf", 3)).resolves.toEqual(new Uint8Array([1, 2, 3]));
+    await storage.putImmutableObject({ key: `inquiry/final/${"a".repeat(64)}.pdf`, body: new Uint8Array([1, 2, 3]), contentType: "application/pdf", sha256: "a".repeat(64) });
+    expect(commands[0]).toBeInstanceOf(GetObjectCommand);
+    expect((commands[1] as PutObjectCommand).input).toMatchObject({ IfNoneMatch: "*", Metadata: { sha256: "a".repeat(64) } });
   });
 });

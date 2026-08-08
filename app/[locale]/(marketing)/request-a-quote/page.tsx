@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { randomUUID } from "node:crypto";
 import { notFound } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
@@ -47,7 +48,7 @@ export default async function RequestAQuotePage({ params }: RequestAQuotePagePro
         <section aria-labelledby="quote-form-heading" data-quote-form-container>
           <h2 id="quote-form-heading">{dictionary.marketing.public.quoteDetails}</h2>
           <p>{dictionary.marketing.public.gdprNotice} <Link href={`/${locale}/legal/privacy`}>{dictionary.marketing.public.privacyPolicy}</Link></p>
-          <QuoteForm labels={dictionary.inquiry} />
+          <QuoteForm labels={dictionary.inquiry} binding={{ submissionToken: randomUUID(), sessionToken: randomUUID(), actorToken: randomUUID() }} />
         </section>
       </article>
     </main>

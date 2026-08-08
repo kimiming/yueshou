@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 
 import { inquirySchema, INQUIRY_POLICY_VERSION } from "./schemas";
 import { applyInquiryRateLimits, InquiryRateLimitError, type RateLimitAdapter } from "./rate-limit";
+import { hashAttachmentBinding } from "./attachments";
 
 export type InquiryWrite = {
   inquiry: { companyName: string; contactName: string; email: string; country: string; message: string };
@@ -9,8 +10,9 @@ export type InquiryWrite = {
     subject: string;
     categories: { inquiry: true };
     policyVersion: string;
-    evidence: { explicit: true; requestKey: string; userAgentKey: string; submittedAt: string };
+    evidence: { explicit: true; requestKey?: string; userAgentKey: string; submittedAt: string };
   };
+  attachmentClaim?: { intentIds: string[]; submissionHash: string; sessionHash: string; actorHash: string; claimedAt: Date };
 };
 
 export interface InquiryRepository {
@@ -23,12 +25,12 @@ export type InquiryActionState =
   | undefined
   | { status: "success"; inquiryId: string; fields: Record<string, never> }
   | { status: "validation_error"; fieldErrors: Record<string, string[]>; fields: SafeFields }
-  | { status: "rate_limited" | "service_error"; message: string; fields: SafeFields };
+  | { status: "rate_limited" | "service_error"; messageCode: string; fields: SafeFields };
 
 type SubmitDependencies = {
   repository: InquiryRepository;
   rateLimit: RateLimitAdapter;
-  requestContext: () => Promise<{ ip: string; userAgent: string }>;
+  requestContext: () => Promise<{ ip?: string; userAgent: string }>;
   secret: string;
   now?: () => Date;
 };
@@ -60,13 +62,22 @@ export function createSubmitInquiry(dependencies: SubmitDependencies) {
     const fields = safeFields(formData);
     const result = inquirySchema.safeParse({ ...fields, gdprConsent: readString(formData, "gdprConsent") });
     if (!result.success) {
-      return { status: "validation_error", fieldErrors: result.error.flatten().fieldErrors, fields };
+      const fieldErrors = Object.fromEntries(Object.keys(result.error.flatten().fieldErrors).map((key) => [key, [`inquiry_error_${key === "email" ? "email" : "required"}`]]));
+      return { status: "validation_error", fieldErrors, fields };
     }
 
     const now = dependencies.now?.() ?? new Date();
     try {
       const request = await dependencies.requestContext();
       await applyInquiryRateLimits(dependencies.rateLimit, { ip: request.ip, email: result.data.email, now, secret: dependencies.secret });
+      let attachmentClaim: InquiryWrite["attachmentClaim"];
+      const attachmentTokensValue = readString(formData, "attachmentTokens");
+      if (attachmentTokensValue) {
+        let intentIds: string[];
+        try { intentIds = JSON.parse(attachmentTokensValue); } catch { return { status: "validation_error", fieldErrors: { attachments: ["inquiry_error_attachment"] }, fields }; }
+        if (!Array.isArray(intentIds) || intentIds.length > 5 || intentIds.some((token) => typeof token !== "string" || !token)) return { status: "validation_error", fieldErrors: { attachments: ["inquiry_error_attachment"] }, fields };
+        attachmentClaim = { intentIds, ...hashAttachmentBinding({ submissionToken: readString(formData, "submissionToken"), sessionToken: readString(formData, "sessionToken"), actorToken: readString(formData, "actorToken") }, dependencies.secret), claimedAt: now };
+      }
       const record = await dependencies.repository.createInquiryWithConsent({
         inquiry: {
           companyName: result.data.company,
@@ -81,16 +92,17 @@ export function createSubmitInquiry(dependencies: SubmitDependencies) {
           policyVersion: INQUIRY_POLICY_VERSION,
           evidence: {
             explicit: true,
-            requestKey: evidenceKey(dependencies.secret, "request", request.ip),
+            ...(request.ip ? { requestKey: evidenceKey(dependencies.secret, "request", request.ip) } : {}),
             userAgentKey: evidenceKey(dependencies.secret, "user-agent", request.userAgent),
             submittedAt: now.toISOString(),
           },
         },
+        attachmentClaim,
       });
       return { status: "success", inquiryId: record.id, fields: {} };
     } catch (error) {
-      if (error instanceof InquiryRateLimitError) return { status: "rate_limited", message: error.message, fields };
-      return { status: "service_error", message: "Your inquiry could not be submitted. Please try again.", fields };
+      if (error instanceof InquiryRateLimitError) return { status: "rate_limited", messageCode: "inquiry_error_rate_limited", fields };
+      return { status: "service_error", messageCode: "inquiry_error_service", fields };
     }
   };
 }

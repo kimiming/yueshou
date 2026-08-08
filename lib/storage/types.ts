@@ -21,3 +21,9 @@ export interface ObjectStorage {
   headObject(key: string): Promise<ObjectMetadata>;
   deleteObject(key: string): Promise<void>;
 }
+
+export interface PrivateFinalizationStorage {
+  readPrivateObject(key: string, maxBytes: number): Promise<Uint8Array>;
+  putImmutableObject(input: { key: string; body: Uint8Array; contentType: string; sha256: string }): Promise<void>;
+  deleteObject(key: string): Promise<void>;
+}

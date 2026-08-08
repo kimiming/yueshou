@@ -23,14 +23,18 @@ export class PrismaInquiryRateLimitAdapter implements RateLimitAdapter {
 
 export const prismaInquiryRepository: InquiryRepository = {
   async createInquiryWithConsent(input) {
-    const result = await prisma.inquiry.create({
-      data: {
-        ...input.inquiry,
-        consentRecords: { create: input.consent },
-      },
-      select: { id: true },
+    return prisma.$transaction(async (transaction) => {
+      const result = await transaction.inquiry.create({ data: { ...input.inquiry, consentRecords: { create: input.consent } }, select: { id: true } });
+      if (!input.attachmentClaim?.intentIds.length) return result;
+      const intents = await transaction.inquiryUploadIntent.findMany({ where: { id: { in: input.attachmentClaim.intentIds }, submissionHash: input.attachmentClaim.submissionHash, sessionHash: input.attachmentClaim.sessionHash, actorHash: input.attachmentClaim.actorHash, finalizedAt: { not: null }, consumedAt: null, expiresAt: { gt: input.attachmentClaim.claimedAt } } });
+      if (intents.length !== input.attachmentClaim.intentIds.length) throw new Error("inquiry_attachment_claim_invalid");
+      for (const intent of intents) {
+        const consumed = await transaction.inquiryUploadIntent.updateMany({ where: { id: intent.id, consumedAt: null, finalizedAt: { not: null }, expiresAt: { gt: input.attachmentClaim.claimedAt } }, data: { consumedAt: input.attachmentClaim.claimedAt } });
+        if (consumed.count !== 1 || !intent.finalStorageKey || !intent.sha256) throw new Error("inquiry_attachment_claim_conflict");
+        await transaction.inquiryAttachment.create({ data: { inquiryId: result.id, storageKey: intent.finalStorageKey, filename: intent.filename, mimeType: intent.mimeType, sizeBytes: intent.sizeBytes, sha256: intent.sha256 } });
+      }
+      return result;
     });
-    return result;
   },
 };
 
@@ -43,35 +47,24 @@ export const prismaInquiryAttachmentRepository: InquiryAttachmentRepository = {
     return prisma.inquiryUploadIntent.findUnique({ where: { storageKey } });
   },
 
-  async consumeUploadIntent(input) {
-    return prisma.$transaction(async (transaction) => {
-      const consumed = await transaction.inquiryUploadIntent.updateMany({
+  async finalizeUploadIntent(input) {
+    const finalized = await prisma.inquiryUploadIntent.updateMany({
         where: {
           id: input.intentId,
-          inquiryId: input.inquiryId,
           storageKey: input.storageKey,
-          inquiryTokenHash: input.inquiryTokenHash,
-          sessionHash: input.sessionHash,
-          actorHash: input.actorHash,
-          filename: input.filename,
-          mimeType: input.mimeType,
-          sizeBytes: input.sizeBytes,
+          submissionHash: input.binding.submissionHash,
+          sessionHash: input.binding.sessionHash,
+          actorHash: input.binding.actorHash,
+          finalizedAt: null,
           consumedAt: null,
           expiresAt: { gt: input.completedAt },
         },
-        data: { consumedAt: input.completedAt },
+        data: { finalizedAt: input.completedAt, finalStorageKey: input.finalStorageKey, sha256: input.sha256 },
       });
-      if (consumed.count !== 1) return null;
-      return transaction.inquiryAttachment.create({
-        data: {
-          inquiryId: input.inquiryId,
-          storageKey: input.storageKey,
-          filename: input.filename,
-          mimeType: input.mimeType,
-          sizeBytes: input.sizeBytes,
-        },
-        select: { id: true, storageKey: true },
-      });
-    });
+    return finalized.count === 1 ? { id: input.intentId, finalStorageKey: input.finalStorageKey } : null;
+  },
+
+  async queueTempObjectDeletion(storageKey) {
+    await prisma.auditLog.create({ data: { action: "INQUIRY_TEMP_DELETE_QUEUED", entityType: "InquiryUploadIntent", metadata: { storageKey } } });
   },
 };

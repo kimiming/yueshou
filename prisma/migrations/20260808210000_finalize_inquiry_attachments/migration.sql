@@ -1,0 +1,14 @@
+ALTER TABLE "InquiryUploadIntent" DROP CONSTRAINT "InquiryUploadIntent_inquiryId_fkey";
+DROP INDEX "InquiryUploadIntent_inquiryId_expiresAt_idx";
+ALTER TABLE "InquiryUploadIntent" RENAME COLUMN "inquiryTokenHash" TO "submissionHash";
+ALTER TABLE "InquiryUploadIntent" DROP COLUMN "inquiryId";
+ALTER TABLE "InquiryUploadIntent" ADD COLUMN "finalStorageKey" TEXT;
+ALTER TABLE "InquiryUploadIntent" ADD COLUMN "sha256" TEXT;
+ALTER TABLE "InquiryUploadIntent" ADD COLUMN "finalizedAt" TIMESTAMP(3);
+ALTER TABLE "InquiryAttachment" ADD COLUMN "sha256" TEXT;
+UPDATE "InquiryAttachment" SET "sha256" = repeat('0', 64) WHERE "sha256" IS NULL;
+ALTER TABLE "InquiryAttachment" ALTER COLUMN "sha256" SET NOT NULL;
+DROP INDEX "InquiryAttachment_storageKey_key";
+CREATE INDEX "InquiryAttachment_storageKey_idx" ON "InquiryAttachment"("storageKey");
+CREATE INDEX "InquiryUploadIntent_finalStorageKey_idx" ON "InquiryUploadIntent"("finalStorageKey");
+CREATE INDEX "InquiryUploadIntent_submissionHash_expiresAt_idx" ON "InquiryUploadIntent"("submissionHash", "expiresAt");
