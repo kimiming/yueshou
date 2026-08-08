@@ -1,0 +1,7 @@
+"use client";
+
+import { Button, Card, Form, Input, List, Space } from "antd";
+import { useState, useTransition } from "react";
+
+type Action = (input: unknown) => Promise<unknown>;
+export function TaxonomyManager({ title, items, save, archive }: { title: string; items: Array<{ id: string; slug: string; label: string }>; save: Action; archive?: Action }) { const [pending, start] = useTransition(); const [error, setError] = useState<string>(); return <Card title={title}><Form layout="inline" onFinish={(value) => start(async () => { try { setError(undefined); await save(value); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save taxonomy item"); } })}><Form.Item name="slug" rules={[{ required: true }]}><Input placeholder="slug" /></Form.Item><Form.Item name="title" rules={[{ required: true }]}><Input placeholder="English name" /></Form.Item><Button htmlType="submit" loading={pending}>Add</Button></Form>{error ? <p role="alert">{error}</p> : null}<List size="small" dataSource={items} renderItem={(item) => <List.Item actions={archive ? [<Button key="archive" danger size="small" onClick={() => start(async () => { try { await archive({ categoryId: item.id, tagId: item.id }); } catch (reason) { setError(reason instanceof Error ? reason.message : "Cannot archive referenced item"); } })}>Archive</Button>] : []}><Space><strong>{item.label}</strong><span>{item.slug}</span></Space></List.Item>} /></Card>; }
