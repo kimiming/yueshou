@@ -12,6 +12,7 @@ import type {
   PageViewModel,
   ProductViewModel,
 } from "@/features/content/view-models";
+import type { PageSectionType } from "@/features/content/types";
 import {
   fromDatabaseLocale,
   isLocale,
@@ -73,7 +74,7 @@ function mapPage(record: PublishedPageRecord, locale: Locale): PageViewModel {
       const translation = localized(section.translations, locale);
       return {
         id: section.id,
-        type: section.type.toLowerCase() as Lowercase<typeof section.type>,
+        type: section.type.toLowerCase().replaceAll("_", "-") as PageSectionType,
         position: section.position,
         config: section.config,
         locale,

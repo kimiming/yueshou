@@ -1,4 +1,5 @@
 import type { Locale } from "@/lib/i18n/config";
+import type { PageSectionType } from "@/features/content/types";
 
 export type LocalizedViewModel = {
   locale: Locale;
@@ -10,9 +11,7 @@ export type LocalizedViewModel = {
 
 export type PageSectionViewModel = LocalizedViewModel & {
   id: string;
-  type: Lowercase<
-    "HERO" | "SERVICES" | "ABOUT" | "CAPABILITIES" | "QUALITY" | "STATS" | "NEWS" | "CTA"
-  >;
+  type: PageSectionType;
   position: number;
   config: unknown;
 };

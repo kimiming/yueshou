@@ -10,6 +10,8 @@ export const pageSectionTypes = [
   "about",
   "capabilities",
   "quality",
+  "product-categories",
+  "global-reach",
   "stats",
   "news",
   "cta",

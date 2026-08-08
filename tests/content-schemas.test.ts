@@ -58,4 +58,27 @@ describe("pageSectionSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("accepts product category and global reach homepage modules", () => {
+    expect(
+      pageSectionSchema.safeParse({
+        type: "product-categories",
+        config: { categoryIds: ["cm0k5f5p5000008l74f3r1abc"] },
+      }).success,
+    ).toBe(true);
+
+    expect(
+      pageSectionSchema.safeParse({
+        type: "global-reach",
+        config: {
+          items: [
+            {
+              title: "Collaborative support",
+              body: "Project communication is adapted to each research program.",
+            },
+          ],
+        },
+      }).success,
+    ).toBe(true);
+  });
 });

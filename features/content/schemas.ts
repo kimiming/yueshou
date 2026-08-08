@@ -50,6 +50,11 @@ const ctaSchema = z.object({
   href: z.string().trim().refine(isSafeCtaHref, "Use a relative or HTTPS link"),
 });
 
+const sectionItemSchema = z.object({
+  title: z.string().trim().min(1).max(80),
+  body: z.string().trim().min(1).max(240).optional(),
+});
+
 const pageSectionConfigSchemas = {
   hero: z.object({
     imageId: z.string().cuid().optional(),
@@ -60,6 +65,12 @@ const pageSectionConfigSchemas = {
   about: z.object({ imageId: z.string().cuid().optional() }),
   capabilities: z.object({ itemIds: z.array(z.string().cuid()).max(12).optional() }),
   quality: z.object({ imageId: z.string().cuid().optional() }),
+  "product-categories": z.object({
+    categoryIds: z.array(z.string().cuid()).max(12).optional(),
+  }),
+  "global-reach": z.object({
+    items: z.array(sectionItemSchema).max(8).optional(),
+  }),
   stats: z.object({
     items: z
       .array(z.object({ label: z.string().trim().min(1).max(80), value: z.string().trim().min(1).max(40) }))
@@ -76,6 +87,11 @@ export const pageSectionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("about"), config: pageSectionConfigSchemas.about }),
   z.object({ type: z.literal("capabilities"), config: pageSectionConfigSchemas.capabilities }),
   z.object({ type: z.literal("quality"), config: pageSectionConfigSchemas.quality }),
+  z.object({
+    type: z.literal("product-categories"),
+    config: pageSectionConfigSchemas["product-categories"],
+  }),
+  z.object({ type: z.literal("global-reach"), config: pageSectionConfigSchemas["global-reach"] }),
   z.object({ type: z.literal("stats"), config: pageSectionConfigSchemas.stats }),
   z.object({ type: z.literal("news"), config: pageSectionConfigSchemas.news }),
   z.object({ type: z.literal("cta"), config: pageSectionConfigSchemas.cta }),

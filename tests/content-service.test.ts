@@ -140,6 +140,23 @@ describe("content service", () => {
     expect(JSON.parse(JSON.stringify(page))).toEqual(page);
   });
 
+  it("maps persisted multi-word homepage section types to public slugs", async () => {
+    const fixture = pageFixture();
+    const section = fixture.sections[0];
+    fixture.sections = [
+      { ...section, id: "section-products", type: "PRODUCT_CATEGORIES", position: 1 },
+      { ...section, id: "section-global", type: "GLOBAL_REACH", position: 2 },
+    ];
+    const { repository } = pageRepository(fixture);
+
+    const page = await createContentService(repository).getPageBySlug("en", "about");
+
+    expect(page?.sections.map(({ type }) => type)).toEqual([
+      "product-categories",
+      "global-reach",
+    ]);
+  });
+
   it("falls back to English when the requested page translation is absent", async () => {
     const { repository } = pageRepository(pageFixture());
     const service = createContentService(repository);

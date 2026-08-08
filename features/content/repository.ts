@@ -118,7 +118,17 @@ export type PublishedPageRecord = {
   >;
   sections: Array<{
     id: string;
-    type: "HERO" | "SERVICES" | "ABOUT" | "CAPABILITIES" | "QUALITY" | "STATS" | "NEWS" | "CTA";
+    type:
+      | "HERO"
+      | "SERVICES"
+      | "ABOUT"
+      | "CAPABILITIES"
+      | "QUALITY"
+      | "PRODUCT_CATEGORIES"
+      | "GLOBAL_REACH"
+      | "STATS"
+      | "NEWS"
+      | "CTA";
     position: number;
     config: unknown;
     translations: TranslationRecord[];
