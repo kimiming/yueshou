@@ -5,6 +5,8 @@ import { prismaMediaDeletionJobRepository } from "@/features/media/repository";
 import { parseEnv } from "@/lib/env";
 import { createObjectStorage } from "@/lib/storage";
 
+export const runtime = "nodejs";
+
 function authorized(request: Request) {
   const secret = process.env.CRON_SECRET;
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");

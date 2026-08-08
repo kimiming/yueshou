@@ -9,6 +9,8 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts",
   },
   datasource: {
-    url: env("DATABASE_URL"),
+    // Runtime uses DATABASE_URL through the PrismaPg adapter. Schema changes
+    // must bypass Supabase's transaction pooler with the direct URL.
+    url: env("DIRECT_URL"),
   },
 });

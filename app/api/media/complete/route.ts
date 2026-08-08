@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/auth/permissions";
 import { parseEnv } from "@/lib/env";
 import { createObjectStorage } from "@/lib/storage";
 
+export const runtime = "nodejs";
+
 export const POST = createCompleteUploadHandler({
   authorize: createMediaRouteAuthorization(requireUser),
   completeUpload: async (actor, input) => {

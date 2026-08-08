@@ -5,6 +5,8 @@ import { requireRole } from "@/lib/auth/permissions";
 import { parseEnv } from "@/lib/env";
 import { createObjectStorage } from "@/lib/storage";
 
+export const runtime = "nodejs";
+
 const GET = createInquiryAttachmentDownloadHandler({
   async authorize() {
     try {
