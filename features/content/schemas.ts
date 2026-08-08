@@ -28,9 +28,18 @@ const isSafeCtaHref = (href: string) => {
     return true;
   }
 
+  if (!href.startsWith("https://")) {
+    return false;
+  }
+
   try {
     const url = new URL(href);
-    return url.protocol === "https:" && url.hostname.length > 0;
+    return (
+      url.protocol === "https:" &&
+      url.hostname.length > 0 &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
   } catch {
     return false;
   }

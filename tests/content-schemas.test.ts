@@ -35,7 +35,10 @@ describe("pageSectionSchema", () => {
     expect(parseCta("/request-a-quote")).toBe(true);
     expect(parseCta("https://example.com/request-a-quote")).toBe(true);
     expect(parseCta("//evil.example")).toBe(false);
+    expect(parseCta("https:example.com")).toBe(false);
+    expect(parseCta("https:/example.com")).toBe(false);
     expect(parseCta("https://")).toBe(false);
+    expect(parseCta("https://user:password@example.com/request-a-quote")).toBe(false);
   });
 
   it("accepts only approved structured section types", () => {

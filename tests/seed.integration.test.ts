@@ -19,6 +19,49 @@ afterAll(async () => {
 });
 
 describeWithDatabase("initial content seed", () => {
+  it("enforces legal review before a legal page can publish", async () => {
+    const slug = "legal-review-database-constraint";
+    let pendingPublicationRejected = false;
+
+    try {
+      await prisma!.page.create({
+        data: {
+          slug,
+          status: PublishStatus.PUBLISHED,
+          legalReviewStatus: "PENDING",
+        },
+      });
+    } catch {
+      pendingPublicationRejected = true;
+    }
+
+    if (!pendingPublicationRejected) {
+      await prisma!.page.delete({ where: { slug } });
+    }
+
+    expect(pendingPublicationRejected).toBe(true);
+
+    const reviewedAt = new Date("2026-01-17T12:00:00.000Z");
+    const approved = await prisma!.page.upsert({
+      where: { slug },
+      update: {
+        status: PublishStatus.PUBLISHED,
+        legalReviewStatus: "APPROVED",
+        legalReviewedAt: reviewedAt,
+      },
+      create: {
+        slug,
+        status: PublishStatus.PUBLISHED,
+        legalReviewStatus: "APPROVED",
+        legalReviewedAt: reviewedAt,
+      },
+    });
+
+    expect(approved.status).toBe(PublishStatus.PUBLISHED);
+    expect(approved.legalReviewStatus).toBe("APPROVED");
+    expect(approved.legalReviewedAt).toEqual(reviewedAt);
+  });
+
   it("records a publication timestamp for published media", async () => {
     const publishedAt = new Date("2026-01-16T12:00:00.000Z");
     const media = await prisma!.mediaAsset.upsert({
