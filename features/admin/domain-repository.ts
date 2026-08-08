@@ -118,7 +118,7 @@ export async function publishDueContent(now = new Date()) {
       const tags = item.tags.every((tag) => tag.deletedAt === null);
       const media = !item.coverMedia || (item.coverMedia.deletedAt === null && item.coverMedia.status === "PUBLISHED" && item.coverMedia.visibility === "PUBLIC");
       if (!english || !category || !tags || !media) { const failed = await tx.article.updateMany({ where: { id: item.id, status: "DRAFT", scheduledAt: { lte: now } }, data: { scheduledAt: null } }); if (failed.count === 1) await audit(tx, null, "ARTICLE_SCHEDULED_PUBLICATION_FAILED", "Article", item.id, { slug: item.slug, english, category, tags, media }); continue; }
-      const updated = await tx.article.updateMany({ where: { id: item.id, status: "DRAFT", scheduledAt: { lte: now } }, data: { status: "PUBLISHED", publishedAt: now, scheduledAt: null } });
+      const updated = await tx.article.updateMany({ where: { id: item.id, status: "DRAFT", scheduledAt: { lte: now } }, data: { status: "PUBLISHED", publishedAt: item.publishedAt ?? now, scheduledAt: null } });
       if (updated.count === 1) { await audit(tx, null, "ARTICLE_SCHEDULED_PUBLISHED", "Article", item.id, { slug: item.slug }); articles.push({ id: item.id, slug: item.slug }); }
     }
     for (const item of dueProducts) {
@@ -126,7 +126,7 @@ export async function publishDueContent(now = new Date()) {
       const category = item.category.deletedAt === null && item.category.status === "PUBLISHED";
       const media = item.media.every((asset) => asset.deletedAt === null && asset.status === "PUBLISHED" && asset.visibility === "PUBLIC");
       if (!english || !category || !media) { const failed = await tx.product.updateMany({ where: { id: item.id, status: "DRAFT", scheduledAt: { lte: now } }, data: { scheduledAt: null } }); if (failed.count === 1) await audit(tx, null, "PRODUCT_SCHEDULED_PUBLICATION_FAILED", "Product", item.id, { slug: item.slug, english, category, media }); continue; }
-      const updated = await tx.product.updateMany({ where: { id: item.id, status: "DRAFT", scheduledAt: { lte: now } }, data: { status: "PUBLISHED", publishedAt: now, scheduledAt: null } });
+      const updated = await tx.product.updateMany({ where: { id: item.id, status: "DRAFT", scheduledAt: { lte: now } }, data: { status: "PUBLISHED", publishedAt: item.publishedAt ?? now, scheduledAt: null } });
       if (updated.count === 1) { await audit(tx, null, "PRODUCT_SCHEDULED_PUBLISHED", "Product", item.id, { slug: item.slug }); products.push({ id: item.id, slug: item.slug }); }
     }
     return { articles, products };
