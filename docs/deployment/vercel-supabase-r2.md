@@ -10,7 +10,7 @@ Copy `.env.example` to a secret manager and replace every `replace-with-...` val
 pnpm env:check:production
 ```
 
-The validator requires `AUTH_SECRET`, `INQUIRY_HASH_SECRET`, and `CRON_SECRET` to be distinct, high-diversity, 64-character hexadecimal secrets; requires `INQUIRY_PROXY_MODE=vercel`; and rejects placeholders. Generate them with three separate `openssl rand -hex 32` commands. `NEXT_PUBLIC_*` variables are public at build time and must never contain credentials. `NEXT_PUBLIC_R2_PUBLIC_URL` is optional because current marketing media delivery is same-origin and signed.
+The validator requires `AUTH_SECRET`, `INQUIRY_HASH_SECRET`, and `CRON_SECRET` to be distinct, high-entropy, 64-character hexadecimal secrets; requires `INQUIRY_PROXY_MODE=vercel`; and rejects placeholders, repeated/periodic patterns, long ordered hexadecimal runs, and excessively skewed nibble distributions. Generate them with three separate `openssl rand -hex 32` commands. `NEXT_PUBLIC_*` variables are public at build time and must never contain credentials. `NEXT_PUBLIC_R2_PUBLIC_URL` is optional because current marketing media delivery is same-origin and signed.
 
 In Vercel, configure values under **Production** first. Use a separate Supabase project, R2 bucket(s), and non-production secrets for **Preview**; do not point previews at production inquiries, production storage, or production databases. Keep development values in `.env.local`, which remains ignored.
 

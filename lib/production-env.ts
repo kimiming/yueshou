@@ -2,6 +2,29 @@ import { z } from "zod";
 
 import { parseEnv, type AppEnv } from "@/lib/env";
 
+function nibbleEntropy(secret: string): number {
+  const frequencies = Array<number>(16).fill(0);
+  for (const nibble of secret.toLowerCase()) frequencies[Number.parseInt(nibble, 16)] += 1;
+  return frequencies.reduce((entropy, count) => {
+    if (!count) return entropy;
+    const probability = count / secret.length;
+    return entropy - probability * Math.log2(probability);
+  }, 0);
+}
+
+function hasSequentialHexRun(secret: string, minimumLength = 12): boolean {
+  let ascending = 1;
+  let descending = 1;
+  for (let index = 1; index < secret.length; index += 1) {
+    const previous = Number.parseInt(secret[index - 1], 16);
+    const current = Number.parseInt(secret[index], 16);
+    ascending = (current - previous + 16) % 16 === 1 ? ascending + 1 : 1;
+    descending = (previous - current + 16) % 16 === 1 ? descending + 1 : 1;
+    if (ascending >= minimumLength || descending >= minimumLength) return true;
+  }
+  return false;
+}
+
 const productionDeploymentSchema = z.object({
   DATABASE_URL: z.string().url(),
   DIRECT_URL: z.string().url().optional(),
@@ -25,8 +48,9 @@ const productionDeploymentSchema = z.object({
     const secret = env[key];
     const repeatedPattern = Array.from({ length: Math.floor(secret.length / 2) }, (_, index) => index + 1)
       .some((length) => secret.length % length === 0 && secret === secret.slice(0, length).repeat(secret.length / length));
-    if (!/^[a-f0-9]{64}$/i.test(secret) || new Set(secret.toLowerCase()).size < 12 || repeatedPattern) {
-      context.addIssue({ code: "custom", path: [key], message: `${key} must be a unique 64-character hexadecimal random secret` });
+    const maxFrequency = Math.max(...Array.from(secret.toLowerCase()).reduce((counts, nibble) => counts.set(nibble, (counts.get(nibble) ?? 0) + 1), new Map<string, number>()).values()) / secret.length;
+    if (!/^[a-f0-9]{64}$/i.test(secret) || nibbleEntropy(secret) < 3.5 || maxFrequency > 0.25 || repeatedPattern || hasSequentialHexRun(secret)) {
+      context.addIssue({ code: "custom", path: [key], message: `${key} must be a distinct, high-entropy 64-character hexadecimal random secret` });
     }
   }
 

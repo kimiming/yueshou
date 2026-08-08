@@ -5,13 +5,21 @@ import { describe, expect, it } from "vitest";
 
 import { parseProductionEnv } from "@/lib/production-env";
 
+// Each fixture contains every hexadecimal nibble exactly four times, avoiding
+// probabilistic entropy-test flakes while matching `randomBytes(32).toString("hex")` output.
+const balancedHighEntropySecrets = [
+  "a4d1f7c20e9b65385c1e8a3f0d7b2496e2b609d4a7c15f8379f3c5e10b6d842a",
+  "6b0e3a8d1f4c7592d2f815a96c03be474e7b29c0f5a183d691d6c4e7b2f5083a",
+  "f3a61d8c205e974b8d4b0f25c7a913e61e79b3d6a40c8f25c205e8f14b6d973a",
+] as const;
+
 const completeCloudEnvironment = {
   NODE_ENV: "production",
   DATABASE_URL: "postgresql://postgres:pooled-password@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
   DIRECT_URL: "postgresql://postgres:direct-password@db.project-ref.supabase.co:5432/postgres",
-  AUTH_SECRET: "708e41485fa3354b57d802dc053f6a8b5a850586ede86fe984ebec9bc63de43f",
-  INQUIRY_HASH_SECRET: "09dec844504f6de3c76dbd99efa7ca4ab30d23d3295ad6e7ce072b73f85fd7f6",
-  CRON_SECRET: "16db78dfbf36dfad671e058f1a165e9a88cf20c7a964214823cfc7d6f875849c",
+  AUTH_SECRET: balancedHighEntropySecrets[0],
+  INQUIRY_HASH_SECRET: balancedHighEntropySecrets[1],
+  CRON_SECRET: balancedHighEntropySecrets[2],
   INQUIRY_PROXY_MODE: "vercel",
   STORAGE_BACKEND: "r2",
   STORAGE_ENDPOINT: "https://account-id.r2.cloudflarestorage.com",
@@ -49,6 +57,11 @@ describe("production cloud environment", () => {
     });
   });
 
+  it("accepts distinct, balanced high-entropy hexadecimal secrets", () => {
+    expect(new Set(balancedHighEntropySecrets)).toHaveLength(3);
+    expect(parseProductionEnv(completeCloudEnvironment)).toMatchObject({ AUTH_SECRET: balancedHighEntropySecrets[0] });
+  });
+
   it("does not require a migration-only direct URL for Vercel build validation", () => {
     const runtimeOnlyEnvironment = { ...completeCloudEnvironment, DIRECT_URL: undefined };
 
@@ -78,6 +91,8 @@ describe("production cloud environment", () => {
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, STORAGE_ENDPOINT: "http://account-id.r2.cloudflarestorage.com" })).toThrow("STORAGE_ENDPOINT");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, AUTH_SECRET: "a".repeat(64) })).toThrow("AUTH_SECRET");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, CRON_SECRET: "0123456789abcdef".repeat(4) })).toThrow("CRON_SECRET");
+    expect(() => parseProductionEnv({ ...completeCloudEnvironment, INQUIRY_HASH_SECRET: `${"0".repeat(52)}123456789abc` })).toThrow("INQUIRY_HASH_SECRET");
+    expect(() => parseProductionEnv({ ...completeCloudEnvironment, AUTH_SECRET: "0123456789abcdeffedcba987654321002468ace13579bdffdb97531eca86420" })).toThrow("AUTH_SECRET");
   });
 
   it("documents all production values without committing secrets", async () => {

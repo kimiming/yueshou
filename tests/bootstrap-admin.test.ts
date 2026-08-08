@@ -24,7 +24,8 @@ describe("seed administrator bootstrap", () => {
 
   it("creates exactly one new administrator and never updates, restores, or promotes an existing account", async () => {
     const transaction = {
-      $queryRaw: vi.fn(async () => undefined),
+      $executeRaw: vi.fn(async () => 0),
+      $queryRaw: vi.fn(async () => []),
       user: {
         findFirst: vi.fn(async () => null),
         findUnique: vi.fn(async () => null),
@@ -34,6 +35,8 @@ describe("seed administrator bootstrap", () => {
 
     await createBootstrapAdmin(transaction as never, { email: valid.INITIAL_ADMIN_EMAIL, passwordHash: "argon2-hash" });
 
+    expect(transaction.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(transaction.$queryRaw).not.toHaveBeenCalled();
     expect(transaction.user.create).toHaveBeenCalledWith({ data: { email: valid.INITIAL_ADMIN_EMAIL, passwordHash: "argon2-hash", role: "ADMIN" } });
     expect(transaction.user).not.toHaveProperty("upsert");
   });
@@ -43,7 +46,8 @@ describe("seed administrator bootstrap", () => {
     ["an existing email", null, { id: "user-existing" }],
   ])("fails closed for %s without mutating users", async (_name, existingAdmin, existingEmail) => {
     const transaction = {
-      $queryRaw: vi.fn(async () => undefined),
+      $executeRaw: vi.fn(async () => 0),
+      $queryRaw: vi.fn(async () => []),
       user: {
         findFirst: vi.fn(async () => existingAdmin),
         findUnique: vi.fn(async () => existingEmail),
@@ -52,6 +56,8 @@ describe("seed administrator bootstrap", () => {
     };
 
     await expect(createBootstrapAdmin(transaction as never, { email: valid.INITIAL_ADMIN_EMAIL, passwordHash: "argon2-hash" })).rejects.toThrow("bootstrap_admin_exists");
+    expect(transaction.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(transaction.$queryRaw).not.toHaveBeenCalled();
     expect(transaction.user.create).not.toHaveBeenCalled();
   });
 });

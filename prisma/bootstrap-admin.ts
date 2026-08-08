@@ -23,12 +23,12 @@ export function parseBootstrapAdmin(input: Record<string, string | undefined>) {
 }
 
 export async function createBootstrapAdmin(
-  transaction: Pick<Prisma.TransactionClient, "$queryRaw" | "user">,
+  transaction: Pick<Prisma.TransactionClient, "$executeRaw" | "user">,
   input: { email: string; passwordHash: string },
 ) {
   // This transaction-scoped lock serializes bootstrap attempts even for
   // different email addresses; the role alone has no database uniqueness key.
-  await transaction.$queryRaw`SELECT pg_advisory_xact_lock(85103429)`;
+  await transaction.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(85103429)`);
   const existingAdmin = await transaction.user.findFirst({ where: { role: UserRole.ADMIN }, select: { id: true } });
   if (existingAdmin) throw new Error("bootstrap_admin_exists");
   const existingEmail = await transaction.user.findUnique({ where: { email: input.email }, select: { id: true } });
