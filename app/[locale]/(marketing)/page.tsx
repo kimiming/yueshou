@@ -15,7 +15,7 @@ import { createMarketingHomePageViewModel } from "@/components/marketing/view-mo
 import { getHomePage } from "@/features/content/service";
 import type { PageViewModel } from "@/features/content/view-models";
 import { isLocale, type Locale } from "@/lib/i18n/config";
-import { getDictionary, type Dictionary } from "@/lib/i18n/dictionaries";
+import { getDictionary } from "@/lib/i18n/dictionaries";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +24,12 @@ type HomePageProps = {
 };
 
 type HomePageDataResult =
-  | { status: "ready"; page: PageViewModel | null; dictionary: Dictionary }
+  | { status: "ready"; page: PageViewModel | null }
   | { status: "error" };
 
 async function loadHomePageData(locale: Locale): Promise<HomePageDataResult> {
   try {
-    const [page, dictionary] = await Promise.all([getHomePage(locale), getDictionary(locale)]);
-    return { status: "ready", page, dictionary };
+    return { status: "ready", page: await getHomePage(locale) };
   } catch {
     return { status: "error" };
   }
@@ -39,14 +38,13 @@ async function loadHomePageData(locale: Locale): Promise<HomePageDataResult> {
 function renderSection(
   model: MarketingSectionViewModel,
   locale: Locale,
-  slogan: string,
-  primaryHeroId: string | undefined,
+  labels: ReturnType<typeof createMarketingHomePageViewModel>["labels"],
 ) {
   switch (model.type) {
     case "hero":
-      return <HeroSection key={model.id} model={model} locale={locale} slogan={slogan} primaryHeading={model.id === primaryHeroId} />;
+      return <HeroSection key={model.id} model={model} locale={locale} labels={labels} />;
     case "services":
-      return <ServicesSection key={model.id} model={model} />;
+      return <ServicesSection key={model.id} model={model} exploreLabel={labels.explore} />;
     case "about":
       return <AboutSection key={model.id} model={model} />;
     case "capabilities":
@@ -54,13 +52,13 @@ function renderSection(
     case "quality":
       return <QualitySection key={model.id} model={model} />;
     case "product-categories":
-      return <ProductCategoriesSection key={model.id} model={model} />;
+      return <ProductCategoriesSection key={model.id} model={model} linkLabel={labels.viewCategory} />;
     case "global-reach":
       return <GlobalReachSection key={model.id} model={model} />;
     case "stats":
       return <StatsSection key={model.id} model={model} />;
     case "news":
-      return <NewsSection key={model.id} model={model} />;
+      return <NewsSection key={model.id} model={model} updateLabel={labels.researchUpdate} readMoreLabel={labels.readMore} />;
     case "cta":
       return <CtaSection key={model.id} model={model} locale={locale} />;
   }
@@ -73,7 +71,10 @@ export default async function HomePage({ params }: HomePageProps) {
     notFound();
   }
 
-  const result = await loadHomePageData(localeInput);
+  const [dictionary, result] = await Promise.all([
+    getDictionary(localeInput),
+    loadHomePageData(localeInput),
+  ]);
 
   if (result.status === "error") {
     return (
@@ -81,8 +82,8 @@ export default async function HomePage({ params }: HomePageProps) {
         <div className="marketing-container">
           <h1>粤首</h1>
           <div role="alert">
-            <h2>Content is temporarily unavailable</h2>
-            <p>Please try again later.</p>
+            <h2>{dictionary.marketing.errors.contentUnavailable}</h2>
+            <p>{dictionary.marketing.errors.retry}</p>
           </div>
         </div>
       </main>
@@ -93,16 +94,15 @@ export default async function HomePage({ params }: HomePageProps) {
     notFound();
   }
 
-  const model = createMarketingHomePageViewModel(result.page, result.dictionary);
+  const model = createMarketingHomePageViewModel(result.page, dictionary);
   const sections = model.sections
     .filter((section) => section.enabled)
     .toSorted((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
-  const primaryHeroId = sections.find((section) => section.type === "hero")?.id;
 
   return (
     <main id="main-content">
-      {primaryHeroId ? null : <h1 className="visually-hidden">{model.title}</h1>}
-      {sections.map((section) => renderSection(section, model.locale, model.slogan, primaryHeroId))}
+      <h1 className="visually-hidden">{model.title}</h1>
+      {sections.map((section) => renderSection(section, model.locale, model.labels))}
     </main>
   );
 }

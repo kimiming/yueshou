@@ -13,7 +13,17 @@ export type PageSectionViewModel = LocalizedViewModel & {
   id: string;
   type: PageSectionType;
   position: number;
+  sortOrder: number;
+  enabled: boolean;
   config: unknown;
+  items: HomepageSectionItemViewModel[];
+  media: MediaViewModel | null;
+};
+
+export type HomepageSectionItemViewModel = LocalizedViewModel & {
+  id: string;
+  href?: string;
+  value?: string;
 };
 
 export type PageViewModel = LocalizedViewModel & {
@@ -58,4 +68,25 @@ export type ProductViewModel = LocalizedViewModel & {
   publishedAt: string | null;
   category: CategoryViewModel;
   media: MediaViewModel[];
+};
+
+export type MarketingNavigationViewModel = {
+  id: string;
+  label: string;
+  href: string;
+  sortOrder: number;
+  enabled: true;
+};
+
+export type MarketingShellContentViewModel = {
+  locale: Locale;
+  translationLocale: Locale;
+  usedFallback: boolean;
+  summary: string;
+  contact: {
+    email?: string;
+    phone?: string;
+    addressLines: string[];
+  };
+  navigation: MarketingNavigationViewModel[];
 };

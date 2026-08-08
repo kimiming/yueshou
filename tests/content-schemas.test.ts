@@ -70,15 +70,25 @@ describe("pageSectionSchema", () => {
     expect(
       pageSectionSchema.safeParse({
         type: "global-reach",
-        config: {
-          items: [
-            {
-              title: "Collaborative support",
-              body: "Project communication is adapted to each research program.",
-            },
-          ],
-        },
+        config: { itemIds: ["cm0k5f5p5000008l74f3r1abd"] },
       }).success,
     ).toBe(true);
+  });
+
+  it("retains only validated references for capability, quality, and global modules", () => {
+    const itemIds = ["cm0k5f5p5000008l74f3r1abc"];
+
+    expect(pageSectionSchema.parse({ type: "capabilities", config: { itemIds } })).toEqual({
+      type: "capabilities",
+      config: { itemIds },
+    });
+    expect(pageSectionSchema.parse({ type: "quality", config: { itemIds } })).toEqual({
+      type: "quality",
+      config: { itemIds },
+    });
+    expect(pageSectionSchema.parse({ type: "global-reach", config: { itemIds } })).toEqual({
+      type: "global-reach",
+      config: { itemIds },
+    });
   });
 });

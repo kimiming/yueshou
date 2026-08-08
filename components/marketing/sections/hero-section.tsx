@@ -9,16 +9,18 @@ import type { Locale } from "@/lib/i18n/config";
 type HeroSectionProps = {
   model: MarketingSectionViewModel;
   locale: Locale;
-  slogan: string;
-  primaryHeading?: boolean;
+  labels: {
+    workflow: string;
+    workflowSteps: string[];
+    carousel: string;
+    chooseHighlight: string;
+  };
 };
 
-export function HeroSection({ model, locale, slogan, primaryHeading = false }: HeroSectionProps) {
+export function HeroSection({ model, locale, labels }: HeroSectionProps) {
   if (!model.enabled) {
     return null;
   }
-
-  const Heading = primaryHeading ? "h1" : "h2";
 
   return (
     <section className="hero-section" data-section={model.type} aria-labelledby={`${model.id}-title`}>
@@ -28,7 +30,7 @@ export function HeroSection({ model, locale, slogan, primaryHeading = false }: H
           src={model.media.src}
           alt={model.media.alt}
           fill
-          priority={primaryHeading}
+          priority
           sizes="100vw"
         />
       ) : null}
@@ -36,9 +38,8 @@ export function HeroSection({ model, locale, slogan, primaryHeading = false }: H
       <div className="marketing-container hero-section__inner">
         <div className="hero-section__content">
           {model.eyebrow ? <p className="section-eyebrow">{model.eyebrow}</p> : null}
-          <Heading id={`${model.id}-title`}>{model.title}</Heading>
+          <h2 id={`${model.id}-title`}>{model.title}</h2>
           <p className="hero-section__body">{model.body}</p>
-          <p className="hero-section__slogan">{slogan}</p>
           <div className="hero-section__actions">
             {model.primaryCta ? (
               <Link className="button-link" href={localizeHref(model.primaryCta.href, locale)}>
@@ -53,14 +54,17 @@ export function HeroSection({ model, locale, slogan, primaryHeading = false }: H
           </div>
         </div>
         <aside className="hero-section__science-card" aria-label="Scientific workflow">
-          <span className="hero-section__science-label">Peptide workflow</span>
+          <span className="hero-section__science-label">{labels.workflow}</span>
           <ol>
-            <li><span>01</span> Plan</li>
-            <li><span>02</span> Synthesize</li>
-            <li><span>03</span> Analyze</li>
-            <li><span>04</span> Review</li>
+            {labels.workflowSteps.map((step, index) => (
+              <li key={step}><span>{String(index + 1).padStart(2, "0")}</span> {step}</li>
+            ))}
           </ol>
-          <HeroCarouselControls slides={model.items} />
+          <HeroCarouselControls
+            slides={model.items}
+            carouselLabel={labels.carousel}
+            chooseLabel={labels.chooseHighlight}
+          />
         </aside>
       </div>
     </section>

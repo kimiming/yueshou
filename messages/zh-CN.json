@@ -14,5 +14,27 @@
   "actions": {
     "requestQuote": "询价",
     "learnMore": "了解更多"
+  },
+  "marketing": {
+    "navigation": { "primary": "主导航", "footer": "页脚导航", "language": "语言" },
+    "mobile": { "menu": "菜单", "close": "关闭" },
+    "hero": {
+      "workflow": "多肽工作流程",
+      "steps": ["规划", "合成", "分析", "审核"],
+      "carousel": "科研重点",
+      "choose": "选择科研重点"
+    },
+    "footer": {
+      "explore": "探索",
+      "contact": "联系",
+      "researchUseOnly": "仅限科研用途。",
+      "contactTeam": "联系我们的团队"
+    },
+    "cards": { "explore": "探索", "viewCategory": "查看分类", "researchUpdate": "科研动态", "readMore": "阅读更多" },
+    "errors": {
+      "shellUnavailable": "网站导航暂时不可用",
+      "contentUnavailable": "内容暂时不可用",
+      "retry": "请稍后重试。"
+    }
   }
 }

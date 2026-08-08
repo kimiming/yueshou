@@ -7,16 +7,15 @@ import type { MarketingShellViewModel } from "@/components/marketing/types";
 
 type SiteHeaderProps = {
   model: MarketingShellViewModel;
-  currentPath?: string;
 };
 
-export function SiteHeader({ model, currentPath }: SiteHeaderProps) {
+export function SiteHeader({ model }: SiteHeaderProps) {
   return (
     <header className="site-header">
       <div className="site-header__utility">
         <div className="marketing-container site-header__utility-inner">
-          <span>Scientific research partnership</span>
-          <LanguageSwitcher locale={model.locale} label={model.languageLabel} currentPath={currentPath} />
+          <span>{model.slogan}</span>
+          <LanguageSwitcher locale={model.locale} label={model.languageLabel} />
         </div>
       </div>
       <div className="marketing-container site-header__main">
@@ -24,7 +23,12 @@ export function SiteHeader({ model, currentPath }: SiteHeaderProps) {
           <span className="brand-lockup__mark" aria-hidden="true">YS</span>
           <span className="brand-lockup__name">{model.brandName}</span>
         </Link>
-        <PrimaryNavigation label={model.primaryNavigationLabel} items={model.navigation} />
+        <PrimaryNavigation
+          label={model.primaryNavigationLabel}
+          items={model.navigation}
+          menuLabel={model.mobileMenuLabel}
+          closeLabel={model.mobileCloseLabel}
+        />
         <Link className="button-link button-link--compact" href={localizeHref("/contact", model.locale)}>
           {model.quoteLabel}
         </Link>

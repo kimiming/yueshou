@@ -14,5 +14,27 @@
   "actions": {
     "requestQuote": "Request a Quote",
     "learnMore": "Learn More"
+  },
+  "marketing": {
+    "navigation": { "primary": "Primary navigation", "footer": "Footer navigation", "language": "Language" },
+    "mobile": { "menu": "Menu", "close": "Close" },
+    "hero": {
+      "workflow": "Peptide workflow",
+      "steps": ["Plan", "Synthesize", "Analyze", "Review"],
+      "carousel": "Featured research highlights",
+      "choose": "Choose featured highlight"
+    },
+    "footer": {
+      "explore": "Explore",
+      "contact": "Contact",
+      "researchUseOnly": "Research use only.",
+      "contactTeam": "Contact our team"
+    },
+    "cards": { "explore": "Explore", "viewCategory": "View category", "researchUpdate": "Research update", "readMore": "Read more" },
+    "errors": {
+      "shellUnavailable": "Site navigation is temporarily unavailable",
+      "contentUnavailable": "Content is temporarily unavailable",
+      "retry": "Please try again later."
+    }
   }
 }

@@ -14,5 +14,27 @@
   "actions": {
     "requestQuote": "Angebot anfordern",
     "learnMore": "Mehr erfahren"
+  },
+  "marketing": {
+    "navigation": { "primary": "Hauptnavigation", "footer": "Fußzeilennavigation", "language": "Sprache" },
+    "mobile": { "menu": "Menü", "close": "Schließen" },
+    "hero": {
+      "workflow": "Peptid-Workflow",
+      "steps": ["Planung", "Synthese", "Analyse", "Prüfung"],
+      "carousel": "Forschungshöhepunkte",
+      "choose": "Forschungshöhepunkt auswählen"
+    },
+    "footer": {
+      "explore": "Entdecken",
+      "contact": "Kontakt",
+      "researchUseOnly": "Nur für Forschungszwecke.",
+      "contactTeam": "Unser Team kontaktieren"
+    },
+    "cards": { "explore": "Entdecken", "viewCategory": "Kategorie ansehen", "researchUpdate": "Forschungsupdate", "readMore": "Weiterlesen" },
+    "errors": {
+      "shellUnavailable": "Die Seitennavigation ist vorübergehend nicht verfügbar",
+      "contentUnavailable": "Der Inhalt ist vorübergehend nicht verfügbar",
+      "retry": "Bitte versuchen Sie es später erneut."
+    }
   }
 }

@@ -1,45 +1,59 @@
 import type { ReactNode } from "react";
-import { ConfigProvider } from "antd";
 import { notFound } from "next/navigation";
 
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
-import { createMarketingShellViewModel } from "@/components/marketing/view-models";
+import {
+  BRAND_SLOGAN,
+  createMarketingShellViewModel,
+} from "@/components/marketing/view-models";
+import { getMarketingShell } from "@/features/content/service";
+import type { MarketingShellContentViewModel } from "@/features/content/view-models";
 import { getDictionary } from "@/lib/i18n/dictionaries";
-import { isLocale } from "@/lib/i18n/config";
+import { isLocale, type Locale } from "@/lib/i18n/config";
 
 type MarketingLayoutProps = {
   children: ReactNode;
   params: Promise<{ locale: string }>;
 };
 
+type ShellResult =
+  | { status: "ready"; content: MarketingShellContentViewModel }
+  | { status: "error" };
+
+async function loadShell(locale: Locale): Promise<ShellResult> {
+  try {
+    const content = await getMarketingShell(locale);
+    return content ? { status: "ready", content } : { status: "error" };
+  } catch {
+    return { status: "error" };
+  }
+}
+
 export default async function MarketingLayout({ children, params }: MarketingLayoutProps) {
   const { locale } = await params;
+  if (!isLocale(locale)) notFound();
 
-  if (!isLocale(locale)) {
-    notFound();
+  const [dictionary, result] = await Promise.all([getDictionary(locale), loadShell(locale)]);
+  if (result.status === "error") {
+    return (
+      <div className="server-error-state shell-error-state" role="alert">
+        <div className="marketing-container">
+          <h1>粤首</h1>
+          <p className="shell-error-state__slogan">{BRAND_SLOGAN}</p>
+          <h2>{dictionary.marketing.errors.shellUnavailable}</h2>
+          <p>{dictionary.marketing.errors.retry}</p>
+        </div>
+      </div>
+    );
   }
 
-  const dictionary = await getDictionary(locale);
-  const shell = createMarketingShellViewModel(locale, dictionary);
-
+  const shell = createMarketingShellViewModel(result.content, dictionary);
   return (
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: "#1261a6",
-          colorInfo: "#1261a6",
-          colorSuccess: "#078b8c",
-          colorText: "#10243e",
-          colorBgBase: "#ffffff",
-          borderRadius: 6,
-          fontFamily: "Arial, Helvetica, sans-serif",
-        },
-      }}
-    >
-      <SiteHeader model={shell} currentPath={`/${locale}`} />
+    <>
+      <SiteHeader model={shell} />
       {children}
       <SiteFooter model={shell} />
-    </ConfigProvider>
+    </>
   );
 }

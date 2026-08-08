@@ -23,6 +23,12 @@ export type MarketingShellViewModel = {
   contact: MarketingContactViewModel;
   quoteLabel: string;
   languageLabel: string;
+  footerNavigationLabel: string;
+  footerExploreLabel: string;
+  footerContactLabel: string;
+  contactTeamLabel: string;
+  mobileMenuLabel: string;
+  mobileCloseLabel: string;
   footerSummary: string;
   researchUseOnly: string;
   copyright: string;
@@ -77,4 +83,16 @@ export type MarketingHomePageViewModel = {
   title: string;
   slogan: string;
   sections: MarketingSectionViewModel[];
+  labels: {
+    workflow: string;
+    workflowSteps: string[];
+    carousel: string;
+    chooseHighlight: string;
+    explore: string;
+    viewCategory: string;
+    researchUpdate: string;
+    readMore: string;
+    contentUnavailable: string;
+    retry: string;
+  };
 };

@@ -14,5 +14,27 @@
   "actions": {
     "requestQuote": "Demander un devis",
     "learnMore": "En savoir plus"
+  },
+  "marketing": {
+    "navigation": { "primary": "Navigation principale", "footer": "Navigation de pied de page", "language": "Langue" },
+    "mobile": { "menu": "Menu", "close": "Fermer" },
+    "hero": {
+      "workflow": "Flux de travail peptidique",
+      "steps": ["Planifier", "Synthétiser", "Analyser", "Examiner"],
+      "carousel": "Temps forts de la recherche",
+      "choose": "Choisir un temps fort"
+    },
+    "footer": {
+      "explore": "Explorer",
+      "contact": "Contact",
+      "researchUseOnly": "Réservé à la recherche.",
+      "contactTeam": "Contacter notre équipe"
+    },
+    "cards": { "explore": "Explorer", "viewCategory": "Voir la catégorie", "researchUpdate": "Actualité de recherche", "readMore": "Lire la suite" },
+    "errors": {
+      "shellUnavailable": "La navigation du site est temporairement indisponible",
+      "contentUnavailable": "Le contenu est temporairement indisponible",
+      "retry": "Veuillez réessayer plus tard."
+    }
   }
 }

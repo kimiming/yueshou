@@ -14,5 +14,27 @@
   "actions": {
     "requestQuote": "Solicitar un presupuesto",
     "learnMore": "Más información"
+  },
+  "marketing": {
+    "navigation": { "primary": "Navegación principal", "footer": "Navegación del pie", "language": "Idioma" },
+    "mobile": { "menu": "Menú", "close": "Cerrar" },
+    "hero": {
+      "workflow": "Flujo de trabajo de péptidos",
+      "steps": ["Planificar", "Sintetizar", "Analizar", "Revisar"],
+      "carousel": "Aspectos destacados de investigación",
+      "choose": "Elegir un aspecto destacado"
+    },
+    "footer": {
+      "explore": "Explorar",
+      "contact": "Contacto",
+      "researchUseOnly": "Solo para investigación.",
+      "contactTeam": "Contactar con nuestro equipo"
+    },
+    "cards": { "explore": "Explorar", "viewCategory": "Ver categoría", "researchUpdate": "Actualización de investigación", "readMore": "Leer más" },
+    "errors": {
+      "shellUnavailable": "La navegación del sitio no está disponible temporalmente",
+      "contentUnavailable": "El contenido no está disponible temporalmente",
+      "retry": "Inténtelo de nuevo más tarde."
+    }
   }
 }

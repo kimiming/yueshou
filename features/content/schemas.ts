@@ -50,10 +50,17 @@ const ctaSchema = z.object({
   href: z.string().trim().refine(isSafeCtaHref, "Use a relative or HTTPS link"),
 });
 
-const sectionItemSchema = z.object({
-  title: z.string().trim().min(1).max(80),
-  body: z.string().trim().min(1).max(240).optional(),
+export const homepageItemValueSchema = z.object({
+  href: z.string().trim().refine(isSafeCtaHref, "Use a relative or HTTPS link").optional(),
 });
+
+export const marketingShellValueSchema = z.object({
+  email: z.string().trim().email().optional(),
+  phone: z.string().trim().min(3).max(40).optional(),
+  addressLines: z.array(z.string().trim().min(1).max(160)).max(6).default([]),
+});
+
+const referenceIdsSchema = z.array(z.string().cuid()).max(12).optional();
 
 const pageSectionConfigSchemas = {
   hero: z.object({
@@ -63,13 +70,16 @@ const pageSectionConfigSchemas = {
   }),
   services: z.object({ serviceIds: z.array(z.string().cuid()).max(12).optional() }),
   about: z.object({ imageId: z.string().cuid().optional() }),
-  capabilities: z.object({ itemIds: z.array(z.string().cuid()).max(12).optional() }),
-  quality: z.object({ imageId: z.string().cuid().optional() }),
+  capabilities: z.object({ itemIds: referenceIdsSchema }),
+  quality: z.object({
+    imageId: z.string().cuid().optional(),
+    itemIds: referenceIdsSchema,
+  }),
   "product-categories": z.object({
-    categoryIds: z.array(z.string().cuid()).max(12).optional(),
+    categoryIds: referenceIdsSchema,
   }),
   "global-reach": z.object({
-    items: z.array(sectionItemSchema).max(8).optional(),
+    itemIds: referenceIdsSchema,
   }),
   stats: z.object({
     items: z

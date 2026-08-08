@@ -6,9 +6,11 @@ import type { MarketingSectionItemViewModel } from "@/components/marketing/types
 
 type HeroCarouselControlsProps = {
   slides: MarketingSectionItemViewModel[];
+  carouselLabel: string;
+  chooseLabel: string;
 };
 
-export function HeroCarouselControls({ slides }: HeroCarouselControlsProps) {
+export function HeroCarouselControls({ slides, carouselLabel, chooseLabel }: HeroCarouselControlsProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   if (slides.length < 2) {
@@ -18,12 +20,12 @@ export function HeroCarouselControls({ slides }: HeroCarouselControlsProps) {
   const activeSlide = slides[activeIndex];
 
   return (
-    <div className="hero-carousel" aria-roledescription="carousel" aria-label="Featured research highlights">
+    <div className="hero-carousel" role="region" aria-roledescription="carousel" aria-label={carouselLabel}>
       <div className="hero-carousel__slide" aria-live="polite">
         <strong>{activeSlide.title}</strong>
         {activeSlide.body ? <span>{activeSlide.body}</span> : null}
       </div>
-      <div className="hero-carousel__controls" aria-label="Choose featured highlight">
+      <div className="hero-carousel__controls" aria-label={chooseLabel}>
         {slides.map((slide, index) => (
           <button
             type="button"

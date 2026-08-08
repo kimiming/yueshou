@@ -19,10 +19,11 @@ export function SiteFooter({ model }: SiteFooterProps) {
             <span className="brand-lockup__mark" aria-hidden="true">YS</span>
             <span className="brand-lockup__name">{model.brandName}</span>
           </Link>
+          <p className="site-footer__summary">{model.footerSummary}</p>
           <p className="site-footer__research-note">{model.researchUseOnly}</p>
         </div>
-        <nav aria-label="Footer navigation">
-          <h2>Explore</h2>
+        <nav aria-label={model.footerNavigationLabel}>
+          <h2>{model.footerExploreLabel}</h2>
           <ul className="site-footer__links">
             {navigation.map((item) => (
               <li key={item.id}><Link href={item.href}>{item.label}</Link></li>
@@ -30,13 +31,13 @@ export function SiteFooter({ model }: SiteFooterProps) {
           </ul>
         </nav>
         <div>
-          <h2>Contact</h2>
+          <h2>{model.footerContactLabel}</h2>
           <address>
             {model.contact.addressLines.map((line) => <span key={line}>{line}</span>)}
             {model.contact.email ? <a href={`mailto:${model.contact.email}`}>{model.contact.email}</a> : null}
             {model.contact.phone ? <a href={`tel:${model.contact.phone}`}>{model.contact.phone}</a> : null}
             {!model.contact.email && !model.contact.phone && model.contact.addressLines.length === 0 ? (
-              <Link href={`/${model.locale}/contact`}>Contact our team</Link>
+              <Link href={`/${model.locale}/contact`}>{model.contactTeamLabel}</Link>
             ) : null}
           </address>
         </div>

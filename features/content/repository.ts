@@ -6,7 +6,16 @@ import type { DatabaseLocale } from "@/lib/i18n/config";
 
 export type ContentDatabase = Pick<
   PrismaClient,
-  "page" | "article" | "product" | "auditLog" | "$transaction"
+  | "page"
+  | "article"
+  | "product"
+  | "auditLog"
+  | "mediaAsset"
+  | "service"
+  | "siteSetting"
+  | "productCategory"
+  | "navigationItem"
+  | "$transaction"
 >;
 
 export type PublishEntityInput = {
@@ -82,7 +91,7 @@ const productInclude = {
   },
 } satisfies Prisma.ProductInclude;
 
-type TranslationRecord = {
+export type TranslationRecord = {
   locale: DatabaseLocale;
   title: string;
   body: string;
@@ -93,7 +102,7 @@ type CategoryRecord = {
   translations: TranslationRecord[];
 };
 
-type MediaRecord = {
+export type PublishedMediaRecord = {
   id: string;
   storageKey: string;
   filename: string;
@@ -104,6 +113,34 @@ type MediaRecord = {
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   deletedAt: Date | null;
   translations: Array<TranslationRecord & { alt: string }>;
+};
+
+export type PublishedServiceRecord = {
+  id: string;
+  slug: string;
+  translations: TranslationRecord[];
+};
+
+export type PublishedHomepageItemRecord = {
+  id: string;
+  key: string;
+  value: unknown;
+  translations: TranslationRecord[];
+};
+
+export type PublishedProductCategoryRecord = {
+  id: string;
+  slug: string;
+  translations: TranslationRecord[];
+};
+
+export type PublishedSiteSettingRecord = PublishedHomepageItemRecord;
+
+export type PublishedNavigationRecord = {
+  id: string;
+  href: string;
+  position: number;
+  translations: Array<{ locale: DatabaseLocale; title: string }>;
 };
 
 export type PublishedPageRecord = {
@@ -142,7 +179,7 @@ export type PublishedArticleRecord = {
   translations: Array<TranslationRecord & { excerpt: string | null }>;
   category: CategoryRecord;
   tags: Array<{ slug: string; name: string }>;
-  coverMedia: MediaRecord | null;
+  coverMedia: PublishedMediaRecord | null;
 };
 
 export type PublishedProductRecord = {
@@ -154,13 +191,20 @@ export type PublishedProductRecord = {
   publishedAt: Date | null;
   translations: TranslationRecord[];
   category: CategoryRecord;
-  media: MediaRecord[];
+  media: PublishedMediaRecord[];
 };
 
 export interface ContentRepository {
   findPublishedPageBySlug(slug: string): Promise<PublishedPageRecord | null>;
   findPublishedArticleBySlug(slug: string): Promise<PublishedArticleRecord | null>;
   findPublishedProductBySlug(slug: string): Promise<PublishedProductRecord | null>;
+  findPublishedMediaByIds(ids: string[]): Promise<PublishedMediaRecord[]>;
+  findPublishedServicesByIds(ids: string[]): Promise<PublishedServiceRecord[]>;
+  findPublishedHomepageItemsByIds(ids: string[]): Promise<PublishedHomepageItemRecord[]>;
+  findPublishedProductCategoriesByIds(ids: string[]): Promise<PublishedProductCategoryRecord[]>;
+  findLatestPublishedArticles(count: number): Promise<PublishedArticleRecord[]>;
+  findPublishedSiteSettingByKey(key: string): Promise<PublishedSiteSettingRecord | null>;
+  findPublishedNavigationItems(): Promise<PublishedNavigationRecord[]>;
 }
 
 export interface PublicationRepository {
@@ -219,6 +263,76 @@ export function createContentRepository(database: ContentDatabase) {
           category: { is: { status: "PUBLISHED", deletedAt: null } },
         },
         include: productInclude,
+      });
+    },
+
+    findPublishedMediaByIds(ids: string[]): Promise<PublishedMediaRecord[]> {
+      if (ids.length === 0) return Promise.resolve([]);
+      return database.mediaAsset.findMany({
+        where: {
+          id: { in: ids },
+          visibility: "PUBLIC",
+          status: "PUBLISHED",
+          deletedAt: null,
+        },
+        select: mediaSelect,
+      });
+    },
+
+    findPublishedServicesByIds(ids: string[]): Promise<PublishedServiceRecord[]> {
+      if (ids.length === 0) return Promise.resolve([]);
+      return database.service.findMany({
+        where: { id: { in: ids }, status: "PUBLISHED", deletedAt: null },
+        select: { id: true, slug: true, translations: true },
+      });
+    },
+
+    findPublishedHomepageItemsByIds(ids: string[]): Promise<PublishedHomepageItemRecord[]> {
+      if (ids.length === 0) return Promise.resolve([]);
+      return database.siteSetting.findMany({
+        where: { id: { in: ids }, status: "PUBLISHED", deletedAt: null },
+        select: { id: true, key: true, value: true, translations: true },
+      });
+    },
+
+    findPublishedProductCategoriesByIds(ids: string[]): Promise<PublishedProductCategoryRecord[]> {
+      if (ids.length === 0) return Promise.resolve([]);
+      return database.productCategory.findMany({
+        where: { id: { in: ids }, status: "PUBLISHED", deletedAt: null },
+        select: { id: true, slug: true, translations: true },
+      });
+    },
+
+    findLatestPublishedArticles(count: number): Promise<PublishedArticleRecord[]> {
+      return database.article.findMany({
+        where: {
+          status: "PUBLISHED",
+          deletedAt: null,
+          category: { is: { status: "PUBLISHED", deletedAt: null } },
+        },
+        orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
+        take: count,
+        include: articleInclude,
+      });
+    },
+
+    findPublishedSiteSettingByKey(key: string): Promise<PublishedSiteSettingRecord | null> {
+      return database.siteSetting.findFirst({
+        where: { key, status: "PUBLISHED", deletedAt: null },
+        select: { id: true, key: true, value: true, translations: true },
+      });
+    },
+
+    findPublishedNavigationItems(): Promise<PublishedNavigationRecord[]> {
+      return database.navigationItem.findMany({
+        where: {
+          parentId: null,
+          isVisible: true,
+          status: "PUBLISHED",
+          deletedAt: null,
+        },
+        orderBy: [{ position: "asc" }, { id: "asc" }],
+        select: { id: true, href: true, position: true, translations: true },
       });
     },
 

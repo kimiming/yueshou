@@ -1,86 +1,53 @@
-import type { PageViewModel } from "@/features/content/view-models";
+import type {
+  MarketingShellContentViewModel,
+  PageViewModel,
+} from "@/features/content/view-models";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
-import type { Locale } from "@/lib/i18n/config";
+import { localizeHref } from "@/components/marketing/link-utils";
 import type {
   MarketingCtaViewModel,
   MarketingHomePageViewModel,
-  MarketingLinkViewModel,
-  MarketingMediaViewModel,
-  MarketingSectionItemViewModel,
   MarketingSectionViewModel,
   MarketingShellViewModel,
 } from "@/components/marketing/types";
+
+export const BRAND_SLOGAN = "Precision Peptide Synthesis for Global Scientific Research";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function readCta(value: unknown): MarketingCtaViewModel | undefined {
+function readCta(value: unknown, locale: PageViewModel["locale"]): MarketingCtaViewModel | undefined {
   if (!isRecord(value) || typeof value.label !== "string" || typeof value.href !== "string") {
     return undefined;
   }
-
-  return { label: value.label, href: value.href };
-}
-
-function readMedia(value: unknown): MarketingMediaViewModel | undefined {
-  if (!isRecord(value) || typeof value.src !== "string" || typeof value.alt !== "string") {
-    return undefined;
-  }
-
-  return { src: value.src, alt: value.alt };
-}
-
-function readItems(value: unknown): MarketingSectionItemViewModel[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item, index) => {
-    if (!isRecord(item) || typeof item.title !== "string") {
-      return [];
-    }
-
-    return [{
-      id: typeof item.id === "string" ? item.id : `item-${index}`,
-      title: item.title,
-      body: typeof item.body === "string" ? item.body : undefined,
-      value: typeof item.value === "string" ? item.value : undefined,
-      href: typeof item.href === "string" ? item.href : undefined,
-    }];
-  });
-}
-
-function readStats(value: unknown): MarketingSectionItemViewModel[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((item, index) => {
-    if (!isRecord(item) || typeof item.label !== "string" || typeof item.value !== "string") {
-      return [];
-    }
-
-    return [{ id: `stat-${index}`, title: item.label, value: item.value }];
-  });
+  return { label: value.label, href: localizeHref(value.href, locale) };
 }
 
 function mapSection(section: PageViewModel["sections"][number]): MarketingSectionViewModel {
   const config = isRecord(section.config) ? section.config : {};
-  const items = section.type === "stats" ? readStats(config.items) : readItems(config.items);
-
   return {
     id: section.id,
     type: section.type,
-    enabled: config.enabled !== false,
-    sortOrder: section.position,
-    eyebrow: typeof config.eyebrow === "string" ? config.eyebrow : undefined,
+    enabled: section.enabled,
+    sortOrder: section.sortOrder,
     title: section.title,
     body: section.body,
-    items,
-    media: readMedia(config.media),
-    primaryCta: readCta(config.primaryCta),
-    secondaryCta: readCta(config.secondaryCta),
+    items: section.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      body: item.body || undefined,
+      value: item.value,
+      href: item.href ? localizeHref(item.href, section.locale) : undefined,
+    })),
+    media: section.media ? {
+      src: section.media.storageKey.startsWith("/")
+        ? section.media.storageKey
+        : `/${section.media.storageKey}`,
+      alt: section.media.alt,
+    } : undefined,
+    primaryCta: readCta(config.primaryCta, section.locale),
+    secondaryCta: readCta(config.secondaryCta, section.locale),
   };
 }
 
@@ -91,41 +58,47 @@ export function createMarketingHomePageViewModel(
   return {
     locale: page.locale,
     title: page.title,
-    slogan: dictionary.site.slogan,
+    slogan: BRAND_SLOGAN,
     sections: page.sections.map(mapSection),
+    labels: {
+      workflow: dictionary.marketing.hero.workflow,
+      workflowSteps: dictionary.marketing.hero.steps,
+      carousel: dictionary.marketing.hero.carousel,
+      chooseHighlight: dictionary.marketing.hero.choose,
+      explore: dictionary.marketing.cards.explore,
+      viewCategory: dictionary.marketing.cards.viewCategory,
+      researchUpdate: dictionary.marketing.cards.researchUpdate,
+      readMore: dictionary.marketing.cards.readMore,
+      contentUnavailable: dictionary.marketing.errors.contentUnavailable,
+      retry: dictionary.marketing.errors.retry,
+    },
   };
 }
 
-const navigationKeys = ["home", "about", "services", "products", "quality", "contact"] as const;
-
-function localizeNavigationHref(locale: Locale, key: (typeof navigationKeys)[number]) {
-  return key === "home" ? `/${locale}` : `/${locale}/${key}`;
-}
-
 export function createMarketingShellViewModel(
-  locale: Locale,
+  content: MarketingShellContentViewModel,
   dictionary: Dictionary,
-  navigation?: MarketingLinkViewModel[],
 ): MarketingShellViewModel {
-  const defaultNavigation = navigationKeys.map((key, index) => ({
-    id: key,
-    label: dictionary.navigation[key],
-    href: localizeNavigationHref(locale, key),
-    enabled: true,
-    sortOrder: index * 10,
-  }));
-
   return {
-    locale,
+    locale: content.locale,
     brandName: "粤首",
-    slogan: dictionary.site.slogan,
-    primaryNavigationLabel: "Primary navigation",
-    navigation: navigation ?? defaultNavigation,
-    contact: { addressLines: [] },
+    slogan: BRAND_SLOGAN,
+    primaryNavigationLabel: dictionary.marketing.navigation.primary,
+    navigation: content.navigation.map((item) => ({
+      ...item,
+      href: localizeHref(item.href, content.locale),
+    })),
+    contact: content.contact,
     quoteLabel: dictionary.actions.requestQuote,
-    languageLabel: "Language",
-    footerSummary: dictionary.site.slogan,
-    researchUseOnly: "Research use only.",
+    languageLabel: dictionary.marketing.navigation.language,
+    footerNavigationLabel: dictionary.marketing.navigation.footer,
+    footerExploreLabel: dictionary.marketing.footer.explore,
+    footerContactLabel: dictionary.marketing.footer.contact,
+    contactTeamLabel: dictionary.marketing.footer.contactTeam,
+    mobileMenuLabel: dictionary.marketing.mobile.menu,
+    mobileCloseLabel: dictionary.marketing.mobile.close,
+    footerSummary: content.summary,
+    researchUseOnly: dictionary.marketing.footer.researchUseOnly,
     copyright: `© ${new Date().getUTCFullYear()} 粤首`,
   };
 }

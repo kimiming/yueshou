@@ -6,9 +6,11 @@ import type { MarketingLinkViewModel } from "@/components/marketing/types";
 type PrimaryNavigationProps = {
   label: string;
   items: MarketingLinkViewModel[];
+  menuLabel: string;
+  closeLabel: string;
 };
 
-export function PrimaryNavigation({ label, items }: PrimaryNavigationProps) {
+export function PrimaryNavigation({ label, items, menuLabel, closeLabel }: PrimaryNavigationProps) {
   const visibleItems = items
     .filter((item) => item.enabled)
     .toSorted((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
@@ -24,7 +26,7 @@ export function PrimaryNavigation({ label, items }: PrimaryNavigationProps) {
           ))}
         </ul>
       </nav>
-      <MobileNavigation label={label} items={visibleItems} />
+      <MobileNavigation label={label} items={visibleItems} menuLabel={menuLabel} closeLabel={closeLabel} />
     </>
   );
 }

@@ -8,8 +8,8 @@ export function StatsSection({ model }: { model: MarketingSectionViewModel }) {
         <dl className="stats-grid">
           {model.items.map((item) => (
             <div key={item.id}>
-              <dd>{item.value}</dd>
               <dt>{item.title}</dt>
+              <dd>{item.value}</dd>
             </div>
           ))}
         </dl>
