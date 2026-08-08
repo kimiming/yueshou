@@ -34,7 +34,8 @@ export const prismaProductAdminRepository: ProductAdminRepository = {
       const existing = input.id ? await tx.product.findUniqueOrThrow({ where: { id: input.id }, select: { publishedAt: true } }) : null;
       const publication = input.status === "PUBLISHED" ? { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? new Date() } : { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: null };
       const payload = { categoryId: input.categoryId, slug: input.slug, casNumber: input.casNumber ?? null, sequence: input.sequence ?? null, specifications: input.specifications ? json(input.specifications) : undefined, ...publication };
-      const record = input.id ? await tx.product.update({ where: { id: input.id }, data: { ...payload, media: { set: input.mediaIds.map((id) => ({ id })) } } }) : await tx.product.create({ data: { ...payload, media: { connect: input.mediaIds.map((id) => ({ id })) } } });
+      let record;
+      if (input.id) { if (!input.version) throw new Error("content_conflict"); const updated = await tx.product.updateMany({ where: { id: input.id, updatedAt: new Date(input.version) }, data: payload }); if (updated.count !== 1) throw new Error("content_conflict"); record = await tx.product.update({ where: { id: input.id }, data: { media: { set: input.mediaIds.map((id) => ({ id })) } } }); } else record = await tx.product.create({ data: { ...payload, media: { connect: input.mediaIds.map((id) => ({ id })) } } });
       await tx.productTranslation.deleteMany({ where: { productId: record.id } });
       await tx.productTranslation.createMany({ data: input.translations.map((item) => ({ productId: record.id, locale: toDatabaseLocale(item.locale), title: item.title, body: item.body })) });
       await audit(tx, input.actorId, input.status === "PUBLISHED" ? "PRODUCT_PUBLISHED" : "PRODUCT_SAVED", "Product", record.id, { slug: record.slug, status: input.status });
@@ -54,7 +55,8 @@ export const prismaNewsAdminRepository: NewsAdminRepository = {
       const existing = input.id ? await tx.article.findUniqueOrThrow({ where: { id: input.id }, select: { publishedAt: true } }) : null;
       const publication = input.status === "PUBLISHED" ? { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? new Date() } : { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: null };
       const common = { categoryId: input.categoryId, authorId: input.actorId, slug: input.slug, coverMediaId: input.coverMediaId ?? null, ...publication };
-      const record = input.id ? await tx.article.update({ where: { id: input.id }, data: { ...common, tags: { set: input.tagIds.map((id) => ({ id })) } } }) : await tx.article.create({ data: { ...common, tags: { connect: input.tagIds.map((id) => ({ id })) } } });
+      let record;
+      if (input.id) { if (!input.version) throw new Error("content_conflict"); const updated = await tx.article.updateMany({ where: { id: input.id, updatedAt: new Date(input.version) }, data: common }); if (updated.count !== 1) throw new Error("content_conflict"); record = await tx.article.update({ where: { id: input.id }, data: { tags: { set: input.tagIds.map((id) => ({ id })) } } }); } else record = await tx.article.create({ data: { ...common, tags: { connect: input.tagIds.map((id) => ({ id })) } } });
       await tx.articleTranslation.deleteMany({ where: { articleId: record.id } });
       await tx.articleTranslation.createMany({ data: input.translations.map((item) => ({ articleId: record.id, locale: toDatabaseLocale(item.locale), title: item.title, body: item.body, excerpt: item.excerpt })) });
       await audit(tx, input.actorId, input.status === "PUBLISHED" ? "ARTICLE_PUBLISHED" : "ARTICLE_SAVED", "Article", record.id, { slug: record.slug, status: input.status, scheduledAt: input.scheduledAt?.toISOString() ?? null });
