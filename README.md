@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# YueShou peptide platform
 
-## Getting Started
+YueShou is a multilingual (English, Simplified Chinese, German, French, and
+Spanish) peptide-research marketing site and CMS. It uses Next.js App Router
+SSR, Ant Design administration, PostgreSQL, a private S3-compatible media
+layer, NextAuth credentials, consent management, legal-policy publication
+controls, and audit logging.
 
-First, run the development server:
+The public site is locale-prefixed (`/en`, `/zh-CN`, `/de`, `/fr`, `/es`),
+with `/` redirecting to English. Public content is server rendered for semantic
+HTML, canonical/alternate metadata, JSON-LD, sitemap, and robots support.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
+## Prerequisites
+
+- Node.js compatible with Next.js 16 and pnpm 10.30.3.
+- PostgreSQL for the application and a private R2/MinIO-compatible bucket for
+  uploads.
+- Chromium installed by Playwright for browser tests:
+
+  ```sh
+  pnpm test:e2e:install
+  ```
+
+Copy `.env.example` to an ignored local environment file and use non-production
+credentials. Do not put deployment secrets in Git. `DATABASE_URL` is the
+application runtime URL; `DIRECT_URL` is for Prisma migrations only.
+
+## Local commands
+
+```sh
+pnpm install --frozen-lockfile
+pnpm prisma:generate
+pnpm prisma validate
+pnpm lint
+pnpm vitest run
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Production builds require a valid environment:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```sh
+pnpm build:production
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Browser release journeys
 
-## Learn More
+`pnpm test:e2e` is intentionally safe by default: it does not use a generic
+`DATABASE_URL`, does not start a server, and reports each real browser journey
+as skipped until a disposable seeded fixture is explicitly configured. This
+prevents a release gate from touching a developer or production database.
 
-To learn more about Next.js, take a look at the following resources:
+To execute the real production-build browser journeys, provide a resettable
+PostgreSQL database seeded with representative published content and an
+administrator account, then set these variables in the test shell:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```text
+E2E_DATABASE_URL=postgresql://.../yueshou_e2e
+E2E_AUTH_SECRET=<test-only secret of at least 32 characters>
+E2E_INQUIRY_HASH_SECRET=<different test-only secret of at least 32 characters>
+E2E_STORAGE_ENDPOINT=https://minio-e2e.example.test
+E2E_STORAGE_BUCKET=yueshou-e2e
+E2E_STORAGE_ACCESS_KEY_ID=<test-only access key>
+E2E_STORAGE_SECRET_ACCESS_KEY=<test-only secret key>
+E2E_ADMIN_EMAIL=admin-e2e@example.test
+E2E_ADMIN_PASSWORD=<test-only administrator password>
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Optional values are `E2E_STORAGE_REGION`, `E2E_SITE_URL`, and
+`E2E_SEARCH_TERM`. Set `E2E_MUTATION_TESTS=1` only after the fixture is reset
+between runs. It also requires an existing published public media ID, home page
+ID, article ID, and article slug:
 
-## Deploy on Vercel
+```text
+E2E_PUBLIC_MEDIA_ID=<published public MediaAsset cuid>
+E2E_HOME_PAGE_ID=<home Page cuid containing a HERO section>
+E2E_ARTICLE_ID=<published Article cuid>
+E2E_ARTICLE_SLUG=<published article slug>
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The opt-in journey changes site settings, hero/banner media, and a German
+article translation before checking public cache refresh. Never point any
+`E2E_*` value at production.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```sh
+pnpm test:e2e
+pnpm test:release
+```
+
+The Playwright suite covers five-language SSR home rendering, locale switching,
+approved footer policies, search, cookie consent, inquiry validation/submission,
+admin authentication, responsive keyboard navigation, accessibility checks, and
+the opt-in mutation/publication scenario. Browser checks run against
+`pnpm build && pnpm start`, not the development server.
+
+## Deployment and operations
+
+Choose one supported production path:
+
+- Managed Vercel + Supabase PostgreSQL + Cloudflare R2:
+  [deployment guide](docs/deployment/vercel-supabase-r2.md)
+- Self-hosted Docker + PostgreSQL + MinIO + Nginx:
+  [deployment guide](docs/deployment/docker.md)
+
+Use the [content release checklist](docs/operations/content-release-checklist.md)
+for every public update. Legal pages require documented counsel/compliance
+approval; use the [legal review checklist](docs/operations/legal-review-checklist.md)
+before making them public.
+
+## Safety boundaries
+
+- Products and public claims are Research Use Only unless the responsible team
+  has separately approved another use.
+- Private inquiry attachments are never public media; staff downloads require
+  authorization and audit logging.
+- Legal, privacy, shipping, and RUO text is a company/counsel responsibility;
+  this repository enforces review/publication controls but is not legal advice.

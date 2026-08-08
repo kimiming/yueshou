@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const READINESS_TIMEOUT_MS = 2_000;
+const READINESS_TIMEOUT_MS = 2_000;
 
 async function checkDatabase() {
   let timeout: ReturnType<typeof setTimeout> | undefined;
