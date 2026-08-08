@@ -13,6 +13,14 @@ const schema = z.object({
   STORAGE_ACCESS_KEY_ID: z.string().min(1),
   STORAGE_SECRET_ACCESS_KEY: z.string().min(1),
   NEXT_PUBLIC_SITE_URL: z.string().url(),
+}).superRefine((env, context) => {
+  if (env.NODE_ENV === "production" && env.INQUIRY_PROXY_MODE === "direct") {
+    context.addIssue({
+      code: "custom",
+      path: ["INQUIRY_PROXY_MODE"],
+      message: "INQUIRY_PROXY_MODE must be vercel or nginx in production",
+    });
+  }
 });
 
 export type AppEnv = z.infer<typeof schema>;

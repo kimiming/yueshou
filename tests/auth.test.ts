@@ -1,9 +1,11 @@
+import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   applyAuthRateLimits,
   createCredentialAuthorizer,
   normalizeEmail,
+  resolveAuthenticationIp,
   type AuthRateLimitAdapter,
 } from "@/lib/auth/config";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
@@ -65,31 +67,57 @@ describe("credential authorization", () => {
       verify: wrongVerify,
     });
 
-    await expect(unknown({ email: "missing@example.test", password: "guess" }, {})).resolves.toBeNull();
-    await expect(wrong({ email: "admin@example.test", password: "guess" }, {})).resolves.toBeNull();
+    await expect(unknown(
+      { email: "missing@example.test", password: "guess" },
+      { ip: "203.0.113.8" },
+    )).resolves.toBeNull();
+    await expect(wrong(
+      { email: "admin@example.test", password: "guess" },
+      { ip: "203.0.113.8" },
+    )).resolves.toBeNull();
     expect(unknownVerify).toHaveBeenCalledTimes(1);
     expect(unknownVerify.mock.calls[0]?.[0]).not.toBe("real-hash");
     expect(wrongVerify).toHaveBeenCalledOnce();
     expect(wrongVerify).toHaveBeenCalledWith("real-hash", "guess");
   });
 
-  it("returns the same public result when persistent throttling denies a valid password", async () => {
+  it("returns the same public result without password work when persistent throttling denies a login", async () => {
     const verify = vi.fn(async () => true);
+    const findActiveUserByEmail = vi.fn(async () => ({
+      id: "admin-1",
+      email: "admin@example.test",
+      name: "Admin",
+      passwordHash: "real-hash",
+      role: "ADMIN" as const,
+      updatedAt: new Date("2026-08-08T10:00:00.000Z"),
+    }));
     const authorize = createCredentialAuthorizer({
-      findActiveUserByEmail: vi.fn(async () => ({
-        id: "admin-1",
-        email: "admin@example.test",
-        name: "Admin",
-        passwordHash: "real-hash",
-        role: "ADMIN" as const,
-        updatedAt: new Date("2026-08-08T10:00:00.000Z"),
-      })),
+      findActiveUserByEmail,
       verify,
       consumeRateLimit: vi.fn(async () => false),
     });
 
-    await expect(authorize({ email: "admin@example.test", password: "correct" }, {})).resolves.toBeNull();
-    expect(verify).toHaveBeenCalledWith("real-hash", "correct");
+    await expect(authorize(
+      { email: "admin@example.test", password: "correct" },
+      { ip: "203.0.113.8" },
+    )).resolves.toBeNull();
+    expect(findActiveUserByEmail).not.toHaveBeenCalled();
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before persistent, lookup, or password work when client IP is unavailable", async () => {
+    const consumeRateLimit = vi.fn(async () => true);
+    const findActiveUserByEmail = vi.fn();
+    const verify = vi.fn();
+    const authorize = createCredentialAuthorizer({ consumeRateLimit, findActiveUserByEmail, verify });
+
+    await expect(authorize(
+      { email: "admin@example.test", password: "guess" },
+      {},
+    )).resolves.toBeNull();
+    expect(consumeRateLimit).not.toHaveBeenCalled();
+    expect(findActiveUserByEmail).not.toHaveBeenCalled();
+    expect(verify).not.toHaveBeenCalled();
   });
 });
 
@@ -113,15 +141,46 @@ describe("persistent authentication rate limiting", () => {
     ]);
   });
 
-  it("keeps email limiting when no trusted client IP is available", async () => {
+  it.each([
+    ["vercel", {}, "production"],
+    ["vercel", { "x-vercel-forwarded-for": "malformed" }, "production"],
+    ["nginx", {}, "production"],
+    ["nginx", { "x-real-ip": "198.51.100.7, 203.0.113.8" }, "production"],
+    ["direct", { "x-real-ip": "203.0.113.8" }, "production"],
+  ] as const)("denies %s authentication without one canonical trusted IP", (proxyMode, headers, nodeEnv) => {
+    expect(resolveAuthenticationIp({ proxyMode, headers, nodeEnv })).toBeUndefined();
+  });
+
+  it("uses an isolated development-only identity for direct mode", () => {
+    expect(resolveAuthenticationIp({
+      proxyMode: "direct",
+      headers: { "x-real-ip": "203.0.113.8" },
+      nodeEnv: "development",
+    })).toBe("development-direct");
+  });
+
+  it.each([
+    ["vercel", { "x-vercel-forwarded-for": "2001:0db8:0:0:0:0:0:1" }, "2001:db8::1"],
+    ["nginx", { "x-real-ip": "203.0.113.8" }, "203.0.113.8"],
+  ] as const)("creates pair, email, and IP buckets for valid %s logins", async (proxyMode, headers, expectedIp) => {
     const adapter: AuthRateLimitAdapter = { consume: vi.fn(async () => true) };
+    const secret = "12345678901234567890123456789012";
+    const email = normalizeEmail(" Admin@Example.TEST ");
+    const ip = resolveAuthenticationIp({ proxyMode, headers, nodeEnv: "production" });
+    const digest = (value: string) => createHmac("sha256", secret).update(value).digest("hex");
 
-    await applyAuthRateLimits(adapter, {
-      email: normalizeEmail("Admin@Example.test"),
+    expect(ip).toBe(expectedIp);
+    await expect(applyAuthRateLimits(adapter, {
+      email,
+      ip: ip!,
       now: new Date("2026-08-08T10:00:00.000Z"),
-      secret: "12345678901234567890123456789012",
-    });
-
-    expect(adapter.consume).toHaveBeenCalledTimes(1);
+      secret,
+    })).resolves.toBe(true);
+    expect(vi.mocked(adapter.consume).mock.calls.map(([input]) => input.key)).toEqual([
+      digest(`auth:pair:${expectedIp}\nadmin@example.test`),
+      digest("auth:email:admin@example.test"),
+      digest(`auth:ip:${expectedIp}`),
+    ]);
+    expect(vi.mocked(adapter.consume).mock.calls.map(([input]) => input.key).join(" ")).not.toContain(expectedIp);
   });
 });

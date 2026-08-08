@@ -44,16 +44,14 @@ function authRateLimitKey(kind: "pair" | "email" | "ip", value: string, secret: 
 
 export async function applyAuthRateLimits(
   adapter: AuthRateLimitAdapter,
-  input: { email: string; ip?: string; now: Date; secret: string },
+  input: { email: string; ip: string; now: Date; secret: string },
 ): Promise<boolean> {
   const email = normalizeEmail(input.email);
-  const requests: AuthRateLimitInput[] = input.ip
-    ? [
-        { key: authRateLimitKey("pair", `${input.ip}\n${email}`, input.secret), limit: 5, windowSeconds: 15 * 60, now: input.now },
-        { key: authRateLimitKey("email", email, input.secret), limit: 20, windowSeconds: 60 * 60, now: input.now },
-        { key: authRateLimitKey("ip", input.ip, input.secret), limit: 50, windowSeconds: 60 * 60, now: input.now },
-      ]
-    : [{ key: authRateLimitKey("email", email, input.secret), limit: 20, windowSeconds: 60 * 60, now: input.now }];
+  const requests: AuthRateLimitInput[] = [
+    { key: authRateLimitKey("pair", `${input.ip}\n${email}`, input.secret), limit: 5, windowSeconds: 15 * 60, now: input.now },
+    { key: authRateLimitKey("email", email, input.secret), limit: 20, windowSeconds: 60 * 60, now: input.now },
+    { key: authRateLimitKey("ip", input.ip, input.secret), limit: 50, windowSeconds: 60 * 60, now: input.now },
+  ];
 
   const results = await Promise.all(requests.map((request) => adapter.consume(request)));
   return results.every(Boolean);
@@ -62,7 +60,7 @@ export async function applyAuthRateLimits(
 type CredentialAuthorizerDependencies = {
   findActiveUserByEmail(email: string): Promise<CredentialUser | null>;
   verify(passwordHash: string, password: string): Promise<boolean>;
-  consumeRateLimit(input: { email: string; ip?: string }): Promise<boolean>;
+  consumeRateLimit(input: { email: string; ip: string }): Promise<boolean>;
 };
 
 export function createCredentialAuthorizer(dependencies: CredentialAuthorizerDependencies) {
@@ -70,15 +68,17 @@ export function createCredentialAuthorizer(dependencies: CredentialAuthorizerDep
     credentials: { email?: string; password?: string } | undefined,
     context: { ip?: string },
   ): Promise<(User & { role: UserRole; version: string }) | null> {
+    if (!context.ip) return null;
+
     const email = normalizeEmail(credentials?.email ?? "");
     const password = credentials?.password ?? "";
-    const [user, allowed] = await Promise.all([
-      dependencies.findActiveUserByEmail(email),
-      dependencies.consumeRateLimit({ email, ip: context.ip }),
-    ]);
+    const allowed = await dependencies.consumeRateLimit({ email, ip: context.ip });
+    if (!allowed) return null;
+
+    const user = await dependencies.findActiveUserByEmail(email);
     const passwordMatches = await dependencies.verify(user?.passwordHash ?? DUMMY_PASSWORD_HASH, password);
 
-    if (!user || !passwordMatches || !allowed) return null;
+    if (!user || !passwordMatches) return null;
     return {
       id: user.id,
       role: user.role,
@@ -93,11 +93,29 @@ function proxyMode(): InquiryProxyMode {
   throw new Error("INQUIRY_PROXY_MODE must define the trusted proxy boundary");
 }
 
+type AuthenticationNodeEnv = "development" | "test" | "production";
+
+export function resolveAuthenticationIp(input: {
+  proxyMode: InquiryProxyMode;
+  headers: Record<string, string | undefined>;
+  nodeEnv: AuthenticationNodeEnv;
+}): string | undefined {
+  if (input.proxyMode === "direct") {
+    return input.nodeEnv === "production" ? undefined : "development-direct";
+  }
+  if (input.proxyMode === "nginx" && input.headers["x-real-ip"]?.includes(",")) return undefined;
+  return resolveClientIp(input.proxyMode, input.headers);
+}
+
 function requestIp(headers: Record<string, unknown> | undefined): string | undefined {
   const value = (name: string) => typeof headers?.[name] === "string" ? headers[name] : undefined;
-  return resolveClientIp(proxyMode(), {
-    "x-vercel-forwarded-for": value("x-vercel-forwarded-for"),
-    "x-real-ip": value("x-real-ip"),
+  return resolveAuthenticationIp({
+    proxyMode: proxyMode(),
+    nodeEnv: process.env.NODE_ENV === "production" || process.env.NODE_ENV === "test" ? process.env.NODE_ENV : "development",
+    headers: {
+      "x-vercel-forwarded-for": value("x-vercel-forwarded-for"),
+      "x-real-ip": value("x-real-ip"),
+    },
   });
 }
 
