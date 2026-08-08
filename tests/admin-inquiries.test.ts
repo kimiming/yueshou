@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { escapeCsvCell } from "@/features/inquiries/export";
+import { inquiryExportFiltersSchema } from "@/features/inquiries/export";
 import { createInquiryAdminService } from "@/features/admin/inquiries";
 import { createUserAdminService } from "@/features/admin/users";
 
 describe("inquiry administration", () => {
   it("allows only defined forward inquiry status transitions", async () => {
     const service = createInquiryAdminService({
-      repository: { getStatus: async () => "NEW", updateStatus: async () => undefined },
+      repository: { getStatus: async () => "NEW", updateStatus: async () => true },
     });
 
     await expect(service.changeStatus({ actor: { id: "editor-1", role: "EDITOR" }, inquiryId: "inq-1", status: "RESOLVED" }))
@@ -17,6 +18,11 @@ describe("inquiry administration", () => {
   it("prefixes CSV formula cells without changing ordinary values", () => {
     expect(escapeCsvCell("=SUM(A1:A2)")).toBe("'=SUM(A1:A2)");
     expect(escapeCsvCell("Peptide inquiry")).toBe("Peptide inquiry");
+  });
+
+  it("rejects invalid inquiry export filters", () => {
+    expect(inquiryExportFiltersSchema.safeParse({ status: "INVALID" }).success).toBe(false);
+    expect(inquiryExportFiltersSchema.safeParse({ from: "not-a-date" }).success).toBe(false);
   });
 
   it("allows only administrators to manage users", async () => {

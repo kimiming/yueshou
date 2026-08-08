@@ -42,4 +42,11 @@ describe("product administration", () => {
     await expect(service.archiveCategory({ actor: { id: "admin-1", role: "ADMIN" }, categoryId: "category-1" }))
       .rejects.toThrow("referenced");
   });
+
+  it("rejects duplicate locales before a product write", async () => {
+    const service = createProductAdminService({ repository: { saveProduct: async () => ({ id: "product-1", slug: "test" }) }, invalidate: () => undefined });
+    await expect(service.save({ actor: { id: "editor-1", role: "EDITOR" }, categoryId: "category-1", slug: "test", translations: [
+      { locale: "en", title: "One", body: "Research" }, { locale: "en", title: "Two", body: "Research" },
+    ] })).rejects.toThrow("locale");
+  });
 });

@@ -26,4 +26,11 @@ describe("news administration", () => {
     await expect(service.archiveCategory({ actor: { id: "editor-1", role: "EDITOR" }, categoryId: "category-1" }))
       .rejects.toThrow("Administrator");
   });
+
+  it("rejects duplicate article translation locales", async () => {
+    const service = createNewsAdminService({ repository: { saveArticle: async () => ({ id: "article-1", slug: "news" }) }, invalidate: () => undefined });
+    await expect(service.save({ actor: { id: "editor-1", role: "EDITOR" }, categoryId: "category-1", slug: "news", tagIds: [], translations: [
+      { locale: "en", title: "One", body: "Research" }, { locale: "en", title: "Two", body: "Research" },
+    ] })).rejects.toThrow("locale");
+  });
 });
