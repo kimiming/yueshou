@@ -34,6 +34,8 @@ import {
   type Locale,
 } from "@/lib/i18n/config";
 import { resolveTranslation } from "@/lib/i18n/resolve-translation";
+import { unstable_cache } from "next/cache";
+import { cache } from "react";
 
 function validateLookup(locale: string, slug: string): Locale {
   if (!isLocale(locale)) {
@@ -482,7 +484,12 @@ export function createContentService(repository: ContentRepository) {
 const contentService = createContentService(contentRepository);
 
 export const getHomePage = contentService.getHomePage;
-export const getMarketingShell = contentService.getMarketingShell;
+const getCachedMarketingShell = unstable_cache(
+  async (locale: string) => contentService.getMarketingShell(locale),
+  ["marketing-shell"],
+  { tags: ["site:global", "media:global"] },
+);
+export const getMarketingShell = cache(getCachedMarketingShell);
 export const getPageBySlug = contentService.getPageBySlug;
 export const getApprovedLegalPageBySlug = contentService.getApprovedLegalPageBySlug;
 export const getPublishedArticle = contentService.getPublishedArticle;

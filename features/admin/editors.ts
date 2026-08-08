@@ -83,7 +83,7 @@ const pageInputSchema = z.object({
   id: z.string().min(1).optional(),
   slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   version: versionSchema,
-  translations: z.array(translationSchema).max(contentLocales.length),
+  translations: z.array(translationSchema.extend({ seoTitle: z.string().trim().max(160).optional(), seoDescription: z.string().trim().max(320).optional() })).min(1).max(contentLocales.length).superRefine((items, context) => { if (new Set(items.map((item) => item.locale)).size !== items.length) context.addIssue({ code: "custom", message: "Each locale may appear only once" }); }),
 });
 
 const pageSectionInputSchema = z.object({
@@ -130,7 +130,7 @@ export type AdminEditorRepository = {
     sections: Array<{ id: string; isEnabled: boolean; type: string; config: unknown; translations: EditorTranslation[] }>;
   } | null>;
   savePage(input: z.infer<typeof pageInputSchema> & { audit?: AuditStamp }): Promise<{ id: string; slug: string; version: string } | null>;
-  savePageAndChangeStatus?(input: z.infer<typeof pageInputSchema> & { status: "PUBLISHED" | "ARCHIVED"; audit?: AuditStamp; statusAudit?: AuditStamp }): Promise<{ id: string; slug: string; publishedAt: Date | null; version: string } | null>;
+  savePageAndChangeStatus?(input: z.infer<typeof pageInputSchema> & { status: "DRAFT" | "PUBLISHED" | "ARCHIVED"; audit?: AuditStamp; statusAudit?: AuditStamp }): Promise<{ id: string; slug: string; publishedAt: Date | null; version: string } | null>;
   savePageSection(input: z.output<typeof pageSectionInputSchema> & { audit?: AuditStamp }): Promise<{ id: string; version: string } | null>;
   reorderPageSections(input: { pageId: string; orderedIds: string[]; audit?: AuditStamp }): Promise<void>;
   changePageStatus(input: { pageId: string; version: string; status: "DRAFT" | "PUBLISHED" | "ARCHIVED"; audit?: AuditStamp }): Promise<{
@@ -270,7 +270,7 @@ export function createAdminEditorService(dependencies: {
       requireActor(input.actor);
       const page = parse(pageInputSchema, input);
       if (!page.id || !page.version) throw new EditorValidationError("An existing page version is required");
-      const status = z.enum(["PUBLISHED", "ARCHIVED"]).parse(input.status);
+      const status = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).parse(input.status);
       if (status === "ARCHIVED") requireAdmin(input.actor);
       if (!repository.savePageAndChangeStatus) throw new EditorValidationError("Atomic page transition is not available");
       const result = await repository.savePageAndChangeStatus({
@@ -307,7 +307,7 @@ export function createAdminEditorService(dependencies: {
       requireAdmin(input.actor);
       const mediaAssetId = z.string().min(1).parse(input.mediaAssetId);
       const result = await repository.archiveMedia({ actor: input.actor, mediaAssetId });
-      await audit(repository, input.actor, "MEDIA_ARCHIVED", "MediaAsset", mediaAssetId, { retained: result.retained, deleteAfter: result.deleteAfter?.toISOString() ?? null });
+      if (!repository.auditsMutations) await audit(repository, input.actor, "MEDIA_ARCHIVED", "MediaAsset", mediaAssetId, { retained: result.retained, deleteAfter: result.deleteAfter?.toISOString() ?? null });
       return result;
     },
 

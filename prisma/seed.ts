@@ -132,8 +132,8 @@ async function main() {
 
   const brand = await prisma.siteSetting.upsert({
     where: { key: "brand" },
-    update: { status: PublishStatus.DRAFT, deletedAt: null },
-    create: { key: "brand", status: PublishStatus.DRAFT },
+    update: { status: PublishStatus.PUBLISHED, publishedAt: new Date(), deletedAt: null },
+    create: { key: "brand", status: PublishStatus.PUBLISHED, publishedAt: new Date() },
   });
 
   await Promise.all(

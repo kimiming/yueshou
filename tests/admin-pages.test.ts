@@ -101,4 +101,21 @@ describe("page section editor", () => {
     });
     expect(repo.archiveMedia).toHaveBeenCalledWith({ actor: admin, mediaAssetId: "media-1" });
   });
+
+  it("preserves localized SEO fields when saving a page", async () => {
+    const repo = repository();
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+
+    await service.savePage({ actor: editor, id: "page-1", slug: "about", version: "2026-08-08T00:00:00.000Z", translations: [{ locale: "en", title: "About", body: "Research", seoTitle: "About peptide research", seoDescription: "Peptide research capabilities" }] });
+
+    expect(repo.savePage).toHaveBeenCalledWith(expect.objectContaining({ translations: [expect.objectContaining({ seoTitle: "About peptide research", seoDescription: "Peptide research capabilities" })] }));
+  });
+
+  it("rejects duplicate locale rows before a page write", async () => {
+    const repo = repository();
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+
+    await expect(service.savePage({ actor: editor, id: "page-1", slug: "about", version: "2026-08-08T00:00:00.000Z", translations: [{ locale: "en", title: "About", body: "Research" }, { locale: "en", title: "About again", body: "Research" }] })).rejects.toBeInstanceOf(EditorValidationError);
+    expect(repo.savePage).not.toHaveBeenCalled();
+  });
 });

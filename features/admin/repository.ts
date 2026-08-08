@@ -8,6 +8,7 @@ import { toDatabaseLocale } from "@/lib/i18n/config";
 import type { AdminDashboardRepository } from "./dashboard";
 import { EditorValidationError, type AdminEditorRepository } from "./editors";
 import { validatePagePublication } from "./publication";
+import { assertExactLiveSet } from "./ordering";
 
 const requiredLocales = new Set(["en", "zh_CN", "de", "fr", "es"]);
 
@@ -111,7 +112,7 @@ async function replaceTranslations(
   tx: Prisma.TransactionClient,
   entity: "siteSetting" | "navigationItem" | "page" | "pageSection" | "mediaAsset",
   id: string,
-  translations: Array<{ locale: "en" | "zh-CN" | "de" | "fr" | "es"; title: string; body?: string; alt?: string }>,
+  translations: Array<{ locale: "en" | "zh-CN" | "de" | "fr" | "es"; title: string; body?: string; alt?: string; seoTitle?: string; seoDescription?: string }>,
 ) {
   if (entity === "siteSetting") {
     await tx.siteSettingTranslation.deleteMany({ where: { siteSettingId: id } });
@@ -121,7 +122,7 @@ async function replaceTranslations(
     await tx.navigationItemTranslation.createMany({ data: translations.map((item) => ({ navigationItemId: id, locale: toDatabaseLocale(item.locale), title: item.title })) });
   } else if (entity === "page") {
     await tx.pageTranslation.deleteMany({ where: { pageId: id } });
-    await tx.pageTranslation.createMany({ data: translations.map((item) => ({ pageId: id, locale: toDatabaseLocale(item.locale), title: item.title, body: item.body ?? "" })) });
+    await tx.pageTranslation.createMany({ data: translations.map((item) => ({ pageId: id, locale: toDatabaseLocale(item.locale), title: item.title, body: item.body ?? "", seoTitle: item.seoTitle, seoDescription: item.seoDescription })) });
   } else if (entity === "pageSection") {
     await tx.pageSectionTranslation.deleteMany({ where: { pageSectionId: id } });
     await tx.pageSectionTranslation.createMany({ data: translations.map((item) => ({ pageSectionId: id, locale: toDatabaseLocale(item.locale), title: item.title, body: item.body ?? "" })) });
@@ -209,8 +210,11 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
 
   async reorderNavigation({ orderedIds, audit }) {
     await prisma.$transaction(async (tx) => {
-      const records = await tx.navigationItem.findMany({ where: { id: { in: orderedIds }, deletedAt: null }, select: { id: true } });
-      if (records.length !== orderedIds.length) throw new EditorValidationError("Navigation collection changed; reload and try again");
+      const records = await tx.navigationItem.findMany({ where: { id: { in: orderedIds }, deletedAt: null }, select: { id: true, parentId: true } });
+      const parentIds = new Set(records.map((record) => record.parentId));
+      const siblings = parentIds.size === 1 ? await tx.navigationItem.findMany({ where: { parentId: records[0]?.parentId ?? null, deletedAt: null }, select: { id: true } }) : [];
+      if (records.length !== orderedIds.length || parentIds.size !== 1) throw new EditorValidationError("Navigation collection changed; reload and try again");
+      assertExactLiveSet(orderedIds, siblings.map((record) => record.id), "Navigation");
       await tx.navigationItem.updateMany({ where: { id: { in: orderedIds } }, data: { position: { increment: 1_000_000 } } });
       await Promise.all(orderedIds.map((id, position) => tx.navigationItem.update({ where: { id }, data: { position } })));
       await writeAudit(tx, audit, "navigation");
@@ -248,8 +252,12 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       }
       const updated = await tx.page.updateMany({ where: { id: input.id, updatedAt: new Date(input.version ?? ""), deletedAt: null }, data: { slug: input.slug } });
       if (updated.count !== 1) return null;
-      const record = await tx.page.findUniqueOrThrow({ where: { id: input.id }, select: { id: true, slug: true, updatedAt: true } });
+      const record = await tx.page.findUniqueOrThrow({ where: { id: input.id }, select: { id: true, slug: true, status: true, updatedAt: true } });
       await replaceTranslations(tx, "page", record.id, input.translations);
+      if (record.status === "PUBLISHED") {
+        const publication = await tx.page.findUniqueOrThrow({ where: { id: record.id }, select: { translations: { select: { locale: true, title: true, body: true } }, sections: { where: { deletedAt: null }, select: { id: true, isEnabled: true, type: true, config: true, translations: { select: { locale: true, title: true, body: true } } } } } });
+        validatePagePublication(publicationRecord(publication));
+      }
       await writeAudit(tx, input.audit, record.id);
       return { id: record.id, slug: record.slug, version: version(record.updatedAt) };
     }, { isolationLevel: "Serializable" }).catch((error) => {
@@ -304,7 +312,9 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
   async reorderPageSections({ pageId, orderedIds, audit }) {
     await prisma.$transaction(async (tx) => {
       const records = await tx.pageSection.findMany({ where: { pageId, id: { in: orderedIds }, deletedAt: null }, select: { id: true } });
+      const siblings = await tx.pageSection.findMany({ where: { pageId, deletedAt: null }, select: { id: true } });
       if (records.length !== orderedIds.length) throw new EditorValidationError("Section collection changed; reload and try again");
+      assertExactLiveSet(orderedIds, siblings.map((record) => record.id), "Section");
       await tx.pageSection.updateMany({ where: { pageId, id: { in: orderedIds }, deletedAt: null }, data: { position: { increment: 1_000_000 } } });
       await Promise.all(orderedIds.map((id, position) => tx.pageSection.update({ where: { id, pageId }, data: { position } })));
       await writeAudit(tx, audit, pageId);

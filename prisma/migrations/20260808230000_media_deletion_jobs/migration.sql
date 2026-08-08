@@ -7,7 +7,6 @@ CREATE TABLE "MediaDeletionJob" (
     "status" "MediaDeletionJobStatus" NOT NULL DEFAULT 'PENDING',
     "deleteAfter" TIMESTAMP(3) NOT NULL,
     "attempts" INTEGER NOT NULL DEFAULT 0,
-    "leaseUntil" TIMESTAMP(3),
     "lastError" TEXT,
     "completedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
