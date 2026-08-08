@@ -2,6 +2,7 @@ import argon2 from "argon2";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   ContentLocale,
+  LegalReviewStatus,
   PrismaClient,
   PublishStatus,
   UserRole,
@@ -176,19 +177,25 @@ async function main() {
   for (const legalPage of legalPages) {
     const page = await prisma.page.upsert({
       where: { slug: legalPage.slug },
-      update: { status: PublishStatus.DRAFT, deletedAt: null },
-      create: { slug: legalPage.slug, status: PublishStatus.DRAFT },
+      update: {},
+      create: {
+        slug: legalPage.slug,
+        status: PublishStatus.DRAFT,
+        legalReviewStatus: LegalReviewStatus.PENDING,
+      },
     });
 
-    await Promise.all(
-      legalPage.translations.map(({ locale, title, body }) =>
-        prisma.pageTranslation.upsert({
-          where: { pageId_locale: { pageId: page.id, locale } },
-          update: { title, body, seoTitle: title, seoDescription: body },
-          create: { pageId: page.id, locale, title, body, seoTitle: title, seoDescription: body },
-        }),
-      ),
-    );
+    await prisma.pageTranslation.createMany({
+      data: legalPage.translations.map(({ locale, title, body }) => ({
+        pageId: page.id,
+        locale,
+        title,
+        body,
+        seoTitle: title,
+        seoDescription: body,
+      })),
+      skipDuplicates: true,
+    });
   }
 }
 

@@ -23,9 +23,22 @@ export const publishableTranslationSchema = z
     }
   });
 
+const isSafeCtaHref = (href: string) => {
+  if (href.startsWith("/") && !href.startsWith("//") && !href.includes("\\")) {
+    return true;
+  }
+
+  try {
+    const url = new URL(href);
+    return url.protocol === "https:" && url.hostname.length > 0;
+  } catch {
+    return false;
+  }
+};
+
 const ctaSchema = z.object({
   label: z.string().trim().min(1).max(80),
-  href: z.string().trim().regex(/^(\/|https:\/\/)/, "Use a relative or HTTPS link"),
+  href: z.string().trim().refine(isSafeCtaHref, "Use a relative or HTTPS link"),
 });
 
 const pageSectionConfigSchemas = {

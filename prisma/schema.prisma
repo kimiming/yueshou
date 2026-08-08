@@ -20,6 +20,12 @@ enum PublishStatus {
   ARCHIVED
 }
 
+enum LegalReviewStatus {
+  NOT_REQUIRED
+  PENDING
+  APPROVED
+}
+
 enum UserRole {
   ADMIN
   EDITOR
@@ -141,15 +147,17 @@ model NavigationItemTranslation {
 }
 
 model Page {
-  id           String            @id @default(cuid())
-  slug         String            @unique
-  status       PublishStatus     @default(DRAFT)
-  publishedAt  DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  deletedAt    DateTime?
-  translations PageTranslation[]
-  sections     PageSection[]
+  id                String            @id @default(cuid())
+  slug              String            @unique
+  status            PublishStatus     @default(DRAFT)
+  publishedAt       DateTime?
+  legalReviewStatus LegalReviewStatus @default(NOT_REQUIRED)
+  legalReviewedAt   DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  deletedAt         DateTime?
+  translations      PageTranslation[]
+  sections          PageSection[]
 }
 
 model PageTranslation {
@@ -348,6 +356,7 @@ model MediaAsset {
   height        Int?
   visibility    MediaVisibility         @default(PUBLIC)
   status        PublishStatus           @default(DRAFT)
+  publishedAt   DateTime?
   createdAt     DateTime                @default(now())
   updatedAt     DateTime                @updatedAt
   deletedAt     DateTime?

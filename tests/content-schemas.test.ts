@@ -25,6 +25,19 @@ describe("publishableTranslationSchema", () => {
 });
 
 describe("pageSectionSchema", () => {
+  it("accepts only safe relative or HTTPS CTA URLs", () => {
+    const parseCta = (href: string) =>
+      pageSectionSchema.safeParse({
+        type: "hero",
+        config: { primaryCta: { label: "Request a quote", href } },
+      }).success;
+
+    expect(parseCta("/request-a-quote")).toBe(true);
+    expect(parseCta("https://example.com/request-a-quote")).toBe(true);
+    expect(parseCta("//evil.example")).toBe(false);
+    expect(parseCta("https://")).toBe(false);
+  });
+
   it("accepts only approved structured section types", () => {
     expect(
       pageSectionSchema.safeParse({
