@@ -38,6 +38,7 @@
       "contactTeam": "Unser Team kontaktieren"
     },
     "cards": { "explore": "Entdecken", "viewCategory": "Kategorie ansehen", "researchUpdate": "Forschungsupdate", "readMore": "Weiterlesen" },
+    "public": { "breadcrumbs": "Brotkrümelnavigation", "catalog": "Produktkatalog", "news": "Neuigkeiten", "articles": "Veröffentlichte Artikel", "search": "Suche", "searchLabel": "Produkte und Inhalte durchsuchen", "searchAction": "Suchen", "results": "Suchergebnisse", "noResults": "Keine veröffentlichten Ergebnisse gefunden.", "contactDetails": "Kontaktdaten", "quoteDetails": "Details der Angebotsanfrage", "gdprNotice": "Ihre Angaben werden zur Beantwortung dieser Angebotsanfrage verwendet. Lesen Sie die Datenschutzerklärung, bevor Sie personenbezogene Daten angeben.", "privacyPolicy": "Datenschutzerklärung", "cas": "CAS-Nummer", "sequence": "Sequenz" },
     "errors": {
       "shellUnavailable": "Die Seitennavigation ist vorübergehend nicht verfügbar",
       "contentUnavailable": "Der Inhalt ist vorübergehend nicht verfügbar",

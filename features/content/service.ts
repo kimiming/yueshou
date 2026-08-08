@@ -22,6 +22,7 @@ import type {
   MediaViewModel,
   PageViewModel,
   ProductViewModel,
+  ServiceViewModel,
 } from "@/features/content/view-models";
 import type { PageSectionType } from "@/features/content/types";
 import {
@@ -194,6 +195,19 @@ function mapProduct(record: PublishedProductRecord, locale: Locale): ProductView
     publishedAt: record.publishedAt?.toISOString() ?? null,
     category: mapCategory(record.category, locale),
     media: record.media.map((item) => mapMedia(item, locale)),
+  };
+}
+
+function mapService(record: PublishedServiceRecord, locale: Locale): ServiceViewModel {
+  const translation = localized(record.translations, locale);
+  return {
+    id: record.id,
+    slug: record.slug,
+    locale,
+    translationLocale: translation.translationLocale,
+    usedFallback: translation.usedFallback,
+    title: translation.title,
+    body: translation.body,
   };
 }
 
@@ -411,6 +425,21 @@ function serviceFromRepository(repository: ContentRepository) {
       const record = await repository.findPublishedProductBySlug(slug);
       return record ? mapProduct(record, locale) : null;
     },
+    async getPublishedService(localeInput: string, slug: string) {
+      const locale = validateLookup(localeInput, slug);
+      const record = await repository.findPublishedServiceBySlug(slug);
+      return record ? mapService(record, locale) : null;
+    },
+    async getPublishedProducts(localeInput: string) {
+      const locale = validateLookup(localeInput, "products");
+      const records = await repository.findPublishedProducts();
+      return records.map((record) => mapProduct(record, locale));
+    },
+    async getPublishedArticles(localeInput: string) {
+      const locale = validateLookup(localeInput, "news");
+      const records = await repository.findLatestPublishedArticles(30);
+      return records.map((record) => mapArticle(record, locale));
+    },
   };
 }
 
@@ -425,3 +454,6 @@ export const getMarketingShell = contentService.getMarketingShell;
 export const getPageBySlug = contentService.getPageBySlug;
 export const getPublishedArticle = contentService.getPublishedArticle;
 export const getPublishedProduct = contentService.getPublishedProduct;
+export const getPublishedService = contentService.getPublishedService;
+export const getPublishedProducts = contentService.getPublishedProducts;
+export const getPublishedArticles = contentService.getPublishedArticles;

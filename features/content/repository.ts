@@ -198,6 +198,8 @@ export interface ContentRepository {
   findPublishedPageBySlug(slug: string): Promise<PublishedPageRecord | null>;
   findPublishedArticleBySlug(slug: string): Promise<PublishedArticleRecord | null>;
   findPublishedProductBySlug(slug: string): Promise<PublishedProductRecord | null>;
+  findPublishedServiceBySlug(slug: string): Promise<PublishedServiceRecord | null>;
+  findPublishedProducts(): Promise<PublishedProductRecord[]>;
   findPublishedMediaByIds(ids: string[]): Promise<PublishedMediaRecord[]>;
   findPublishedServicesByIds(ids: string[]): Promise<PublishedServiceRecord[]>;
   findPublishedHomepageItemsByIds(ids: string[]): Promise<PublishedHomepageItemRecord[]>;
@@ -262,6 +264,25 @@ export function createContentRepository(database: ContentDatabase) {
           deletedAt: null,
           category: { is: { status: "PUBLISHED", deletedAt: null } },
         },
+        include: productInclude,
+      });
+    },
+
+    findPublishedServiceBySlug(slug: string): Promise<PublishedServiceRecord | null> {
+      return database.service.findFirst({
+        where: { slug, status: "PUBLISHED", deletedAt: null },
+        select: { id: true, slug: true, translations: true },
+      });
+    },
+
+    findPublishedProducts(): Promise<PublishedProductRecord[]> {
+      return database.product.findMany({
+        where: {
+          status: "PUBLISHED",
+          deletedAt: null,
+          category: { is: { status: "PUBLISHED", deletedAt: null } },
+        },
+        orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
         include: productInclude,
       });
     },

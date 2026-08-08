@@ -38,6 +38,7 @@
       "contactTeam": "Contact our team"
     },
     "cards": { "explore": "Explore", "viewCategory": "View category", "researchUpdate": "Research update", "readMore": "Read more" },
+    "public": { "breadcrumbs": "Breadcrumbs", "catalog": "Product catalog", "news": "News", "articles": "Published articles", "search": "Search", "searchLabel": "Search products and content", "searchAction": "Search", "results": "Search results", "noResults": "No published results found.", "contactDetails": "Contact details", "quoteDetails": "Quote request details", "gdprNotice": "Your information will be used to respond to this quote request. Review the Privacy Policy before providing personal information.", "privacyPolicy": "Privacy Policy", "cas": "CAS number", "sequence": "Sequence" },
     "errors": {
       "shellUnavailable": "Site navigation is temporarily unavailable",
       "contentUnavailable": "Content is temporarily unavailable",

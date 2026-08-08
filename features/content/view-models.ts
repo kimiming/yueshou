@@ -70,6 +70,11 @@ export type ProductViewModel = LocalizedViewModel & {
   media: MediaViewModel[];
 };
 
+export type ServiceViewModel = LocalizedViewModel & {
+  id: string;
+  slug: string;
+};
+
 export type MarketingNavigationViewModel = {
   id: string;
   label: string;
