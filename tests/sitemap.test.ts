@@ -41,6 +41,14 @@ describe("public sitemap", () => {
         updatedAt: "2026-08-03T00:00:00.000Z",
       },
       {
+        kind: "product",
+        slug: "bpc-157",
+        status: "PUBLISHED",
+        deletedAt: null,
+        publishedAt: "2026-07-03T00:00:00.000Z",
+        updatedAt: "2026-08-03T06:00:00.000Z",
+      },
+      {
         kind: "page",
         slug: "privacy",
         status: "PUBLISHED",
@@ -54,7 +62,7 @@ describe("public sitemap", () => {
 
     const sitemap = buildSitemap(entries);
 
-    expect(sitemap).toHaveLength(20);
+    expect(sitemap).toHaveLength(25);
     expect(sitemap.map((item) => item.url)).toContain(
       "https://www.yueshou.example/zh-CN/services/custom-synthesis",
     );
@@ -62,6 +70,9 @@ describe("public sitemap", () => {
       .toMatchObject({ lastModified: "2026-08-03T00:00:00.000Z" });
     expect(sitemap.find((item) => item.url.endsWith("/es/legal/privacy")))
       .toMatchObject({ lastModified: "2026-07-30T12:00:00.000Z" });
+    expect(sitemap.map((item) => item.url)).toContain(
+      "https://www.yueshou.example/fr/products/bpc-157",
+    );
     expect(sitemap[0]?.alternates?.languages).toEqual({
       en: "https://www.yueshou.example/en",
       "zh-CN": "https://www.yueshou.example/zh-CN",
@@ -72,12 +83,40 @@ describe("public sitemap", () => {
     });
   });
 
+  it.each(["page", "service", "product", "article"] as const)(
+    "rejects malformed and unsupported-Unicode %s slugs before URL interpolation",
+    (kind) => {
+      const entries = ["../admin", "encoded%2Fseparator", "has space", " padded", "研究"]
+        .map((slug): SitemapContentEntry => ({
+          kind,
+          slug,
+          status: "PUBLISHED",
+          deletedAt: null,
+          publishedAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-01T00:00:00.000Z",
+          ...(kind === "page"
+            ? { legalReviewStatus: "NOT_REQUIRED" as const, legalReviewedAt: null }
+            : {}),
+        }));
+
+      expect(buildSitemap(entries)).toEqual([]);
+    },
+  );
+
   it("excludes drafts, deleted records, unreviewed legal pages, and internal/search slugs", () => {
     const unsafeEntries: SitemapContentEntry[] = [
       {
         kind: "article",
         slug: "draft-news",
         status: "DRAFT",
+        deletedAt: null,
+        publishedAt: null,
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        kind: "article",
+        slug: "published-without-date",
+        status: "PUBLISHED",
         deletedAt: null,
         publishedAt: null,
         updatedAt: "2026-08-01T00:00:00.000Z",

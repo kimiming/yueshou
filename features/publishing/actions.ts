@@ -47,6 +47,6 @@ export async function publishEntity(
     slug: entity.slug,
     type: input.type,
     status: "PUBLISHED" as const,
-    publishedAt: publishedAt.toISOString(),
+    publishedAt: entity.publishedAt.toISOString(),
   };
 }

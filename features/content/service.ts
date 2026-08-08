@@ -168,7 +168,7 @@ function mapArticle(record: PublishedArticleRecord, locale: Locale): ArticleView
     title: translation.title,
     body: translation.body,
     excerpt: translation.value.excerpt,
-    publishedAt: record.publishedAt?.toISOString() ?? null,
+    publishedAt: record.publishedAt.toISOString(),
     category: mapCategory(record.category, locale),
     tags: record.tags.map((tag) => ({ slug: tag.slug, name: tag.name })),
     coverMedia:

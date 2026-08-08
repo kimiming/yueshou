@@ -28,7 +28,7 @@ type ArticleJsonLdInput = {
   slug: string;
   title: string;
   excerpt?: string | null;
-  publishedAt?: string | null;
+  publishedAt: string;
   imageUrl?: string | null;
 };
 
@@ -107,6 +107,9 @@ export function breadcrumbJsonLd(items: BreadcrumbItem[]): JsonLdValue {
 }
 
 export function articleJsonLd(article: ArticleJsonLdInput): JsonLdValue {
+  if (!article.publishedAt) {
+    throw new Error("Article JSON-LD requires publishedAt");
+  }
   const url = localizedAbsoluteUrl(article.locale, `/news/${article.slug}`);
   return {
     "@context": "https://schema.org",
@@ -114,7 +117,7 @@ export function articleJsonLd(article: ArticleJsonLdInput): JsonLdValue {
     "@id": `${url}#article`,
     headline: article.title,
     ...(article.excerpt ? { description: article.excerpt } : {}),
-    ...(article.publishedAt ? { datePublished: article.publishedAt } : {}),
+    datePublished: article.publishedAt,
     ...(article.imageUrl ? { image: absoluteItemUrl(article.imageUrl) } : {}),
     mainEntityOfPage: { "@id": url },
     publisher: { "@id": organizationId() },

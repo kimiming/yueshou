@@ -30,15 +30,18 @@ const openGraphLocale: Record<Locale, string> = {
   es: "es_ES",
 };
 
-export type BuildMetadataInput = {
+type BaseMetadataInput = {
   locale: Locale;
   path: string;
   title: string;
   description?: string | null;
-  kind?: "website" | "article";
-  publishedTime?: string | null;
   noIndex?: boolean;
 };
+
+export type BuildMetadataInput = BaseMetadataInput & (
+  | { kind: "article"; publishedTime: string }
+  | { kind?: "website"; publishedTime?: never }
+);
 
 export function getSiteUrl(): URL {
   const { NEXT_PUBLIC_SITE_URL } = publicSiteEnvSchema.parse(process.env);
@@ -75,6 +78,9 @@ export function buildLanguageAlternates(path: string): Record<string, string> {
 }
 
 export function buildMetadata(input: BuildMetadataInput): Metadata {
+  if (input.kind === "article" && !input.publishedTime) {
+    throw new Error("Article metadata requires publishedTime");
+  }
   const description = input.description?.trim() || SITE_DESCRIPTION;
   const canonical = localizedAbsoluteUrl(input.locale, input.path);
   const imageUrl = absoluteSiteUrl("/og.png");
@@ -102,7 +108,7 @@ export function buildMetadata(input: BuildMetadataInput): Metadata {
     ? {
         ...commonOpenGraph,
         type: "article",
-        ...(input.publishedTime ? { publishedTime: input.publishedTime } : {}),
+        publishedTime: input.publishedTime,
       }
     : { ...commonOpenGraph, type: "website" };
 

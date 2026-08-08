@@ -258,6 +258,20 @@ describe("structured data", () => {
     });
   });
 
+  it("refuses to emit Article metadata or JSON-LD without a publication date", () => {
+    expect(() => buildMetadata({
+      locale: "en",
+      path: "/news/missing-date",
+      title: "Missing date",
+      kind: "article",
+    } as never)).toThrow("publishedTime");
+    expect(() => articleJsonLd({
+      locale: "en",
+      slug: "missing-date",
+      title: "Missing date",
+    } as never)).toThrow("publishedAt");
+  });
+
   it("escapes script-breaking user text before rendering JSON-LD", () => {
     const malicious = {
       "@context": "https://schema.org",

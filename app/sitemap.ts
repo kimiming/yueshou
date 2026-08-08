@@ -1,6 +1,10 @@
 import type { MetadataRoute } from "next";
 
-import { LEGAL_PAGE_SLUGS } from "@/features/content/public-slug";
+import {
+  isGenericPageSlug,
+  isPublicContentSlug,
+  LEGAL_PAGE_SLUGS,
+} from "@/features/content/public-slug";
 import {
   buildLanguageAlternates,
   localizedAbsoluteUrl,
@@ -29,9 +33,19 @@ const internalPageSlugs = new Set([
   "legal",
 ]);
 const legalPageSlugs = new Set<string>(LEGAL_PAGE_SLUGS);
+const indexedPageSlugs = new Set([
+  "home",
+  "about",
+  "contact",
+  "products",
+  "news",
+  "request-a-quote",
+]);
 
 function publicRoute(entry: SitemapContentEntry): string | null {
   if (entry.status !== "PUBLISHED" || entry.deletedAt) return null;
+  if (!isPublicContentSlug(entry.slug)) return null;
+  if (entry.kind === "article" && !entry.publishedAt) return null;
   if (entry.kind === "page" && internalPageSlugs.has(entry.slug)) return null;
 
   if (entry.kind === "page" && legalPageSlugs.has(entry.slug)) {
@@ -39,7 +53,10 @@ function publicRoute(entry: SitemapContentEntry): string | null {
     return `/legal/${entry.slug}`;
   }
 
-  if (entry.kind === "page") return entry.slug === "home" ? "/" : `/${entry.slug}`;
+  if (entry.kind === "page") {
+    if (!indexedPageSlugs.has(entry.slug) && !isGenericPageSlug(entry.slug)) return null;
+    return entry.slug === "home" ? "/" : `/${entry.slug}`;
+  }
   if (entry.kind === "article") return `/news/${entry.slug}`;
   return `/${entry.kind === "service" ? "services" : "products"}/${entry.slug}`;
 }

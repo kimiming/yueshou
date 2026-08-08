@@ -105,10 +105,14 @@ describe("publication cache", () => {
     const now = new Date("2026-08-08T06:00:00.000Z");
     const transaction = {
       article: {
-        findUniqueOrThrow: vi.fn(async () => ({ id: "article-1", slug: "lab-update" })),
+        findUniqueOrThrow: vi.fn(async () => ({
+          id: "article-1",
+          slug: "lab-update",
+          publishedAt: null,
+        })),
         update: vi.fn(async () => {
           events.push("update");
-          return { id: "article-1", slug: "lab-update" };
+          return { id: "article-1", slug: "lab-update", publishedAt: now };
         }),
       },
       auditLog: {
@@ -133,8 +137,13 @@ describe("publication cache", () => {
       now,
     );
 
-    expect(result).toEqual({ id: "article-1", slug: "lab-update" });
+    expect(result).toEqual({ id: "article-1", slug: "lab-update", publishedAt: now });
     expect(events).toEqual(["update", "audit", "commit"]);
+    expect(transaction.article.update).toHaveBeenCalledWith({
+      where: { id: "article-1" },
+      data: { status: "PUBLISHED", publishedAt: now },
+      select: { id: true, slug: true, publishedAt: true },
+    });
     expect(transaction.auditLog.create).toHaveBeenCalledWith({
       data: {
         actorId: "user-1",
@@ -150,13 +159,62 @@ describe("publication cache", () => {
     });
   });
 
+  it("preserves an article's explicit publication date when republishing", async () => {
+    const existingPublishedAt = new Date("2026-07-01T05:00:00.000Z");
+    const republishedAt = new Date("2026-08-08T06:00:00.000Z");
+    const transaction = {
+      article: {
+        findUniqueOrThrow: vi.fn(async () => ({
+          id: "article-1",
+          slug: "lab-update",
+          publishedAt: existingPublishedAt,
+        })),
+        update: vi.fn(async () => ({
+          id: "article-1",
+          slug: "lab-update",
+          publishedAt: existingPublishedAt,
+        })),
+      },
+      auditLog: { create: vi.fn(async () => ({ id: "audit-1" })) },
+    } as unknown as Prisma.TransactionClient;
+    const database = {
+      $transaction: vi.fn((callback: (tx: Prisma.TransactionClient) => Promise<unknown>) =>
+        callback(transaction),
+      ),
+    } as unknown as PrismaClient;
+
+    const result = await createContentRepository(database).publishEntity(
+      { type: "article", id: "article-1" },
+      { id: "user-1" },
+      republishedAt,
+    );
+
+    expect(transaction.article.update).toHaveBeenCalledWith({
+      where: { id: "article-1" },
+      data: { status: "PUBLISHED", publishedAt: existingPublishedAt },
+      select: { id: true, slug: true, publishedAt: true },
+    });
+    expect(result).toEqual({
+      id: "article-1",
+      slug: "lab-update",
+      publishedAt: existingPublishedAt,
+    });
+    expect(transaction.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        metadata: expect.objectContaining({
+          publishedAt: "2026-07-01T05:00:00.000Z",
+        }),
+      }),
+    });
+  });
+
   it("invalidates only after the publication repository resolves", async () => {
     const events: string[] = [];
     const now = new Date("2026-08-08T06:00:00.000Z");
     const repository = {
       publishEntity: vi.fn(async () => {
         events.push("persist");
-        return { id: "article-1", slug: "lab-update" };
+        return { id: "article-1", slug: "lab-update", publishedAt: now };
       }),
     } as PublicationRepository;
     const invalidate = vi.fn(() => events.push("invalidate"));
@@ -175,6 +233,29 @@ describe("publication cache", () => {
       publishedAt: "2026-08-08T06:00:00.000Z",
     });
     expect(events).toEqual(["persist", "invalidate"]);
+  });
+
+  it("returns the repository-preserved publication date from the publication action", async () => {
+    const existingPublishedAt = new Date("2026-07-01T05:00:00.000Z");
+    const repository = {
+      publishEntity: vi.fn(async () => ({
+        id: "article-1",
+        slug: "lab-update",
+        publishedAt: existingPublishedAt,
+      })),
+    } as PublicationRepository;
+
+    const result = await publishEntity(
+      { type: "article", id: "article-1" },
+      { id: "user-1" },
+      {
+        repository,
+        invalidate: vi.fn(),
+        now: () => new Date("2026-08-08T06:00:00.000Z"),
+      },
+    );
+
+    expect(result.publishedAt).toBe("2026-07-01T05:00:00.000Z");
   });
 
   it("does not invalidate when the publication repository fails", async () => {

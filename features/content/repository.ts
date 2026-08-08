@@ -31,6 +31,7 @@ export type PublicationActor = {
 export type PublishedEntityRecord = {
   id: string;
   slug: string;
+  publishedAt: Date;
 };
 
 const pageInclude = {
@@ -187,7 +188,7 @@ export type PublishedPageRecord = {
 export type PublishedArticleRecord = {
   id: string;
   slug: string;
-  publishedAt: Date | null;
+  publishedAt: Date;
   translations: Array<TranslationRecord & { excerpt: string | null }>;
   category: CategoryRecord;
   tags: Array<{ slug: string; name: string }>;
@@ -238,6 +239,15 @@ export class LegalReviewRequiredError extends Error {
   }
 }
 
+function requirePublicationDate<T extends { publishedAt: Date | null }>(
+  record: T,
+): T & { publishedAt: Date } {
+  if (!record.publishedAt) {
+    throw new Error(`Published record ${"id" in record ? String(record.id) : ""} has no publication date`);
+  }
+  return { ...record, publishedAt: record.publishedAt };
+}
+
 function isLegalReviewConstraintError(error: unknown) {
   if (!(error instanceof Error)) {
     return false;
@@ -272,16 +282,20 @@ export function createContentRepository(database: ContentDatabase) {
       });
     },
 
-    findPublishedArticleBySlug(slug: string): Promise<PublishedArticleRecord | null> {
-      return database.article.findFirst({
+    async findPublishedArticleBySlug(slug: string): Promise<PublishedArticleRecord | null> {
+      const record = await database.article.findFirst({
         where: {
           slug,
           status: "PUBLISHED",
+          publishedAt: { not: null },
           deletedAt: null,
           category: { is: { status: "PUBLISHED", deletedAt: null } },
         },
         include: articleInclude,
       });
+      return record?.publishedAt
+        ? { ...record, publishedAt: record.publishedAt }
+        : null;
     },
 
     findPublishedProductBySlug(slug: string): Promise<PublishedProductRecord | null> {
@@ -352,10 +366,11 @@ export function createContentRepository(database: ContentDatabase) {
       });
     },
 
-    findLatestPublishedArticles(count: number): Promise<PublishedArticleRecord[]> {
-      return database.article.findMany({
+    async findLatestPublishedArticles(count: number): Promise<PublishedArticleRecord[]> {
+      const records = await database.article.findMany({
         where: {
           status: "PUBLISHED",
+          publishedAt: { not: null },
           deletedAt: null,
           category: { is: { status: "PUBLISHED", deletedAt: null } },
         },
@@ -363,6 +378,10 @@ export function createContentRepository(database: ContentDatabase) {
         take: count,
         include: articleInclude,
       });
+      return records.filter(
+        (record): record is typeof record & { publishedAt: Date } =>
+          record.publishedAt !== null,
+      );
     },
 
     findPublishedSiteSettingByKey(key: string): Promise<PublishedSiteSettingRecord | null> {
@@ -433,6 +452,7 @@ export function createContentRepository(database: ContentDatabase) {
         database.article.findMany({
           where: {
             status: "PUBLISHED",
+            publishedAt: { not: null },
             deletedAt: null,
             category: { is: { status: "PUBLISHED", deletedAt: null } },
           },
@@ -481,23 +501,28 @@ export function createContentRepository(database: ContentDatabase) {
               throw new LegalReviewRequiredError(page.id);
             }
 
-            record = await transaction.page.update({
+            record = requirePublicationDate(await transaction.page.update({
               where: { id: input.id },
               data: { status: "PUBLISHED", publishedAt },
-              select: { id: true, slug: true },
-            });
+              select: { id: true, slug: true, publishedAt: true },
+            }));
           } else if (input.type === "article") {
-            record = await transaction.article.update({
+            const article = await transaction.article.findUniqueOrThrow({
               where: { id: input.id },
-              data: { status: "PUBLISHED", publishedAt },
-              select: { id: true, slug: true },
+              select: { id: true, slug: true, publishedAt: true },
             });
+            const effectivePublishedAt = article.publishedAt ?? publishedAt;
+            record = requirePublicationDate(await transaction.article.update({
+              where: { id: input.id },
+              data: { status: "PUBLISHED", publishedAt: effectivePublishedAt },
+              select: { id: true, slug: true, publishedAt: true },
+            }));
           } else {
-            record = await transaction.product.update({
+            record = requirePublicationDate(await transaction.product.update({
               where: { id: input.id },
               data: { status: "PUBLISHED", publishedAt },
-              select: { id: true, slug: true },
-            });
+              select: { id: true, slug: true, publishedAt: true },
+            }));
           }
 
           await transaction.auditLog.create({
@@ -509,7 +534,7 @@ export function createContentRepository(database: ContentDatabase) {
               metadata: {
                 slug: record.slug,
                 status: "PUBLISHED",
-                publishedAt: publishedAt.toISOString(),
+                publishedAt: record.publishedAt.toISOString(),
               },
             },
           });

@@ -326,6 +326,24 @@ describe("content service", () => {
     expect(JSON.parse(JSON.stringify(result))).toEqual(result);
   });
 
+  it("requires a publication timestamp in the public article repository filter", async () => {
+    const findFirst = vi.fn(async () => null);
+    const database = {
+      article: { findFirst },
+    } as unknown as PrismaClient;
+
+    await createContentRepository(database).findPublishedArticleBySlug("lab-update");
+
+    expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        slug: "lab-update",
+        status: "PUBLISHED",
+        deletedAt: null,
+        publishedAt: { not: null },
+      }),
+    }));
+  });
+
   it("returns published product details with only repository-approved media", async () => {
     const product = {
       id: "product-1",

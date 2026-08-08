@@ -53,7 +53,7 @@ export type ArticleViewModel = LocalizedViewModel & {
   id: string;
   slug: string;
   excerpt: string | null;
-  publishedAt: string | null;
+  publishedAt: string;
   category: CategoryViewModel;
   tags: Array<{ slug: string; name: string }>;
   coverMedia: MediaViewModel | null;
