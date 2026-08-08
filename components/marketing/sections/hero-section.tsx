@@ -12,8 +12,11 @@ type HeroSectionProps = {
   labels: {
     workflow: string;
     workflowSteps: string[];
+    scientificWorkflow: string;
     carousel: string;
+    carouselRole: string;
     chooseHighlight: string;
+    showSlideTemplate: string;
   };
 };
 
@@ -53,7 +56,7 @@ export function HeroSection({ model, locale, labels }: HeroSectionProps) {
             ) : null}
           </div>
         </div>
-        <aside className="hero-section__science-card" aria-label="Scientific workflow">
+        <aside className="hero-section__science-card" aria-label={labels.scientificWorkflow}>
           <span className="hero-section__science-label">{labels.workflow}</span>
           <ol>
             {labels.workflowSteps.map((step, index) => (
@@ -63,7 +66,9 @@ export function HeroSection({ model, locale, labels }: HeroSectionProps) {
           <HeroCarouselControls
             slides={model.items}
             carouselLabel={labels.carousel}
+            carouselRole={labels.carouselRole}
             chooseLabel={labels.chooseHighlight}
+            showSlideTemplate={labels.showSlideTemplate}
           />
         </aside>
       </div>

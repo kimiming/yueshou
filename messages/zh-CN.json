@@ -16,6 +16,13 @@
     "learnMore": "了解更多"
   },
   "marketing": {
+    "accessibility": {
+      "home": "YueShou 首页",
+      "mobileNavigation": "移动导航",
+      "scientificWorkflow": "科研工作流程",
+      "carousel": "轮播图",
+      "showSlide": "显示第 {number} 张幻灯片：{title}"
+    },
     "navigation": { "primary": "主导航", "footer": "页脚导航", "language": "语言" },
     "mobile": { "menu": "菜单", "close": "关闭" },
     "hero": {

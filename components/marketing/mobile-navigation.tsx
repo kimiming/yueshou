@@ -31,7 +31,7 @@ export function MobileNavigation({ label, items, menuLabel, closeLabel }: Mobile
         <span>{open ? closeLabel : menuLabel}</span>
       </button>
       {open ? (
-        <nav id={menuId} className="mobile-navigation__panel" aria-label={`${label} mobile`}>
+        <nav id={menuId} className="mobile-navigation__panel" aria-label={label}>
           <ul>
             {items.map((item) => (
               <li key={item.id}>

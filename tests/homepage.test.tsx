@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MarketingShellContentViewModel, PageViewModel } from "@/features/content/view-models";
@@ -81,7 +81,24 @@ const homePage: PageViewModel = {
       config: {
         primaryCta: { label: "Discuss a project", href: "/contact" },
       },
-      items: [],
+      items: [
+        {
+          id: "highlight-one",
+          locale: "en",
+          translationLocale: "en",
+          usedFallback: false,
+          title: "Research highlight one",
+          body: "First reviewed highlight",
+        },
+        {
+          id: "highlight-two",
+          locale: "en",
+          translationLocale: "en",
+          usedFallback: false,
+          title: "Research highlight two",
+          body: "Second reviewed highlight",
+        },
+      ],
       media: null,
       locale: "en",
       translationLocale: "en",
@@ -221,6 +238,17 @@ describe("semantic marketing homepage", () => {
     expect(localizeHref(href, "de")).toBe(expected);
   });
 
+  it.each([
+    ["/en/contact", "de", "/de/contact"],
+    ["/zh-CN/contact", "fr", "/fr/contact"],
+    ["/de/contact", "es", "/es/contact"],
+    ["/fr/contact", "zh-CN", "/zh-CN/contact"],
+    ["/es/contact", "en", "/en/contact"],
+    ["/en/contact?source=hero#request", "de", "/de/contact?source=hero#request"],
+  ] as const)("replaces the supported locale prefix in %s with %s", (href, locale, expected) => {
+    expect(localizeHref(href, locale)).toBe(expected);
+  });
+
   it("shows a localized explicit shell error when shell loading fails", async () => {
     getMarketingShell.mockRejectedValueOnce(new Error("database unavailable"));
 
@@ -247,6 +275,47 @@ describe("semantic marketing homepage", () => {
     expect(screen.getByRole("button", { name: /Menü/i })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Sprache" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Entdecken" })).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      locale: "de" as const,
+      home: "YueShou Startseite",
+      menu: "Menü",
+      mobileNavigation: "Mobile Navigation",
+      scientificWorkflow: "Wissenschaftlicher Arbeitsablauf",
+      carouselRole: "Karussell",
+      showSlide: "Folie 1 anzeigen: Research highlight one",
+    },
+    {
+      locale: "zh-CN" as const,
+      home: "YueShou 首页",
+      menu: "菜单",
+      mobileNavigation: "移动导航",
+      scientificWorkflow: "科研工作流程",
+      carouselRole: "轮播图",
+      showSlide: "显示第 1 张幻灯片：Research highlight one",
+    },
+  ])("localizes $locale accessibility labels, including carousel controls", async (labels) => {
+    getHomePage.mockResolvedValueOnce({ ...homePage, locale: labels.locale });
+    getMarketingShell.mockResolvedValueOnce({ ...shell, locale: labels.locale });
+
+    const page = await HomePage({ params: Promise.resolve({ locale: labels.locale }) });
+    render(
+      await MarketingLayout({
+        children: page,
+        params: Promise.resolve({ locale: labels.locale }),
+      }),
+    );
+
+    expect(screen.getByRole("link", { name: labels.home })).toBeInTheDocument();
+    expect(screen.getByLabelText(labels.scientificWorkflow)).toBeInTheDocument();
+    const carousel = screen.getByRole("region", { name: /Forschungshöhepunkte|科研重点/ });
+    expect(carousel).toHaveAttribute("aria-roledescription", labels.carouselRole);
+    expect(within(carousel).getByRole("button", { name: labels.showSlide })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: labels.menu }));
+    expect(screen.getByRole("navigation", { name: labels.mobileNavigation })).toBeInTheDocument();
   });
 
   it("shows an explicit server error state when homepage loading fails", async () => {

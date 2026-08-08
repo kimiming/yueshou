@@ -8,9 +8,16 @@ type PrimaryNavigationProps = {
   items: MarketingLinkViewModel[];
   menuLabel: string;
   closeLabel: string;
+  mobileNavigationLabel: string;
 };
 
-export function PrimaryNavigation({ label, items, menuLabel, closeLabel }: PrimaryNavigationProps) {
+export function PrimaryNavigation({
+  label,
+  items,
+  menuLabel,
+  closeLabel,
+  mobileNavigationLabel,
+}: PrimaryNavigationProps) {
   const visibleItems = items
     .filter((item) => item.enabled)
     .toSorted((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
@@ -26,7 +33,12 @@ export function PrimaryNavigation({ label, items, menuLabel, closeLabel }: Prima
           ))}
         </ul>
       </nav>
-      <MobileNavigation label={label} items={visibleItems} menuLabel={menuLabel} closeLabel={closeLabel} />
+      <MobileNavigation
+        label={mobileNavigationLabel}
+        items={visibleItems}
+        menuLabel={menuLabel}
+        closeLabel={closeLabel}
+      />
     </>
   );
 }

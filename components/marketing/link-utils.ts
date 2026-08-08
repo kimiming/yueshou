@@ -9,6 +9,8 @@ export function localizeHref(href: string, locale: Locale) {
     return `/${locale}`;
   }
 
-  const localePrefix = /^\/(?:en|zh-CN|de|fr|es)(?:\/|$)/;
-  return localePrefix.test(href) ? href : `/${locale}${href}`;
+  const localePrefix = /^\/(?:en|zh-CN|de|fr|es)(?=\/|\?|#|$)/;
+  return localePrefix.test(href)
+    ? href.replace(localePrefix, `/${locale}`)
+    : `/${locale}${href}`;
 }

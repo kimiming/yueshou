@@ -19,7 +19,7 @@ export function SiteHeader({ model }: SiteHeaderProps) {
         </div>
       </div>
       <div className="marketing-container site-header__main">
-        <Link className="brand-lockup" href={`/${model.locale}`} aria-label={`${model.brandName} home`}>
+        <Link className="brand-lockup" href={`/${model.locale}`} aria-label={model.homeLabel}>
           <span className="brand-lockup__mark" aria-hidden="true">YS</span>
           <span className="brand-lockup__name">{model.brandName}</span>
         </Link>
@@ -28,6 +28,7 @@ export function SiteHeader({ model }: SiteHeaderProps) {
           items={model.navigation}
           menuLabel={model.mobileMenuLabel}
           closeLabel={model.mobileCloseLabel}
+          mobileNavigationLabel={model.mobileNavigationLabel}
         />
         <Link className="button-link button-link--compact" href={localizeHref("/contact", model.locale)}>
           {model.quoteLabel}

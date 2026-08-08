@@ -16,6 +16,13 @@
     "learnMore": "Mehr erfahren"
   },
   "marketing": {
+    "accessibility": {
+      "home": "YueShou Startseite",
+      "mobileNavigation": "Mobile Navigation",
+      "scientificWorkflow": "Wissenschaftlicher Arbeitsablauf",
+      "carousel": "Karussell",
+      "showSlide": "Folie {number} anzeigen: {title}"
+    },
     "navigation": { "primary": "Hauptnavigation", "footer": "Fußzeilennavigation", "language": "Sprache" },
     "mobile": { "menu": "Menü", "close": "Schließen" },
     "hero": {

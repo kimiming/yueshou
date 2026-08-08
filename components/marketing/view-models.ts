@@ -63,8 +63,11 @@ export function createMarketingHomePageViewModel(
     labels: {
       workflow: dictionary.marketing.hero.workflow,
       workflowSteps: dictionary.marketing.hero.steps,
+      scientificWorkflow: dictionary.marketing.accessibility.scientificWorkflow,
       carousel: dictionary.marketing.hero.carousel,
+      carouselRole: dictionary.marketing.accessibility.carousel,
       chooseHighlight: dictionary.marketing.hero.choose,
+      showSlideTemplate: dictionary.marketing.accessibility.showSlide,
       explore: dictionary.marketing.cards.explore,
       viewCategory: dictionary.marketing.cards.viewCategory,
       researchUpdate: dictionary.marketing.cards.researchUpdate,
@@ -84,6 +87,7 @@ export function createMarketingShellViewModel(
     brandName: "粤首",
     slogan: BRAND_SLOGAN,
     primaryNavigationLabel: dictionary.marketing.navigation.primary,
+    homeLabel: dictionary.marketing.accessibility.home,
     navigation: content.navigation.map((item) => ({
       ...item,
       href: localizeHref(item.href, content.locale),
@@ -97,6 +101,7 @@ export function createMarketingShellViewModel(
     contactTeamLabel: dictionary.marketing.footer.contactTeam,
     mobileMenuLabel: dictionary.marketing.mobile.menu,
     mobileCloseLabel: dictionary.marketing.mobile.close,
+    mobileNavigationLabel: dictionary.marketing.accessibility.mobileNavigation,
     footerSummary: content.summary,
     researchUseOnly: dictionary.marketing.footer.researchUseOnly,
     copyright: `© ${new Date().getUTCFullYear()} 粤首`,

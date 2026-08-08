@@ -19,6 +19,7 @@ export type MarketingShellViewModel = {
   brandName: "粤首";
   slogan: string;
   primaryNavigationLabel: string;
+  homeLabel: string;
   navigation: MarketingLinkViewModel[];
   contact: MarketingContactViewModel;
   quoteLabel: string;
@@ -29,6 +30,7 @@ export type MarketingShellViewModel = {
   contactTeamLabel: string;
   mobileMenuLabel: string;
   mobileCloseLabel: string;
+  mobileNavigationLabel: string;
   footerSummary: string;
   researchUseOnly: string;
   copyright: string;
@@ -86,8 +88,11 @@ export type MarketingHomePageViewModel = {
   labels: {
     workflow: string;
     workflowSteps: string[];
+    scientificWorkflow: string;
     carousel: string;
+    carouselRole: string;
     chooseHighlight: string;
+    showSlideTemplate: string;
     explore: string;
     viewCategory: string;
     researchUpdate: string;
