@@ -15,8 +15,9 @@ async function assertUsableMedia(tx: Prisma.TransactionClient, ids: readonly str
   const count = await tx.mediaAsset.count({ where: { id: { in: unique }, status: "PUBLISHED", visibility: "PUBLIC", deletedAt: null, OR: [{ deletionJob: { is: null } }, { deletionJob: { is: { status: "COMPLETED" } } }] } });
   if (count !== unique.length) throw new Error("Referenced media must be published, public, and available");
 }
-async function assertActiveCategory(tx: Prisma.TransactionClient, kind: "product" | "article", id: string) {
-  const count = kind === "product" ? await tx.productCategory.count({ where: { id, deletedAt: null, status: { not: "ARCHIVED" } } }) : await tx.articleCategory.count({ where: { id, deletedAt: null, status: { not: "ARCHIVED" } } });
+async function assertActiveCategory(tx: Prisma.TransactionClient, kind: "product" | "article", id: string, requirePublished = false) {
+  const status = requirePublished ? "PUBLISHED" as const : { not: "ARCHIVED" as const };
+  const count = kind === "product" ? await tx.productCategory.count({ where: { id, deletedAt: null, status } }) : await tx.articleCategory.count({ where: { id, deletedAt: null, status } });
   if (count !== 1) throw new Error("Referenced category must be active and available");
 }
 async function assertActiveTags(tx: Prisma.TransactionClient, ids: readonly string[]) {
@@ -28,7 +29,7 @@ async function assertActiveTags(tx: Prisma.TransactionClient, ids: readonly stri
 export const prismaProductAdminRepository: ProductAdminRepository = {
   async saveProduct(input: ProductAdminInput & { actorId: string }) {
     return serializableRetry(() => prisma.$transaction(async (tx) => {
-      await assertActiveCategory(tx, "product", input.categoryId);
+      await assertActiveCategory(tx, "product", input.categoryId, input.status === "PUBLISHED");
       await assertUsableMedia(tx, input.mediaIds);
       const existing = input.id ? await tx.product.findUniqueOrThrow({ where: { id: input.id }, select: { publishedAt: true } }) : null;
       const publication = input.status === "PUBLISHED" ? { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? new Date() } : { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: null };
@@ -47,7 +48,7 @@ export const prismaProductAdminRepository: ProductAdminRepository = {
 export const prismaNewsAdminRepository: NewsAdminRepository = {
   async saveArticle(input: NewsAdminInput & { actorId: string }) {
     return serializableRetry(() => prisma.$transaction(async (tx) => {
-      await assertActiveCategory(tx, "article", input.categoryId);
+      await assertActiveCategory(tx, "article", input.categoryId, input.status === "PUBLISHED");
       await assertActiveTags(tx, input.tagIds);
       await assertUsableMedia(tx, input.coverMediaId ? [input.coverMediaId] : []);
       const existing = input.id ? await tx.article.findUniqueOrThrow({ where: { id: input.id }, select: { publishedAt: true } }) : null;
@@ -104,8 +105,8 @@ async function serializableRetry<T>(work: () => Promise<T>, attempts = 3): Promi
 export async function publishDueContent(now = new Date()) {
   return serializableRetry(() => prisma.$transaction(async (tx) => {
     const [dueArticles, dueProducts] = await Promise.all([
-      tx.article.findMany({ where: { status: "DRAFT", scheduledAt: { lte: now }, deletedAt: null }, include: { translations: true, category: true, tags: true, coverMedia: true } }),
-      tx.product.findMany({ where: { status: "DRAFT", scheduledAt: { lte: now }, deletedAt: null }, include: { translations: true, category: true, media: true } }),
+      tx.article.findMany({ where: { status: "DRAFT", scheduledAt: { lte: now }, deletedAt: null }, include: { translations: true, category: true, tags: true, coverMedia: true }, take: 100 }),
+      tx.product.findMany({ where: { status: "DRAFT", scheduledAt: { lte: now }, deletedAt: null }, include: { translations: true, category: true, media: true }, take: 100 }),
     ]);
     const articles: Array<{ id: string; slug: string }> = []; const products: Array<{ id: string; slug: string }> = [];
     for (const item of dueArticles) {
@@ -113,7 +114,7 @@ export async function publishDueContent(now = new Date()) {
       const category = item.category.deletedAt === null && item.category.status === "PUBLISHED";
       const tags = item.tags.every((tag) => tag.deletedAt === null);
       const media = !item.coverMedia || (item.coverMedia.deletedAt === null && item.coverMedia.status === "PUBLISHED" && item.coverMedia.visibility === "PUBLIC");
-      if (!english || !category || !tags || !media) { await audit(tx, null, "ARTICLE_SCHEDULED_PUBLICATION_FAILED", "Article", item.id, { slug: item.slug, english, category, tags, media }); continue; }
+      if (!english || !category || !tags || !media) { const failed = await tx.article.updateMany({ where: { id: item.id, status: "DRAFT", scheduledAt: { lte: now } }, data: { scheduledAt: null } }); if (failed.count === 1) await audit(tx, null, "ARTICLE_SCHEDULED_PUBLICATION_FAILED", "Article", item.id, { slug: item.slug, english, category, tags, media }); continue; }
       const updated = await tx.article.updateMany({ where: { id: item.id, status: "DRAFT", scheduledAt: { lte: now } }, data: { status: "PUBLISHED", publishedAt: now, scheduledAt: null } });
       if (updated.count === 1) { await audit(tx, null, "ARTICLE_SCHEDULED_PUBLISHED", "Article", item.id, { slug: item.slug }); articles.push({ id: item.id, slug: item.slug }); }
     }
@@ -121,7 +122,7 @@ export async function publishDueContent(now = new Date()) {
       const english = item.translations.some((translation) => translation.locale === "en" && translation.title.trim() && translation.body.trim());
       const category = item.category.deletedAt === null && item.category.status === "PUBLISHED";
       const media = item.media.every((asset) => asset.deletedAt === null && asset.status === "PUBLISHED" && asset.visibility === "PUBLIC");
-      if (!english || !category || !media) { await audit(tx, null, "PRODUCT_SCHEDULED_PUBLICATION_FAILED", "Product", item.id, { slug: item.slug, english, category, media }); continue; }
+      if (!english || !category || !media) { const failed = await tx.product.updateMany({ where: { id: item.id, status: "DRAFT", scheduledAt: { lte: now } }, data: { scheduledAt: null } }); if (failed.count === 1) await audit(tx, null, "PRODUCT_SCHEDULED_PUBLICATION_FAILED", "Product", item.id, { slug: item.slug, english, category, media }); continue; }
       const updated = await tx.product.updateMany({ where: { id: item.id, status: "DRAFT", scheduledAt: { lte: now } }, data: { status: "PUBLISHED", publishedAt: now, scheduledAt: null } });
       if (updated.count === 1) { await audit(tx, null, "PRODUCT_SCHEDULED_PUBLISHED", "Product", item.id, { slug: item.slug }); products.push({ id: item.id, slug: item.slug }); }
     }

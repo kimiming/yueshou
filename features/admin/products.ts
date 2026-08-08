@@ -36,7 +36,7 @@ function requireAdmin(actor: AdminEditorActor | null): asserts actor is AdminEdi
   requireActor(actor); if (actor.role !== "ADMIN") throw new EditorAuthorizationError();
 }
 
-export function createProductAdminService(dependencies: { repository: ProductAdminRepository; invalidate(type: "product", slug: string): void }) {
+export function createProductAdminService(dependencies: { repository: ProductAdminRepository; invalidate(type: "product", slug: string): void; now?: () => Date }) {
   return {
     async save(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
       requireActor(input.actor);
@@ -45,6 +45,8 @@ export function createProductAdminService(dependencies: { repository: ProductAdm
       const product = parsed.data;
       if (product.casNumber && !isValidCasNumber(product.casNumber)) throw new EditorValidationError("CAS number has an invalid check digit");
       if (product.sequence) product.sequence = normalizePeptideSequence(product.sequence);
+      if (product.scheduledAt && product.scheduledAt <= (dependencies.now?.() ?? new Date())) throw new EditorValidationError("Scheduled publication must be in the future");
+      if (product.scheduledAt && product.status !== "DRAFT") throw new EditorValidationError("Scheduled products must remain drafts until the scheduler publishes them");
       if (product.status === "PUBLISHED" && !product.translations.some((item) => item.locale === "en")) throw new EditorValidationError("English translation is required before publishing");
       const result = await dependencies.repository.saveProduct({ ...product, actorId: input.actor.id });
       if (product.status === "PUBLISHED") dependencies.invalidate("product", result.slug);
