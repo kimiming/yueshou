@@ -6,7 +6,7 @@ require() { [[ -n "${!1:-}" ]] || { echo "$1 is required" >&2; exit 64; }; }
 for key in DATABASE_URL STORAGE_ENDPOINT STORAGE_BUCKET STORAGE_ACCESS_KEY_ID STORAGE_SECRET_ACCESS_KEY BACKUP_ENCRYPTION_PASSPHRASE RESTORE_CONFIRM; do require "$key"; done
 [[ "$RESTORE_CONFIRM" == "RESTORE" ]] || { echo "Set RESTORE_CONFIRM=RESTORE after reviewing the target" >&2; exit 64; }
 [[ "$backup_dir" =~ ^/backups/20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}Z$ ]] || { echo "Backup directory must be an explicit timestamp directory inside /backups" >&2; exit 64; }
-[[ -f "$backup_dir/backup.tar.gz.enc" && -f "$backup_dir/checksums.sha256" ]] || { echo "Backup archive or checksum manifest is missing" >&2; exit 66; }
+[[ -f "$backup_dir/backup.tar.gz.enc" && -f "$backup_dir/checksums.sha256" && -f "$backup_dir/COMPLETE" ]] || { echo "Backup archive is incomplete or was not atomically completed" >&2; exit 66; }
 
 (cd "$backup_dir" && sha256sum --check checksums.sha256)
 work_dir="/backups/.restore-$(basename "$backup_dir")-$$"
@@ -16,6 +16,7 @@ trap cleanup EXIT
 
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in "$backup_dir/backup.tar.gz.enc" \
   -out "$work_dir/backup.tar.gz" -pass env:BACKUP_ENCRYPTION_PASSPHRASE
+tar -tzf "$work_dir/backup.tar.gz" >/dev/null
 tar -C "$work_dir" -xzf "$work_dir/backup.tar.gz"
 [[ -f "$work_dir/postgres.dump" && -d "$work_dir/minio" ]] || { echo "Backup archive is incomplete" >&2; exit 65; }
 

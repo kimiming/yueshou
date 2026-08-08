@@ -50,7 +50,8 @@
     "prisma": "^7.9.1",
     "tsx": "^4.23.11",
     "typescript": "^5",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "yaml": "^2.9.0"
   },
   "packageManager": "pnpm@10.30.3"
 }

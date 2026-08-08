@@ -2,7 +2,7 @@
 FROM node:22.14-alpine AS base
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN apk add --no-cache libc6-compat openssl
+RUN apk add --no-cache libc6-compat openssl util-linux
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -23,7 +23,7 @@ CMD ["pnpm", "db:migrate:deploy"]
 FROM minio/mc:RELEASE.2025-04-16T18-13-26Z AS mc
 
 FROM alpine:3.21 AS backup
-RUN apk add --no-cache bash ca-certificates coreutils findutils openssl postgresql17-client tar
+RUN apk add --no-cache bash ca-certificates coreutils findutils openssl postgresql17-client tar util-linux
 COPY --from=mc /usr/bin/mc /usr/local/bin/mc
 COPY deploy/backup/backup.sh deploy/backup/restore.sh /backup/
 RUN chmod 0755 /backup/backup.sh /backup/restore.sh
@@ -37,11 +37,9 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=build --chown=nextjs:nodejs /app/public ./public
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
-# Prisma's generated engine is retained explicitly for server-side database calls.
-COPY --from=build --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=build --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=build --chown=nextjs:nodejs /app/deploy/cron ./deploy/cron
-RUN chmod 0755 ./deploy/cron/run.sh
+# Next's standalone output is dependency-traced; do not hard-code pnpm store paths.
+COPY --from=build --chown=nextjs:nodejs /app/deploy/ops ./deploy/ops
+RUN chmod 0755 ./deploy/ops/cron-runner.sh
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]
