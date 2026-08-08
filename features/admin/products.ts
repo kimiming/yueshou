@@ -13,7 +13,7 @@ export type ProductAdminInput = z.infer<typeof productInputSchema>;
 export type ProductAdminRepository = {
   saveProduct(input: ProductAdminInput & { actorId: string }): Promise<{ id: string; slug: string }>;
   countProductsInCategory?(categoryId: string): Promise<number>;
-  archiveCategory?(categoryId: string, actorId: string): Promise<void>;
+  archiveCategory?(categoryId: string, actorId: string, version?: string): Promise<void>;
 };
 
 export function isValidCasNumber(value: string): boolean {
@@ -52,12 +52,12 @@ export function createProductAdminService(dependencies: { repository: ProductAdm
       if (product.status === "PUBLISHED") dependencies.invalidate("product", result.slug);
       return result;
     },
-    async archiveCategory(input: { actor: AdminEditorActor | null; categoryId: string }) {
+    async archiveCategory(input: { actor: AdminEditorActor | null; categoryId: string; version?: string }) {
       requireAdmin(input.actor);
       if (!input.categoryId.trim()) throw new EditorValidationError("Category is required");
       if (!dependencies.repository.countProductsInCategory || !dependencies.repository.archiveCategory) throw new EditorValidationError("Category administration is unavailable");
       if (await dependencies.repository.countProductsInCategory(input.categoryId)) throw new EditorValidationError("This category is referenced by products and cannot be archived");
-      await dependencies.repository.archiveCategory(input.categoryId, input.actor.id);
+      await dependencies.repository.archiveCategory(input.categoryId, input.actor.id, input.version);
     },
   };
 }

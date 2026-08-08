@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { escapeCsvCell } from "@/features/inquiries/export";
 import { inquiryExportFiltersSchema } from "@/features/inquiries/export";
+import { inquiryWhere } from "@/features/inquiries/filters";
 import { createInquiryAdminService } from "@/features/admin/inquiries";
 import { createUserAdminService } from "@/features/admin/users";
 
@@ -22,7 +23,14 @@ describe("inquiry administration", () => {
 
   it("rejects invalid inquiry export filters", () => {
     expect(inquiryExportFiltersSchema.safeParse({ status: "INVALID" }).success).toBe(false);
-    expect(inquiryExportFiltersSchema.safeParse({ from: "not-a-date" }).success).toBe(false);
+    expect(inquiryExportFiltersSchema.safeParse({ start: "not-a-date" }).success).toBe(false);
+  });
+
+  it("shares inclusive date-only filters by using the next UTC day as the exclusive end", () => {
+    const where = inquiryWhere({ q: "YueShou", status: "NEW", start: "2026-08-08", end: "2026-08-08" });
+    expect(where.status).toBe("NEW");
+    expect(where.createdAt).toEqual({ gte: new Date("2026-08-08T00:00:00.000Z"), lt: new Date("2026-08-09T00:00:00.000Z") });
+    expect(where.OR).toContainEqual({ companyName: { contains: "YueShou", mode: "insensitive" } });
   });
 
   it("allows only administrators to manage users", async () => {

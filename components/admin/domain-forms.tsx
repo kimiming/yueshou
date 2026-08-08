@@ -39,7 +39,7 @@ function ScheduleField({ form }: { form: ReturnType<typeof Form.useForm>[0] }) {
 
 export function ProductForm({ categories, save }: { categories: Array<{ id: string; label: string }>; save: Action }) {
   const [form] = Form.useForm(); const [error, setError] = useState<string>(); const [pending, start] = useTransition();
-  return <Card title="Product editor"><Form form={form} layout="vertical" initialValues={{ status: "DRAFT", mediaIds: [] }} onFinish={(value) => start(async () => {
+  return <Card title="Product editor"><Form form={form} layout="vertical" initialValues={{ status: "DRAFT", mediaIds: [] }} onValuesChange={(changed) => { if (changed.status && changed.status !== "DRAFT") form.setFieldValue("scheduledAt", ""); }} onFinish={(value) => start(async () => {
     try { setError(undefined); await save({ ...value, mediaIds: value.mediaIds ?? [], scheduledAt: localDateTimeToIso(value.scheduledAt), translations: collectTranslations(value.translations ?? {}), specifications: {} }); form.resetFields(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save product"); }
   })}>
@@ -57,7 +57,7 @@ export function ProductForm({ categories, save }: { categories: Array<{ id: stri
 
 export function ArticleForm({ categories, tags, save }: { categories: Array<{ id: string; label: string }>; tags: Array<{ id: string; name: string }>; save: Action }) {
   const [form] = Form.useForm(); const [error, setError] = useState<string>(); const [pending, start] = useTransition();
-  return <Card title="News editor"><Form form={form} layout="vertical" initialValues={{ status: "DRAFT", tagIds: [] }} onFinish={(value) => start(async () => {
+  return <Card title="News editor"><Form form={form} layout="vertical" initialValues={{ status: "DRAFT", tagIds: [] }} onValuesChange={(changed) => { if (changed.status && changed.status !== "DRAFT") form.setFieldValue("scheduledAt", ""); }} onFinish={(value) => start(async () => {
     try { setError(undefined); await save({ ...value, coverMediaId: value.coverMediaId ?? null, scheduledAt: localDateTimeToIso(value.scheduledAt), translations: collectTranslations(value.translations ?? {}) }); form.resetFields(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save article"); }
   })}>
@@ -87,7 +87,7 @@ function SeoPreview({ form }: { form: ReturnType<typeof Form.useForm>[0] }) { re
 
 export function ExistingContentForm({ kind, initial, categories, tags = [], save }: { kind: ContentKind; initial: Record<string, unknown>; categories: Array<{ id: string; label: string }>; tags?: Array<{ id: string; name: string }>; save: Action }) {
   const [form] = Form.useForm(); const [pending, start] = useTransition(); const [error, setError] = useState<string>();
-  return <Card title={`Edit ${kind}`}><Form form={form} layout="vertical" initialValues={{ ...initial, translations: Object.fromEntries((initial.translations as Array<{ locale: string }>).map((item) => [item.locale, item])) }} onFinish={(value) => start(async () => {
+  return <Card title={`Edit ${kind}`}><Form form={form} layout="vertical" initialValues={{ ...initial, translations: Object.fromEntries((initial.translations as Array<{ locale: string }>).map((item) => [item.locale, item])) }} onValuesChange={(changed) => { if (changed.status && changed.status !== "DRAFT") form.setFieldValue("scheduledAt", ""); }} onFinish={(value) => start(async () => {
     try { setError(undefined); await save({ ...initial, ...value, translations: collectTranslations(value.translations ?? {}), mediaIds: kind === "product" ? value.mediaIds ?? [] : undefined, tagIds: kind === "article" ? value.tagIds ?? [] : undefined, coverMediaId: kind === "article" ? value.coverMediaId ?? null : undefined, scheduledAt: localDateTimeToIso(value.scheduledAt) }); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save content"); }
   })}>

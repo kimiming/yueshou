@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { toDatabaseLocale } from "@/lib/i18n/config";
 import type { InquiryAdminRepository } from "./inquiries";
+import { inquiryWhere } from "@/features/inquiries/filters";
 import type { NewsAdminInput, NewsAdminRepository } from "./news";
 import type { ProductAdminInput, ProductAdminRepository } from "./products";
 import type { UserAdminRepository } from "./users";
@@ -43,7 +44,7 @@ export const prismaProductAdminRepository: ProductAdminRepository = {
     }, { isolationLevel: "Serializable" }));
   },
   countProductsInCategory(categoryId) { return prisma.product.count({ where: { categoryId, deletedAt: null } }); },
-  async archiveCategory(categoryId, actorId) { await serializableRetry(() => prisma.$transaction(async (tx) => { if (await tx.product.count({ where: { categoryId, deletedAt: null } })) throw new Error("This category is referenced by products and cannot be archived"); const changed = await tx.productCategory.updateMany({ where: { id: categoryId, deletedAt: null }, data: { status: "ARCHIVED", deletedAt: new Date() } }); if (changed.count !== 1) throw new Error("Category changed by another administrator"); await audit(tx, actorId, "PRODUCT_CATEGORY_ARCHIVED", "ProductCategory", categoryId); }, { isolationLevel: "Serializable" })); },
+  async archiveCategory(categoryId, actorId, version) { await serializableRetry(() => prisma.$transaction(async (tx) => { if (await tx.product.count({ where: { categoryId, deletedAt: null } })) throw new Error("This category is referenced by products and cannot be archived"); const changed = await tx.productCategory.updateMany({ where: { id: categoryId, deletedAt: null, ...(version ? { updatedAt: new Date(version) } : {}) }, data: { status: "ARCHIVED", deletedAt: new Date() } }); if (changed.count !== 1) throw new Error("Category changed by another administrator"); await audit(tx, actorId, "PRODUCT_CATEGORY_ARCHIVED", "ProductCategory", categoryId); }, { isolationLevel: "Serializable" })); },
 };
 
 export const prismaNewsAdminRepository: NewsAdminRepository = {
@@ -64,26 +65,26 @@ export const prismaNewsAdminRepository: NewsAdminRepository = {
     }, { isolationLevel: "Serializable" }));
   },
   countArticlesInCategory(categoryId) { return prisma.article.count({ where: { categoryId, deletedAt: null } }); },
-  async archiveCategory(categoryId, actorId) { await serializableRetry(() => prisma.$transaction(async (tx) => { if (await tx.article.count({ where: { categoryId, deletedAt: null } })) throw new Error("This category is referenced by articles and cannot be archived"); const changed = await tx.articleCategory.updateMany({ where: { id: categoryId, deletedAt: null }, data: { status: "ARCHIVED", deletedAt: new Date() } }); if (changed.count !== 1) throw new Error("Category changed by another administrator"); await audit(tx, actorId, "ARTICLE_CATEGORY_ARCHIVED", "ArticleCategory", categoryId); }, { isolationLevel: "Serializable" })); },
+  async archiveCategory(categoryId, actorId, version) { await serializableRetry(() => prisma.$transaction(async (tx) => { if (await tx.article.count({ where: { categoryId, deletedAt: null } })) throw new Error("This category is referenced by articles and cannot be archived"); const changed = await tx.articleCategory.updateMany({ where: { id: categoryId, deletedAt: null, ...(version ? { updatedAt: new Date(version) } : {}) }, data: { status: "ARCHIVED", deletedAt: new Date() } }); if (changed.count !== 1) throw new Error("Category changed by another administrator"); await audit(tx, actorId, "ARTICLE_CATEGORY_ARCHIVED", "ArticleCategory", categoryId); }, { isolationLevel: "Serializable" })); },
   countArticlesWithTag(tagId) { return prisma.article.count({ where: { deletedAt: null, tags: { some: { id: tagId } } } }); },
-  async archiveTag(tagId, actorId) { await serializableRetry(() => prisma.$transaction(async (tx) => { if (await tx.article.count({ where: { deletedAt: null, tags: { some: { id: tagId } } } })) throw new Error("This tag is referenced by articles and cannot be archived"); const changed = await tx.tag.updateMany({ where: { id: tagId, deletedAt: null }, data: { deletedAt: new Date() } }); if (changed.count !== 1) throw new Error("Tag changed by another administrator"); await audit(tx, actorId, "TAG_ARCHIVED", "Tag", tagId); }, { isolationLevel: "Serializable" })); },
+  async archiveTag(tagId, actorId, version) { await serializableRetry(() => prisma.$transaction(async (tx) => { if (await tx.article.count({ where: { deletedAt: null, tags: { some: { id: tagId } } } })) throw new Error("This tag is referenced by articles and cannot be archived"); const changed = await tx.tag.updateMany({ where: { id: tagId, deletedAt: null, ...(version ? { updatedAt: new Date(version) } : {}) }, data: { deletedAt: new Date() } }); if (changed.count !== 1) throw new Error("Tag changed by another administrator"); await audit(tx, actorId, "TAG_ARCHIVED", "Tag", tagId); }, { isolationLevel: "Serializable" })); },
 };
 
 export const prismaInquiryAdminRepository: InquiryAdminRepository = {
   async getStatus(inquiryId) { const record = await prisma.inquiry.findUnique({ where: { id: inquiryId }, select: { status: true } }); return record?.status ?? null; },
-  async updateStatus(input) { return prisma.$transaction(async (tx) => { const updated = await tx.inquiry.updateMany({ where: { id: input.inquiryId, status: input.expectedStatus }, data: { status: input.status } }); if (updated.count !== 1) return false; await audit(tx, input.actorId, "INQUIRY_STATUS_CHANGED", "Inquiry", input.inquiryId, { from: input.expectedStatus, status: input.status }); return true; }); },
-  async saveNotes(input) { return prisma.$transaction(async (tx) => { const updated = await tx.inquiry.updateMany({ where: { id: input.inquiryId }, data: { internalNotes: input.internalNotes } }); if (updated.count !== 1) return false; await audit(tx, input.actorId, "INQUIRY_NOTES_UPDATED", "Inquiry", input.inquiryId); return true; }); },
+  async updateStatus(input) { return serializableRetry(() => prisma.$transaction(async (tx) => { const updated = await tx.inquiry.updateMany({ where: { id: input.inquiryId, status: input.expectedStatus }, data: { status: input.status } }); if (updated.count !== 1) return false; await audit(tx, input.actorId, "INQUIRY_STATUS_CHANGED", "Inquiry", input.inquiryId, { from: input.expectedStatus, status: input.status }); return true; }, { isolationLevel: "Serializable" })); },
+  async saveNotes(input) { return serializableRetry(() => prisma.$transaction(async (tx) => { const updated = await tx.inquiry.updateMany({ where: { id: input.inquiryId }, data: { internalNotes: input.internalNotes } }); if (updated.count !== 1) return false; await audit(tx, input.actorId, "INQUIRY_NOTES_UPDATED", "Inquiry", input.inquiryId); return true; }, { isolationLevel: "Serializable" })); },
 };
 
 export const prismaUserAdminRepository: UserAdminRepository = {
-  async createUser(input) { return prisma.$transaction(async (tx) => { const user = await tx.user.create({ data: { email: input.email, passwordHash: input.passwordHash, role: input.role } }); await audit(tx, input.actorId, "USER_CREATED", "User", user.id, { role: user.role }); return { id: user.id }; }); },
+  async createUser(input) { return serializableRetry(() => prisma.$transaction(async (tx) => { const user = await tx.user.create({ data: { email: input.email, passwordHash: input.passwordHash, role: input.role } }); await audit(tx, input.actorId, "USER_CREATED", "User", user.id, { role: user.role }); return { id: user.id }; }, { isolationLevel: "Serializable" })); },
   countActiveAdmins() { return prisma.user.count({ where: { role: "ADMIN", isActive: true, deletedAt: null } }); },
-  async updateUser(input) { await prisma.$transaction(async (tx) => { const current = await tx.user.findUniqueOrThrow({ where: { id: input.id }, select: { role: true, isActive: true } }); if ((input.isActive === false || input.role === "EDITOR") && current.role === "ADMIN" && current.isActive) { const activeAdmins = await tx.user.count({ where: { role: "ADMIN", isActive: true, deletedAt: null } }); if (activeAdmins <= 1) throw new Error("last_active_administrator"); } await tx.user.update({ where: { id: input.id }, data: { role: input.role, isActive: input.isActive, passwordHash: input.passwordHash } }); await audit(tx, input.actorId, "USER_UPDATED", "User", input.id, { role: input.role, isActive: input.isActive }); }, { isolationLevel: "Serializable" }); },
+  async updateUser(input) { await serializableRetry(() => prisma.$transaction(async (tx) => { const current = await tx.user.findUniqueOrThrow({ where: { id: input.id }, select: { role: true, isActive: true } }); if ((input.isActive === false || input.role === "EDITOR") && current.role === "ADMIN" && current.isActive) { const activeAdmins = await tx.user.count({ where: { role: "ADMIN", isActive: true, deletedAt: null } }); if (activeAdmins <= 1) throw new Error("last_active_administrator"); } await tx.user.update({ where: { id: input.id }, data: { role: input.role, isActive: input.isActive, passwordHash: input.passwordHash } }); await audit(tx, input.actorId, "USER_UPDATED", "User", input.id, { role: input.role, isActive: input.isActive }); }, { isolationLevel: "Serializable" })); },
 };
 
 export const prismaInquiryExportRepository = {
-  async *streamRows(filters: { status?: "NEW" | "IN_PROGRESS" | "RESOLVED" | "ARCHIVED"; from?: Date; to?: Date }) {
-    const where = { ...(filters.status ? { status: filters.status } : {}), ...(filters.from || filters.to ? { createdAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } } : {}) };
+  async *streamRows(filters: { q?: string; status?: "NEW" | "IN_PROGRESS" | "RESOLVED" | "ARCHIVED"; start?: string; end?: string }) {
+    const where = inquiryWhere(filters);
     let cursor: string | undefined;
     for (;;) {
       const rows = await prisma.inquiry.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 100, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: { id: true, companyName: true, contactName: true, email: true, country: true, message: true, status: true, createdAt: true } });
@@ -93,10 +94,10 @@ export const prismaInquiryExportRepository = {
       if (rows.length < 100) return;
     }
   },
-  async auditExport(input: { actorId: string; filters: { status?: string; from?: Date; to?: Date } }) { await prisma.auditLog.create({ data: { actorId: input.actorId, action: "INQUIRIES_EXPORTED", entityType: "Inquiry", metadata: json({ status: input.filters.status ?? null, from: input.filters.from?.toISOString() ?? null, to: input.filters.to?.toISOString() ?? null }) } }); },
+  async auditExport(input: { actorId: string; filters: { q?: string; status?: string; start?: string; end?: string } }) { await prisma.auditLog.create({ data: { actorId: input.actorId, action: "INQUIRIES_EXPORTED", entityType: "Inquiry", metadata: json({ q: input.filters.q ?? null, status: input.filters.status ?? null, start: input.filters.start ?? null, end: input.filters.end ?? null }) } }); },
 };
 
-async function serializableRetry<T>(work: () => Promise<T>, attempts = 3): Promise<T> {
+export async function serializableRetry<T>(work: () => Promise<T>, attempts = 3): Promise<T> {
   let failure: unknown;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try { return await work(); } catch (error) { failure = error; if (!(typeof error === "object" && error !== null && "code" in error && error.code === "P2034") || attempt === attempts - 1) throw error; }
