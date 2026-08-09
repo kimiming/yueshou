@@ -20,6 +20,10 @@ FROM build AS migrator
 ENV NODE_ENV=production
 CMD ["pnpm", "db:migrate:deploy"]
 
+FROM build AS validator
+ENV NODE_ENV=production
+CMD ["pnpm", "env:check:docker"]
+
 FROM minio/mc:RELEASE.2025-04-16T18-13-26Z AS mc
 
 FROM alpine:3.21 AS backup

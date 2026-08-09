@@ -18,7 +18,7 @@ export function SiteFooter({ model }: SiteFooterProps) {
     <footer className="site-footer">
       <div className="marketing-container site-footer__grid">
         <div>
-          <Link className="brand-lockup brand-lockup--footer" href={`/${model.locale}`}>
+          <Link className="brand-lockup brand-lockup--footer" href={`/${model.locale}`} aria-label={model.homeLabel}>
             {model.logo ? <Image className="brand-lockup__image" src={model.logo.src} alt={model.logo.alt} width={44} height={44} /> : <span className="brand-lockup__mark" aria-hidden="true">YS</span>}
             <span className="brand-lockup__name">{model.brandName}</span>
           </Link>
@@ -45,7 +45,7 @@ export function SiteFooter({ model }: SiteFooterProps) {
               <Link href={`/${model.locale}/contact`}>{model.contactTeamLabel}</Link>
             ) : null}
           </address>
-          {model.socialLinks.length ? <ul className="site-footer__links" aria-label="Social links">{model.socialLinks.map((link) => <li key={link.href}><a href={link.href} rel="noopener noreferrer" target="_blank">{link.label}</a></li>)}</ul> : null}
+          {model.socialLinks.length ? <ul className="site-footer__links" aria-label={model.socialLinksLabel}>{model.socialLinks.map((link) => <li key={link.href}><a href={link.href} rel="noopener noreferrer" target="_blank">{link.label}</a></li>)}</ul> : null}
         </div>
       </div>
       <div className="marketing-container site-footer__bottom">

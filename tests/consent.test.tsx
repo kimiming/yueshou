@@ -1,7 +1,9 @@
+import { createElement, useEffect, type ComponentType, type ReactNode } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CookieConsentBanner } from "@/components/consent/cookie-consent-banner";
+import * as ConsentBoundaryModule from "@/components/consent/analytics-consent-boundary";
 import { CookiePreferencesDialog } from "@/components/consent/cookie-preferences-dialog";
 import {
   CONSENT_POLICY_VERSION,
@@ -48,6 +50,47 @@ describe("consent preferences", () => {
 });
 
 describe("CookieConsentBanner", () => {
+  it("mounts analytics immediately after opt-in and cleans it up immediately after withdrawal", async () => {
+    const lifecycle: string[] = [];
+    const persist = vi.fn(async () => undefined);
+    function AnalyticsProbe() {
+      useEffect(() => {
+        lifecycle.push("mount");
+        return () => { lifecycle.push("cleanup"); };
+      }, []);
+      return <div>Analytics loaded</div>;
+    }
+    const ConsentRuntime = Reflect.get(ConsentBoundaryModule, "ConsentRuntime");
+    expect(ConsentRuntime).toBeTypeOf("function");
+    if (typeof ConsentRuntime !== "function") return;
+
+    const Runtime = ConsentRuntime as ComponentType<{
+      labels: typeof labels;
+      initialPreferences: null;
+      persistPreferences: typeof persist;
+      children?: ReactNode;
+    }>;
+    render(createElement(Runtime, {
+      labels,
+      initialPreferences: null,
+      persistPreferences: persist,
+    }, <AnalyticsProbe />));
+    expect(screen.queryByText("Analytics loaded")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Accept all" }));
+    await screen.findByText("Analytics loaded");
+    expect(lifecycle).toEqual(["mount"]);
+
+    window.dispatchEvent(new Event("open-cookie-settings"));
+    const checkbox = await screen.findByRole("checkbox", { name: "Analytics" });
+    expect(checkbox).toBeChecked();
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole("button", { name: "Save preferences" }));
+
+    await waitFor(() => expect(screen.queryByText("Analytics loaded")).not.toBeInTheDocument());
+    expect(lifecycle).toEqual(["mount", "cleanup"]);
+  });
+
   it("stores only necessary consent when Reject all is chosen", async () => {
     const persist = vi.fn(async () => undefined);
     render(<CookieConsentBanner labels={labels} initialPreferences={null} persistPreferences={persist} />);

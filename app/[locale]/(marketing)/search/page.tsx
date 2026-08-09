@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
+import { ContentLanguageFallbackNotice } from "@/components/marketing/content-language-fallback";
 import { normalizeSearchQuery, searchPublishedContent } from "@/features/content/search";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
@@ -55,7 +56,8 @@ export default async function SearchPage({ params, searchParams }: SearchPagePro
             <ol className="search-results">
               {results.map((result) => (
                 <li key={`${result.type}-${result.id}`}>
-                  <article>
+                  <article lang={result.translationLocale}>
+                    <ContentLanguageFallbackNotice usedFallback={result.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
                     <h3><Link href={result.href}>{result.title}</Link></h3>
                     {result.excerpt ? <p>{result.excerpt}</p> : null}
                   </article>

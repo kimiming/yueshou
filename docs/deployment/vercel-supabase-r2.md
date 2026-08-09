@@ -33,6 +33,15 @@ pnpm prisma validate
 pnpm db:migrate:deploy
 ```
 
+Review the two final hardening migrations explicitly. The legal-revision
+migration fails closed: every historic legal approval is demoted to
+`DRAFT`/`PENDING`, because the old row cannot prove which child translations
+and sections were reviewed. It adds the exact-revision and active-ADMIN
+reviewer constraints/triggers. The storage-cleanup migration adds durable
+cleanup/dead-letter state and marks pre-existing unconsumed legacy media
+intents expired so the bounded worker can queue their objects. Plan the
+post-migration legal re-review before exposing policy links.
+
 Do **not** run `prisma migrate dev`, `prisma db push`, or `prisma migrate reset` against production. Do not run migrations in Vercel's regular build command: a failed or concurrent deployment must not race schema changes. Vercel's Build Command is `pnpm build:production`; it validates the production environment, then runs `prisma generate` before `next build`.
 
 ### First administrator bootstrap
@@ -44,6 +53,15 @@ pnpm db:seed
 ```
 
 `pnpm db:seed` runs `prisma db seed`. Supplying no bootstrap variables performs content seeding only. A bootstrap set must be complete, use a valid email and a 12+ character mixed-case, digit, symbol password that is not a placeholder/common password, and use the exact confirmation value. In a serializable, transaction-scoped advisory lock, bootstrap refuses to run if any `ADMIN` (including deleted/inactive) or the requested email already exists; it creates one new `ADMIN` only, never upserts, restores, edits, or promotes an account. Record the operator and time in the deployment change log, remove all three bootstrap values immediately afterward, and sign in through `/admin` to rotate to a long, unique password. Never seed from a public Vercel request or a routine deployment build.
+
+Content seeding is create-if-missing. On a fresh database it creates eight
+editable core pages (`home`, `about`, `services`, `products`, `quality`,
+`news`, `contact`, and `request-a-quote`), four services, and the home section
+set in all five locales. Existing pages, services, translations, sections,
+status, and soft-delete state are preserved; existing legal rows receive zero
+seed writes. The five newly created legal pages remain `DRAFT`/`PENDING` until
+the exact current revision is reviewed and approved in the CMS by an active
+administrator.
 
 ### Backup, migration failure, and rollback
 
@@ -89,11 +107,58 @@ Configure CORS on the **private application bucket** for exactly the application
 
 Apply CORS through the R2 dashboard or S3-compatible `PutBucketCors` workflow, then test a real preflight and a presigned upload from the allowed production origin. For the public media bucket, allow only safe `GET`/`HEAD` origins if browser cross-origin access is needed; serving an image does not itself require broad CORS.
 
+### Upload validation and lifecycle defense
+
+The application treats browser MIME type and length as claims, not proof. CMS
+image completion downloads at most 10 MiB plus the overflow sentinel, verifies
+magic bytes and the decoded JPEG/PNG/WebP/AVIF type, rejects animated images,
+enforces 8,192 pixels per dimension and 40 million decoded pixels, applies
+orientation, re-encodes without source metadata, and stores the measured type,
+size, width, and height. Do not bypass the completion route by inserting media
+rows directly.
+
+The database-backed maintenance worker is the primary cleanup mechanism.
+Object-store lifecycle is only a delayed safety net for upload staging, and its
+retention must be comfortably longer than the 15-minute intent window and the
+normal worker recovery time. Configure provider-side abort of incomplete
+multipart uploads. Expiration rules may target only the exact
+`media/pending/` and `inquiry/tmp/` prefixes. Never use the broad `media/` or
+`inquiry/` prefixes, and never expire final `media/<year>/<month>/...` or
+`inquiry/final/...` objects. The parser accepts legacy
+`inquiry/<year>/<month>/...` staging keys during upgrades; reclaim those only
+through the reference-safe durable worker, not a broad lifecycle rule.
+
+Any future key-layout change requires a reviewed migration and a lifecycle
+rule update. A lifecycle deletion has no opportunity to re-check database
+references, so it must not replace the application worker.
+
 ## 4. Vercel build, Cron, and probes
 
 Set Vercel's Install Command to `pnpm install --frozen-lockfile` and Build Command to `pnpm build:production` (also declared in `vercel.json`). This command first runs the production environment gate, then generates Prisma Client and builds Next.js. The gate rejects template/placeholder values, weak or duplicate secrets, non-R2 storage, and insecure endpoints. Confirm Node.js is supported by the pinned Next.js and native `argon2` release. Database, storage, auth, and cron route handlers export the Node.js runtime; do not switch them to an Edge runtime.
 
-`vercel.json` schedules `GET /api/internal/publish-scheduled` every five minutes and `GET /api/internal/media-deletion-jobs` two minutes later on the same cadence. Vercel Cron invokes configured paths with **GET** and sends `Authorization: Bearer <CRON_SECRET>` when `CRON_SECRET` is configured. Both routes validate the exact 32+-character bearer secret and respond with `Cache-Control: no-store`. Their `POST` endpoints retain timestamped HMAC authentication for separately configured external schedulers; do not turn off POST authentication or use an unauthenticated GET adapter.
+`vercel.json` schedules three protected jobs on a five-minute cadence:
+
+- `/api/internal/publish-scheduled` at minute offsets `0,5,10,...`;
+- `/api/internal/media-deletion-jobs` at offsets `2,7,12,...`; and
+- `/api/internal/storage-maintenance` at offsets `4,9,14,...`.
+
+Vercel Cron invokes configured paths with **GET** and sends `Authorization:
+Bearer <CRON_SECRET>` when `CRON_SECRET` is configured. The routes validate the
+exact bearer secret and respond with `Cache-Control: no-store`. Their `POST`
+endpoints retain timestamped HMAC authentication for a separately configured
+external scheduler; do not weaken either authentication path.
+
+Each storage-maintenance invocation sweeps at most 100 expired upload intents,
+orphaned inquiry sessions, and expired shared rate-limit rows, then processes
+at most 25 durable object-deletion jobs. Claims use a five-minute lease and
+`FOR UPDATE SKIP LOCKED`. Immediately before storage I/O, the worker cancels a
+job if the key is referenced by a media asset, inquiry attachment, or live
+unconsumed upload intent. Failures retry with exponential backoff (one minute,
+capped at 24 hours), dead-letter after eight attempts, sanitize stored error
+text, and emit audit events for queued, cancelled, sweep, and terminal states.
+The older archived-media queue is also bounded, reference-checked, retryable,
+and dead-lettered. Monitor both job tables and their audit actions; investigate
+dead letters rather than deleting objects manually.
 
 For external POST calls, set `x-cron-timestamp` to Unix seconds and `x-cron-signature` to the lowercase hexadecimal `HMAC-SHA256(CRON_SECRET, "<timestamp>.")`. The server requires exactly 64 hexadecimal signature characters and rejects timestamps more than five minutes from its clock. This format deliberately has no request body; send no secrets in the URL or body, use HTTPS, and rotate `CRON_SECRET` through the deployment secret manager.
 
@@ -111,6 +176,11 @@ Configure external monitoring to request both over HTTPS and alert on non-2xx re
 3. Run `pnpm db:migrate:deploy` once from the controlled release job.
 4. Bootstrap the first administrator only when required, then remove bootstrap credentials.
 5. Deploy Vercel, verify `/api/health`, `/api/ready`, a protected Cron invocation, public pages, `/admin`, and a presigned R2 upload.
-6. Record versions, migration name, backup marker, operator, and verification results in the release log.
+6. Verify all three Cron paths, confirm the storage-maintenance response is
+   bounded, and alert on dead-letter audit events/job rows.
+7. Decode/finalize a representative image and verify the persisted measured
+   MIME type, byte size, width, and height.
+8. Record versions, migration names, backup marker, operator, and verification
+   results in the release log.
 
 Reference provider guidance: [Vercel Cron](https://vercel.com/docs/cron-jobs/manage-cron-jobs), [Cloudflare R2 CORS](https://developers.cloudflare.com/r2/buckets/cors/), [Cloudflare R2 public buckets](https://developers.cloudflare.com/r2/buckets/public-buckets/), and [Cloudflare R2 presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/).

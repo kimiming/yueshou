@@ -1,4 +1,6 @@
-const required = ["E2E_DATABASE_URL", "E2E_AUTH_SECRET", "E2E_INQUIRY_HASH_SECRET", "E2E_STORAGE_ENDPOINT", "E2E_STORAGE_BUCKET", "E2E_STORAGE_ACCESS_KEY_ID", "E2E_STORAGE_SECRET_ACCESS_KEY", "E2E_ADMIN_EMAIL", "E2E_ADMIN_PASSWORD", "E2E_LOGO_MEDIA_ID", "E2E_HERO_MEDIA_ID", "E2E_HOME_PAGE_ID", "E2E_ARTICLE_ID", "E2E_ARTICLE_SLUG"] as const;
+import { e2eMutationFixturePath } from "./mutation-fixture";
+
+const required = ["E2E_DATABASE_URL", "E2E_AUTH_SECRET", "E2E_INQUIRY_HASH_SECRET", "E2E_STORAGE_ENDPOINT", "E2E_STORAGE_BUCKET", "E2E_STORAGE_ACCESS_KEY_ID", "E2E_STORAGE_SECRET_ACCESS_KEY", "E2E_ADMIN_EMAIL", "E2E_ADMIN_PASSWORD"] as const;
 
 export function createE2eReleaseConfig(input: Record<string, string | undefined>) {
   if (input.E2E_REQUIRED !== "1") throw new Error("E2E_REQUIRED=1 is required for a release browser run");
@@ -6,11 +8,13 @@ export function createE2eReleaseConfig(input: Record<string, string | undefined>
   if (input.E2E_CONFIRM_DATABASE_RESET !== "RESET_YUESHOU_E2E") throw new Error("E2E_CONFIRM_DATABASE_RESET must equal RESET_YUESHOU_E2E");
   const missing = required.filter((key) => !input[key]);
   if (missing.length) throw new Error(`Missing required E2E environment: ${missing.join(", ")}`);
-  if (input.E2E_HERO_MEDIA_ID === input.E2E_LOGO_MEDIA_ID) throw new Error("E2E_HERO_MEDIA_ID must differ from E2E_LOGO_MEDIA_ID");
   const databaseUrl = new URL(input.E2E_DATABASE_URL!);
   const databaseName = databaseUrl.pathname.slice(1);
   if (!databaseName.endsWith("_e2e")) throw new Error("E2E database name must end in _e2e");
   if (/prod|production|live/i.test(databaseUrl.hostname) || /prod|production|live/i.test(databaseName)) throw new Error("E2E database host/name must not look like production");
+  const storageEndpoint = new URL(input.E2E_STORAGE_ENDPOINT!);
+  if (/prod|production|live/i.test(storageEndpoint.hostname)) throw new Error("E2E storage endpoint must not look like production");
+  if (!/(?:^|[-_.])e2e(?:$|[-_.])/i.test(input.E2E_STORAGE_BUCKET!)) throw new Error("E2E storage bucket must be explicitly named for e2e");
   const runtime = {
     NODE_ENV: "production", DATABASE_URL: input.E2E_DATABASE_URL!, AUTH_SECRET: input.E2E_AUTH_SECRET!, INQUIRY_HASH_SECRET: input.E2E_INQUIRY_HASH_SECRET!,
     INQUIRY_PROXY_MODE: "nginx", STORAGE_BACKEND: "minio", STORAGE_ENDPOINT: input.E2E_STORAGE_ENDPOINT!, STORAGE_REGION: input.E2E_STORAGE_REGION || "us-east-1",
@@ -20,13 +24,7 @@ export function createE2eReleaseConfig(input: Record<string, string | undefined>
   return {
     databaseName,
     runtime,
-    mutationFixture: {
-      logoMediaId: input.E2E_LOGO_MEDIA_ID!,
-      heroMediaId: input.E2E_HERO_MEDIA_ID!,
-      homePageId: input.E2E_HOME_PAGE_ID!,
-      articleId: input.E2E_ARTICLE_ID!,
-      articleSlug: input.E2E_ARTICLE_SLUG!,
-    },
+    fixtureFile: e2eMutationFixturePath(),
   };
 }
 

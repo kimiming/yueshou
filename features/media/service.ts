@@ -1,14 +1,19 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
-import type { ObjectStorage } from "@/lib/storage";
+import type { ObjectStorage, PrivateFinalizationStorage } from "@/lib/storage";
 
 import {
   completeUploadSchema,
-  createMediaObjectKey,
+  createMediaObjectKeys,
   getMediaExtension,
+  MAX_MEDIA_UPLOAD_BYTES,
   uploadSchema,
   type UploadInput,
 } from "./schemas";
+import { ImageValidationError, inspectAndSanitizeImage } from "./image-validation";
+
+export type MediaUploadStorage = ObjectStorage & PrivateFinalizationStorage;
 
 export type MediaActor = {
   id: string;
@@ -31,6 +36,7 @@ export type MediaReferences = {
 export type MediaUploadIntentRecord = {
   id: string;
   storageKey: string;
+  finalStorageKey: string | null;
   actorId: string;
   filename: string;
   mimeType: string;
@@ -41,17 +47,25 @@ export type MediaUploadIntentRecord = {
 };
 
 export interface MediaRepository {
-  createUploadIntent(input: Omit<MediaUploadIntentRecord, "id" | "consumedAt">): Promise<MediaUploadIntentRecord>;
+  createUploadIntent(input: Omit<MediaUploadIntentRecord, "id" | "consumedAt" | "finalStorageKey"> & { finalStorageKey: string }): Promise<MediaUploadIntentRecord>;
   findUploadIntent(storageKey: string): Promise<MediaUploadIntentRecord | null>;
   consumeUploadIntent(input: {
     intentId: string;
     actorId: string;
     completedAt: Date;
+    pendingStorageKey: string;
     storageKey: string;
     filename: string;
     mimeType: string;
     sizeBytes: number;
+    width: number;
+    height: number;
   }): Promise<MediaAssetRecord | null>;
+  queueUploadObjectDeletion(input: {
+    storageKey: string;
+    kind: "MEDIA_PENDING" | "MEDIA_FINAL";
+    sourceId: string;
+  }): Promise<void>;
   getMediaAsset(id: string): Promise<{ id: string; storageKey: string } | null>;
   countReferences(id: string): Promise<MediaReferences>;
   archiveMediaAsset(id: string, archivedAt: Date): Promise<void>;
@@ -87,6 +101,13 @@ export class MediaMetadataMismatchError extends MediaDomainError {
   constructor() {
     super("media_metadata_mismatch", "Stored object metadata does not match the upload intent", 409);
     this.name = "MediaMetadataMismatchError";
+  }
+}
+
+export class MediaImageValidationError extends MediaDomainError {
+  constructor(code = "media_image_invalid") {
+    super(code, "Uploaded image bytes are not a valid supported image", 422);
+    this.name = "MediaImageValidationError";
   }
 }
 
@@ -156,10 +177,11 @@ export async function createPendingUpload(
   requireStaff(input.actor);
   const upload = uploadSchema.parse(input.upload);
   const now = dependencies.now?.() ?? new Date();
-  const key = createMediaObjectKey(upload, now, dependencies.uuid);
+  const { pendingStorageKey: key, finalStorageKey } = createMediaObjectKeys(upload, now, dependencies.uuid);
   const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
   await dependencies.repository.createUploadIntent({
     storageKey: key,
+    finalStorageKey,
     actorId: input.actor.id,
     filename: upload.name,
     mimeType: upload.type,
@@ -176,7 +198,7 @@ export async function createPendingUpload(
 }
 
 export async function completeUpload(
-  dependencies: { storage: ObjectStorage; repository: MediaRepository; now?: () => Date },
+  dependencies: { storage: MediaUploadStorage; repository: MediaRepository; now?: () => Date },
   input: { actor: MediaActor | null; key: string; upload: UploadInput },
 ): Promise<MediaAssetRecord> {
   requireStaff(input.actor);
@@ -187,8 +209,10 @@ export async function completeUpload(
 
   const completedAt = dependencies.now?.() ?? new Date();
   if (intent.expiresAt.getTime() <= completedAt.getTime()) throw new MediaUploadIntentExpiredError();
+  const finalStorageKey = intent.finalStorageKey;
 
   if (
+    !finalStorageKey ||
     intent.actorId !== input.actor.id ||
     intent.storageKey !== completed.key ||
     intent.mimeType !== completed.type ||
@@ -200,21 +224,68 @@ export async function completeUpload(
   }
 
   const metadata = await dependencies.storage.headObject(completed.key);
-
   if (metadata.contentType !== intent.mimeType || metadata.contentLength !== intent.sizeBytes) {
+    await dependencies.repository.queueUploadObjectDeletion({ storageKey: intent.storageKey, kind: "MEDIA_PENDING", sourceId: intent.id });
     throw new MediaMetadataMismatchError();
+  }
+
+  const bytes = await dependencies.storage.readPrivateObject(completed.key, MAX_MEDIA_UPLOAD_BYTES + 1);
+  if (bytes.byteLength !== intent.sizeBytes) {
+    await dependencies.repository.queueUploadObjectDeletion({ storageKey: intent.storageKey, kind: "MEDIA_PENDING", sourceId: intent.id });
+    throw new MediaMetadataMismatchError();
+  }
+
+  let inspected;
+  try {
+    inspected = await inspectAndSanitizeImage({
+      bytes,
+      declaredMimeType: intent.mimeType as UploadInput["type"],
+    });
+  } catch (error) {
+    await dependencies.repository.queueUploadObjectDeletion({ storageKey: intent.storageKey, kind: "MEDIA_PENDING", sourceId: intent.id });
+    if (error instanceof ImageValidationError) throw new MediaImageValidationError(error.code);
+    throw error;
+  }
+
+  try {
+    await dependencies.storage.putImmutableObject({
+      key: finalStorageKey,
+      body: inspected.bytes,
+      contentType: inspected.mimeType,
+      sha256: createHash("sha256").update(inspected.bytes).digest("hex"),
+    });
+  } catch (error) {
+    await Promise.all([
+      dependencies.repository.queueUploadObjectDeletion({ storageKey: intent.storageKey, kind: "MEDIA_PENDING", sourceId: intent.id }),
+      dependencies.repository.queueUploadObjectDeletion({ storageKey: finalStorageKey, kind: "MEDIA_FINAL", sourceId: intent.id }),
+    ]);
+    throw error;
   }
 
   const media = await dependencies.repository.consumeUploadIntent({
     intentId: intent.id,
     actorId: input.actor.id,
     completedAt,
-    storageKey: intent.storageKey,
+    pendingStorageKey: intent.storageKey,
+    storageKey: finalStorageKey,
     filename: intent.filename,
-    mimeType: intent.mimeType,
-    sizeBytes: intent.sizeBytes,
+    mimeType: inspected.mimeType,
+    sizeBytes: inspected.bytes.byteLength,
+    width: inspected.width,
+    height: inspected.height,
   });
-  if (!media) throw new MediaUploadIntentConflictError();
+  if (!media) {
+    await Promise.all([
+      dependencies.repository.queueUploadObjectDeletion({ storageKey: intent.storageKey, kind: "MEDIA_PENDING", sourceId: intent.id }),
+      dependencies.repository.queueUploadObjectDeletion({ storageKey: finalStorageKey, kind: "MEDIA_FINAL", sourceId: intent.id }),
+    ]);
+    throw new MediaUploadIntentConflictError();
+  }
+  try {
+    await dependencies.storage.deleteObject(intent.storageKey);
+  } catch {
+    await dependencies.repository.queueUploadObjectDeletion({ storageKey: intent.storageKey, kind: "MEDIA_PENDING", sourceId: intent.id });
+  }
   return media;
 }
 
@@ -252,7 +323,7 @@ export async function archiveMediaAsset(
 }
 
 export function createMediaService(dependencies: {
-  storage: ObjectStorage;
+  storage: MediaUploadStorage;
   repository: MediaRepository;
   now?: () => Date;
   uuid?: () => string;

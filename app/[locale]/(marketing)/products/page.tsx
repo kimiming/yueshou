@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
+import { ContentLanguageFallbackNotice } from "@/components/marketing/content-language-fallback";
 import { ProductCard } from "@/components/marketing/product-card";
 import { RichContent } from "@/components/marketing/rich-content";
 import { getPageBySlug, getProductCatalog } from "@/features/content/service";
@@ -9,7 +10,7 @@ import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { buildMetadata } from "@/features/seo/metadata";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "auto";
 
 type ProductsPageProps = {
   params: Promise<{ locale: string }>;
@@ -31,6 +32,7 @@ export async function generateMetadata({ params }: ProductsPageProps) {
   if (!page) notFound();
   return buildMetadata({
     locale,
+    contentLocale: page.translationLocale,
     path: "/products",
     title: page.seoTitle?.trim() || page.title,
     description: page.seoDescription,
@@ -65,8 +67,11 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
         { label: dictionary.navigation.home, href: `/${locale}` },
         { label: page.title },
       ]} />
-      <h1>{page.title}</h1>
-      <RichContent html={page.body} />
+      <header lang={page.translationLocale}>
+        <ContentLanguageFallbackNotice usedFallback={page.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
+        <h1>{page.title}</h1>
+        <RichContent html={page.body} />
+      </header>
       <section aria-labelledby="product-catalog-heading">
         <h2 id="product-catalog-heading">{dictionary.marketing.public.catalog}</h2>
         <form action={`/${locale}/products`} method="get" role="search">

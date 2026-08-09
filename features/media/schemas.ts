@@ -37,7 +37,12 @@ export const mediaObjectKeySchema = z.string().regex(
   "Invalid media object key",
 );
 
-export const completeUploadSchema = uploadSchema.extend({ key: mediaObjectKeySchema });
+export const mediaPendingObjectKeySchema = z.string().regex(
+  /^media\/pending\/\d{4}\/(?:0[1-9]|1[0-2])\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpe?g|png|webp|avif)$/i,
+  "Invalid pending media object key",
+);
+
+export const completeUploadSchema = uploadSchema.extend({ key: mediaPendingObjectKeySchema });
 
 export function createMediaObjectKey(
   input: UploadInput,
@@ -49,4 +54,20 @@ export function createMediaObjectKey(
   const year = now.getUTCFullYear();
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
   return `media/${year}/${month}/${uuid()}.${extension}`;
+}
+
+export function createMediaObjectKeys(
+  input: UploadInput,
+  now = new Date(),
+  uuid: () => string = randomUUID,
+): { pendingStorageKey: string; finalStorageKey: string } {
+  const parsed = uploadSchema.parse(input);
+  const extension = getMediaExtension(parsed.name);
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const id = uuid();
+  return {
+    pendingStorageKey: `media/pending/${year}/${month}/${id}.${extension}`,
+    finalStorageKey: `media/${year}/${month}/${id}.${extension}`,
+  };
 }

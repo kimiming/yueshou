@@ -73,10 +73,11 @@ export function ArticleForm({ categories, tags, save }: { categories: Array<{ id
   </Form></Card>;
 }
 
-export function InquiryStatusForm({ inquiryId, status, notes, update, saveNotes }: { inquiryId: string; status: string; notes: string | null; update: Action; saveNotes: Action }) {
-  const [form] = Form.useForm(); const [pending, start] = useTransition(); const [error, setError] = useState<string>();
-  return <Form form={form} layout="vertical" initialValues={{ status, internalNotes: notes ?? "" }} onFinish={(value) => start(async () => { try { setError(undefined); await update({ inquiryId, status: value.status }); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not update inquiry"); } })}>
-    {error ? <p role="alert">{error}</p> : null}<Form.Item name="status" label="Status"><Select options={["NEW", "IN_PROGRESS", "RESOLVED", "ARCHIVED"].map((value) => ({ value }))} /></Form.Item><Form.Item name="internalNotes" label="Internal notes"><Input.TextArea rows={3} /></Form.Item><Space><Button htmlType="submit" loading={pending}>Update status</Button><Button onClick={() => start(async () => { try { await saveNotes({ inquiryId, internalNotes: form.getFieldValue("internalNotes") || null }); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save notes"); } })} loading={pending}>Save notes</Button></Space>
+export function InquiryStatusForm({ inquiryId, status, notes, version: initialVersion, update, saveNotes }: { inquiryId: string; status: string; notes: string | null; version: string; update: Action; saveNotes: Action }) {
+  const [form] = Form.useForm(); const [pending, start] = useTransition(); const [error, setError] = useState<string>(); const [version, setVersion] = useState(initialVersion);
+  const acceptVersion = (result: unknown) => { if (typeof result === "object" && result !== null && "version" in result && typeof result.version === "string") setVersion(result.version); };
+  return <Form form={form} layout="vertical" initialValues={{ status, internalNotes: notes ?? "" }} onFinish={(value) => start(async () => { try { setError(undefined); acceptVersion(await update({ inquiryId, status: value.status, version })); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not update inquiry"); } })}>
+    {error ? <p role="alert">{error}</p> : null}<Form.Item name="status" label="Status"><Select options={["NEW", "IN_PROGRESS", "RESOLVED", "ARCHIVED"].map((value) => ({ value }))} /></Form.Item><Form.Item name="internalNotes" label="Internal notes"><Input.TextArea rows={3} /></Form.Item><Space><Button htmlType="submit" loading={pending}>Update status</Button><Button onClick={() => start(async () => { try { setError(undefined); acceptVersion(await saveNotes({ inquiryId, internalNotes: form.getFieldValue("internalNotes") || null, version })); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save notes"); } })} loading={pending}>Save notes</Button></Space>
   </Form>;
 }
 

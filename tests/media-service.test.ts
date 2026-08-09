@@ -13,36 +13,41 @@ import {
   createPendingUpload,
   type MediaRepository,
 } from "@/features/media/service";
-import type { ObjectStorage } from "@/lib/storage";
+import type { MediaUploadStorage } from "@/features/media/service";
 
 const admin = { id: "admin-1", role: "ADMIN" as const };
 const editor = { id: "editor-1", role: "EDITOR" as const };
-const upload = { name: "lab.webp", type: "image/webp" as const, size: 2_000_000 };
-const objectKey = "media/2026/08/123e4567-e89b-42d3-a456-426614174000.webp";
+const imageBytes = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
+const upload = { name: "lab.png", type: "image/png" as const, size: imageBytes.byteLength };
+const objectKey = "media/pending/2026/08/123e4567-e89b-42d3-a456-426614174000.png";
+const finalObjectKey = "media/2026/08/123e4567-e89b-42d3-a456-426614174000.png";
 const intent = {
   id: "intent-1",
   storageKey: objectKey,
+  finalStorageKey: finalObjectKey,
   actorId: editor.id,
   filename: upload.name,
   mimeType: upload.type,
-  extension: "webp",
+  extension: "png",
   sizeBytes: upload.size,
   expiresAt: new Date("2026-08-08T00:15:00.000Z"),
   consumedAt: null,
 };
 
-function createStorage(overrides: Partial<ObjectStorage> = {}): ObjectStorage {
+function createStorage(overrides: Partial<MediaUploadStorage> = {}): MediaUploadStorage {
   return {
     presignUpload: vi.fn(async () => ({
       url: "https://uploads.example.test/signed",
       method: "PUT" as const,
-      headers: { "content-type": "image/webp" },
+      headers: { "content-type": "image/png" },
     })),
     headObject: vi.fn(async () => ({
-      contentType: "image/webp",
-      contentLength: 2_000_000,
+      contentType: "image/png",
+      contentLength: imageBytes.byteLength,
       etag: '"etag"',
     })),
+    readPrivateObject: vi.fn(async () => imageBytes),
+    putImmutableObject: vi.fn(async () => undefined),
     deleteObject: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -53,7 +58,8 @@ function createRepository(overrides: Partial<MediaRepository> = {}): MediaReposi
     createUploadIntent: vi.fn(async (input) => ({ id: "intent-1", consumedAt: null, ...input })),
     findUploadIntent: vi.fn(async () => intent),
     consumeUploadIntent: vi.fn(async (input) => ({ id: "media-1", storageKey: input.storageKey })),
-    getMediaAsset: vi.fn(async () => ({ id: "media-1", storageKey: objectKey })),
+    queueUploadObjectDeletion: vi.fn(async () => undefined),
+    getMediaAsset: vi.fn(async () => ({ id: "media-1", storageKey: finalObjectKey })),
     countReferences: vi.fn(async () => ({ pages: 0, products: 0, articles: 0, settings: 0 })),
     archiveMediaAsset: vi.fn(async () => undefined),
     queueObjectDeletion: vi.fn(async () => undefined),
@@ -78,16 +84,17 @@ describe("createPendingUpload", () => {
       key: objectKey,
       url: "https://uploads.example.test/signed",
       method: "PUT",
-      headers: { "content-type": "image/webp" },
+      headers: { "content-type": "image/png" },
     });
     expect(JSON.stringify(result)).not.toContain("credential");
     expect(repository.createUploadIntent).toHaveBeenCalledWith({
       storageKey: objectKey,
+      finalStorageKey: finalObjectKey,
       actorId: "editor-1",
-      filename: "lab.webp",
-      mimeType: "image/webp",
-      extension: "webp",
-      sizeBytes: 2_000_000,
+      filename: "lab.png",
+      mimeType: "image/png",
+      extension: "png",
+      sizeBytes: imageBytes.byteLength,
       expiresAt: new Date("2026-08-08T00:15:00.000Z"),
     });
   });
@@ -123,14 +130,14 @@ describe("completeUpload", () => {
       { actor: editor, key: objectKey, upload },
     );
 
-    expect(result).toMatchObject({ id: "media-1", storageKey: objectKey });
+    expect(result).toMatchObject({ id: "media-1", storageKey: finalObjectKey });
     expect(repository.consumeUploadIntent).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a content-type mismatch without creating a media record", async () => {
     const repository = createRepository();
     const storage = createStorage({
-      headObject: vi.fn(async () => ({ contentType: "image/png", contentLength: 2_000_000, etag: '"etag"' })),
+      headObject: vi.fn(async () => ({ contentType: "image/jpeg", contentLength: imageBytes.byteLength, etag: '"etag"' })),
     });
 
     await expect(
@@ -145,7 +152,7 @@ describe("completeUpload", () => {
   it("rejects a content-length mismatch without creating a media record", async () => {
     const repository = createRepository();
     const storage = createStorage({
-      headObject: vi.fn(async () => ({ contentType: "image/webp", contentLength: 4, etag: '"etag"' })),
+      headObject: vi.fn(async () => ({ contentType: "image/png", contentLength: 4, etag: '"etag"' })),
     });
 
     await expect(
@@ -157,7 +164,7 @@ describe("completeUpload", () => {
     expect(repository.consumeUploadIntent).not.toHaveBeenCalled();
   });
 
-  it("rejects completing a WebP key as PNG", async () => {
+  it("rejects completing a PNG key as WebP", async () => {
     const repository = createRepository();
     await expect(
       completeUpload(
@@ -165,7 +172,7 @@ describe("completeUpload", () => {
         {
           actor: editor,
           key: objectKey,
-          upload: { name: "lab.png", type: "image/png", size: 2_000_000 },
+          upload: { name: "lab.webp", type: "image/webp", size: imageBytes.byteLength },
         },
       ),
     ).rejects.toBeInstanceOf(MediaUploadIntentMismatchError);
@@ -205,6 +212,20 @@ describe("completeUpload", () => {
         { actor: editor, key: objectKey, upload },
       ),
     ).rejects.toBeInstanceOf(MediaUploadIntentReplayError);
+  });
+
+  it("fails closed for a legacy upload intent without a reserved final key", async () => {
+    const storage = createStorage();
+    const repository = createRepository({
+      findUploadIntent: vi.fn(async () => ({ ...intent, finalStorageKey: null as never })),
+    });
+
+    await expect(completeUpload(
+      { storage, repository, now: () => new Date("2026-08-08T00:01:00.000Z") },
+      { actor: editor, key: objectKey, upload },
+    )).rejects.toBeInstanceOf(MediaUploadIntentMismatchError);
+    expect(storage.headObject).not.toHaveBeenCalled();
+    expect(repository.consumeUploadIntent).not.toHaveBeenCalled();
   });
 
   it("reports an atomic consumption conflict when another completion wins", async () => {
@@ -258,7 +279,7 @@ describe("archiveMediaAsset", () => {
     expect(repository.queueObjectDeletion).toHaveBeenCalledWith({
       actorId: "admin-1",
       mediaAssetId: "media-1",
-      storageKey: objectKey,
+      storageKey: finalObjectKey,
       deleteAfter: new Date("2026-09-07T00:00:00.000Z"),
     });
   });

@@ -18,7 +18,9 @@
     "prisma:generate": "prisma generate",
     "db:migrate:deploy": "tsx scripts/migrate-deploy.ts",
     "db:seed": "prisma db seed",
+    "db:seed:e2e": "tsx prisma/e2e-seed.ts",
     "env:check:production": "tsx scripts/validate-production-env.ts",
+    "env:check:docker": "tsx scripts/validate-docker-env.ts",
     "build:production": "pnpm env:check:production && pnpm prisma:generate && next build"
   },
   "dependencies": {
@@ -38,6 +40,7 @@
     "pg": "^8.16.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "sharp": "0.35.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {

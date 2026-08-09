@@ -4,6 +4,7 @@ import type {
 } from "@/features/content/view-models";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 import { localizeHref } from "@/components/marketing/link-utils";
+import { plainTextExcerpt } from "@/components/marketing/rich-content";
 import { publicMediaUrl } from "@/features/media/public-url";
 import type {
   MarketingCtaViewModel,
@@ -37,7 +38,7 @@ function mapSection(section: PageViewModel["sections"][number]): MarketingSectio
     items: section.items.map((item) => ({
       id: item.id,
       title: item.title,
-      body: item.body || undefined,
+      body: item.body ? plainTextExcerpt(item.body) : undefined,
       value: item.value,
       href: item.href ? localizeHref(item.href, section.locale) : undefined,
     })),
@@ -106,6 +107,10 @@ export function createMarketingShellViewModel(
     navigation: content.navigation.map(localizeNavigation),
     contact: content.contact,
     quoteLabel: dictionary.actions.requestQuote,
+    searchLabel: dictionary.marketing.public.search,
+    emailLabel: dictionary.marketing.accessibility.email,
+    phoneLabel: dictionary.marketing.accessibility.phone,
+    socialLinksLabel: dictionary.marketing.accessibility.socialLinks,
     languageLabel: dictionary.marketing.navigation.language,
     footerNavigationLabel: dictionary.marketing.navigation.footer,
     footerExploreLabel: dictionary.marketing.footer.explore,

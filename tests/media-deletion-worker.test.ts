@@ -64,3 +64,20 @@ it("retries an expired deletion authorization without reopening its confirmation
   expect(storage.deleteObject).toHaveBeenCalledWith("media/2026/08/a.webp");
   expect(repository.complete).toHaveBeenCalledWith("job-1", "replacement-authorization", expect.any(Date));
 });
+
+it("processes more than one due job while respecting the per-run batch limit", async () => {
+  const repository = {
+    claimDue: vi.fn()
+      .mockResolvedValueOnce({ id: "job-1", storageKey: "media/2026/08/a.webp", attempts: 1, leaseToken: "lease-1", alreadyAuthorized: true })
+      .mockResolvedValueOnce({ id: "job-2", storageKey: "media/2026/08/b.webp", attempts: 1, leaseToken: "lease-2", alreadyAuthorized: true })
+      .mockResolvedValueOnce(null),
+    complete: vi.fn(async () => undefined),
+    fail: vi.fn(async () => undefined),
+  };
+  const storage = { deleteObject: vi.fn(async () => undefined) };
+
+  await expect(processDueMediaDeletionJobs({ repository, storage, limit: 2 }))
+    .resolves.toEqual({ processed: 2, failed: 0 });
+  expect(storage.deleteObject).toHaveBeenCalledTimes(2);
+  expect(repository.claimDue).toHaveBeenCalledTimes(2);
+});

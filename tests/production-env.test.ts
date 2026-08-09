@@ -78,6 +78,7 @@ describe("production cloud environment", () => {
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, AUTH_SECRET: "short" })).toThrow("AUTH_SECRET");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, CRON_SECRET: "short" })).toThrow("CRON_SECRET");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, INQUIRY_PROXY_MODE: "direct" })).toThrow("INQUIRY_PROXY_MODE");
+    expect(() => parseProductionEnv({ ...completeCloudEnvironment, INQUIRY_PROXY_MODE: "nginx" })).toThrow("INQUIRY_PROXY_MODE");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, NEXT_PUBLIC_R2_PUBLIC_URL: "https://bucket.r2.dev" })).toThrow("NEXT_PUBLIC_R2_PUBLIC_URL");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, NEXT_PUBLIC_SITE_URL: "http://www.yueshou.example" })).toThrow("NEXT_PUBLIC_SITE_URL");
     expect(() => parseProductionEnv({ ...completeCloudEnvironment, DATABASE_URL: "https://database.example" })).toThrow("DATABASE_URL");

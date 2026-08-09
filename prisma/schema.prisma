@@ -49,6 +49,24 @@ enum MediaDeletionJobStatus {
   DELETING
   COMPLETED
   FAILED
+  DEAD_LETTER
+}
+
+enum StorageDeletionJobStatus {
+  PENDING
+  PROCESSING
+  DELETING
+  COMPLETED
+  FAILED
+  DEAD_LETTER
+  CANCELLED
+}
+
+enum StorageDeletionKind {
+  MEDIA_PENDING
+  MEDIA_FINAL
+  INQUIRY_TEMP
+  INQUIRY_FINAL
 }
 
 enum PageSectionType {
@@ -78,6 +96,7 @@ model User {
   articles           Article[]           @relation("ArticleAuthor")
   sessions           AccountSession[]
   mediaUploadIntents MediaUploadIntent[]
+  legalReviews       Page[]              @relation("LegalReviewer")
 }
 
 model AccountSession {
@@ -158,17 +177,23 @@ model NavigationItemTranslation {
 }
 
 model Page {
-  id                String            @id @default(cuid())
-  slug              String            @unique
-  status            PublishStatus     @default(DRAFT)
-  publishedAt       DateTime?
-  legalReviewStatus LegalReviewStatus @default(NOT_REQUIRED)
-  legalReviewedAt   DateTime?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  deletedAt         DateTime?
-  translations      PageTranslation[]
-  sections          PageSection[]
+  id                    String            @id @default(cuid())
+  slug                  String            @unique
+  status                PublishStatus     @default(DRAFT)
+  publishedAt           DateTime?
+  contentRevision       Int               @default(1)
+  legalReviewStatus     LegalReviewStatus @default(NOT_REQUIRED)
+  legalReviewedAt       DateTime?
+  legalReviewedRevision Int?
+  legalReviewedById     String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  deletedAt             DateTime?
+  legalReviewedBy       User?             @relation("LegalReviewer", fields: [legalReviewedById], references: [id], onDelete: SetNull)
+  translations          PageTranslation[]
+  sections              PageSection[]
+
+  @@index([legalReviewedById])
 }
 
 model PageTranslation {
@@ -376,7 +401,7 @@ model MediaAsset {
   translations  MediaAssetTranslation[]
   products      Product[]               @relation("ProductMedia")
   articleCovers Article[]               @relation("ArticleCover")
-  deletionJob  MediaDeletionJob?
+  deletionJob   MediaDeletionJob?
 }
 
 model MediaDeletionJob {
@@ -386,32 +411,57 @@ model MediaDeletionJob {
   status       MediaDeletionJobStatus @default(PENDING)
   deleteAfter  DateTime
   attempts     Int                    @default(0)
+  maxAttempts  Int                    @default(8)
   leaseUntil   DateTime?
   leaseToken   String?
   lastError    String?
   completedAt  DateTime?
+  deadLetterAt DateTime?
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
-  mediaAsset   MediaAsset             @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+  mediaAsset   MediaAsset             @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
 
   @@index([status, deleteAfter])
 }
 
 model MediaUploadIntent {
-  id         String    @id @default(cuid())
-  storageKey String    @unique
-  actorId    String
-  filename   String
-  mimeType   String
-  extension  String
-  sizeBytes  Int
-  expiresAt  DateTime
-  consumedAt DateTime?
-  createdAt  DateTime  @default(now())
-  actor      User      @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  id              String    @id @default(cuid())
+  storageKey      String    @unique
+  finalStorageKey String?   @unique
+  actorId         String
+  filename        String
+  mimeType        String
+  extension       String
+  sizeBytes       Int
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  actor           User      @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([actorId, expiresAt])
   @@index([expiresAt, consumedAt])
+}
+
+model StorageDeletionJob {
+  id           String                   @id @default(cuid())
+  storageKey   String                   @unique
+  kind         StorageDeletionKind
+  sourceType   String
+  sourceId     String?
+  status       StorageDeletionJobStatus @default(PENDING)
+  notBefore    DateTime                 @default(now())
+  attempts     Int                      @default(0)
+  maxAttempts  Int                      @default(8)
+  leaseUntil   DateTime?
+  leaseToken   String?
+  lastError    String?
+  completedAt  DateTime?
+  deadLetterAt DateTime?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  @@index([status, notBefore])
+  @@index([sourceType, sourceId])
 }
 
 model MediaAssetTranslation {

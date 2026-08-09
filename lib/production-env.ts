@@ -33,6 +33,7 @@ const productionDeploymentSchema = z.object({
   CRON_SECRET: z.string().min(32),
   NEXT_PUBLIC_SITE_URL: z.string().url(),
   NEXT_PUBLIC_R2_PUBLIC_URL: z.string().url().optional(),
+  INQUIRY_PROXY_MODE: z.literal("vercel"),
   STORAGE_BACKEND: z.literal("r2"),
   STORAGE_ENDPOINT: z.string().url(),
   STORAGE_BUCKET: z.string().min(1),

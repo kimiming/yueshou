@@ -23,7 +23,7 @@ describe("self-hosted Docker deployment", () => {
   it("keeps all stateful services private and exposes only Nginx", async () => {
     const config = await compose();
 
-    expect(Object.keys(config.services)).toEqual(expect.arrayContaining(["web", "postgres", "minio", "minio-init", "migrate", "ops-init", "cron", "backup", "nginx"]));
+    expect(Object.keys(config.services)).toEqual(expect.arrayContaining(["validate", "web", "postgres", "minio", "minio-init", "migrate", "ops-init", "cron", "backup", "nginx"]));
     expect(config.services.nginx.ports).toEqual(["80:80", "443:443"]);
     expect(config.services.postgres.ports).toBeUndefined();
     expect(config.services.minio.ports).toBeUndefined();
@@ -35,7 +35,10 @@ describe("self-hosted Docker deployment", () => {
 
   it("uses minimal per-service environments and correct dependency lifecycles", async () => {
     const config = await compose();
-    const { web, migrate, cron, backup, minio, "minio-init": minioInit } = config.services;
+    const { validate, web, migrate, cron, backup, minio, "minio-init": minioInit } = config.services;
+
+    expect(validate.build).toEqual(expect.objectContaining({ target: "validator" }));
+    expect(validate.command).toEqual(["pnpm", "env:check:docker"]);
 
     expect(environment(web)).toEqual(expect.objectContaining({ INQUIRY_PROXY_MODE: "nginx", STORAGE_ENDPOINT: "https://${STORAGE_HOST:?Set STORAGE_HOST in .env.docker}" }));
     expect(environment(web)).not.toHaveProperty("MINIO_ROOT_PASSWORD");
@@ -45,8 +48,12 @@ describe("self-hosted Docker deployment", () => {
     expect(environment(backup)).toEqual(expect.objectContaining({ STORAGE_ENDPOINT: "http://minio:9000", BACKUP_ENCRYPTION_PASSPHRASE: "${BACKUP_ENCRYPTION_PASSPHRASE:?Set BACKUP_ENCRYPTION_PASSPHRASE in .env.docker}" }));
     expect(environment(minio)).toEqual(expect.objectContaining({ MINIO_ROOT_USER: "${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env.docker}" }));
     expect(environment(minioInit)).toEqual(expect.objectContaining({ MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env.docker}" }));
-    expect(web.depends_on).toEqual(expect.objectContaining({ postgres: { condition: "service_healthy" }, minio: { condition: "service_healthy" }, "minio-init": { condition: "service_completed_successfully" }, migrate: { condition: "service_completed_successfully" } }));
-    expect(migrate.command).toEqual(["pnpm", "exec", "prisma", "migrate", "deploy"]);
+    expect(web.depends_on).toEqual(expect.objectContaining({ validate: { condition: "service_completed_successfully" }, postgres: { condition: "service_healthy" }, minio: { condition: "service_healthy" }, "minio-init": { condition: "service_completed_successfully" }, migrate: { condition: "service_completed_successfully" } }));
+    expect(migrate.depends_on).toEqual(expect.objectContaining({ validate: { condition: "service_completed_successfully" } }));
+    expect(minioInit.depends_on).toEqual(expect.objectContaining({ validate: { condition: "service_completed_successfully" } }));
+    expect(cron.depends_on).toEqual(expect.objectContaining({ validate: { condition: "service_completed_successfully" } }));
+    expect(backup.depends_on).toEqual(expect.objectContaining({ validate: { condition: "service_completed_successfully" } }));
+    expect(migrate.command).toEqual(["pnpm", "db:migrate:deploy"]);
     expect(migrate.restart).toBe("no");
     expect(minioInit.restart).toBe("no");
     expect(backup.restart).toBe("unless-stopped");
@@ -118,6 +125,7 @@ describe("self-hosted Docker deployment", () => {
     expect(template).toContain("X-Content-Type-Options");
     expect(template.match(/connect-src 'self' https:\/\/\$\{STORAGE_HOST\}/g)).toHaveLength(2);
     expect(template).toContain("location /_next/static/");
+    expect(template).toMatch(/location\s+\^~\s+\/api\/internal\/\s*\{\s*return 404;/);
   });
 
   it("resolves the S3 hostname to Nginx inside the private network", async () => {

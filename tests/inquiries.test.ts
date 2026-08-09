@@ -7,10 +7,11 @@ import {
   getInquiryAttachmentDownload,
   type InquiryAttachmentRepository,
 } from "@/features/inquiries/attachments";
-import { createSubmitInquiry, type InquiryRepository } from "@/features/inquiries/service";
+import { createSubmitInquiry, validateInquiryFormData, type InquiryRepository } from "@/features/inquiries/service";
 import {
   MAX_INQUIRY_ATTACHMENT_BYTES,
   createInquiryAttachmentKey,
+  inquiryAttachmentKeySchema,
   inquirySchema,
 } from "@/features/inquiries/schemas";
 import {
@@ -53,6 +54,30 @@ describe("inquiry validation", () => {
 
   it("accepts a syntactically valid email without a free-provider blacklist", () => {
     expect(inquirySchema.safeParse({ ...validFields, email: "scientist@gmail.com" }).success).toBe(true);
+  });
+
+  it("returns the same structured safe validation state used by preflight and final submission", () => {
+    const data = formData({ ...validFields, email: "invalid", details: "short", gdprConsent: "" });
+    data.set("attachmentTokens", "private-token");
+
+    expect(validateInquiryFormData(data)).toEqual({
+      success: false,
+      state: {
+        status: "validation_error",
+        fieldErrors: {
+          email: ["inquiry_error_email"],
+          details: ["inquiry_error_required"],
+          gdprConsent: ["inquiry_error_required"],
+        },
+        fields: {
+          company: "Research Institute",
+          contact: "Ada Lovelace",
+          email: "invalid",
+          country: "GB",
+          details: "short",
+        },
+      },
+    });
   });
 });
 
@@ -154,10 +179,12 @@ describe("persistent rate limit contract", () => {
 
 describe("private inquiry attachments", () => {
   const upload = { name: "requirements.pdf", type: "application/pdf" as const, size: 8 };
-  const key = "inquiry/2026/08/123e4567-e89b-42d3-a456-426614174000.pdf";
+  const key = "inquiry/tmp/2026/08/123e4567-e89b-42d3-a456-426614174000.pdf";
 
   it("accepts the allowlist and 15 MB boundary and creates a private dated key", () => {
     expect(createInquiryAttachmentKey(upload, new Date("2026-08-08T00:00:00Z"), () => "123e4567-e89b-42d3-a456-426614174000")).toBe(key);
+    expect(inquiryAttachmentKeySchema.parse("inquiry/2026/08/123e4567-e89b-42d3-a456-426614174000.pdf"))
+      .toBe("inquiry/2026/08/123e4567-e89b-42d3-a456-426614174000.pdf");
     expect(() => createInquiryAttachmentKey({ ...upload, size: MAX_INQUIRY_ATTACHMENT_BYTES + 1 })).toThrow();
     expect(() => createInquiryAttachmentKey({ name: "payload.exe", type: "application/octet-stream", size: 1 } as never)).toThrow();
   });
@@ -169,24 +196,32 @@ describe("private inquiry attachments", () => {
       expiresAt: new Date("2026-08-08T00:15:00Z"), finalStorageKey: null, sha256: null, finalizedAt: null, consumedAt: null,
     };
     let storedIntent = intent;
+    const finalizationOrder: string[] = [];
     const repository: InquiryAttachmentRepository = {
       createUploadIntent: vi.fn(async (input) => {
         storedIntent = { ...intent, ...input };
         return storedIntent;
       }),
       findUploadIntent: vi.fn(async () => storedIntent),
+      reserveFinalStorageKey: vi.fn(async (input) => {
+        finalizationOrder.push("reserve");
+        storedIntent = { ...storedIntent, finalStorageKey: input.finalStorageKey, sha256: input.sha256 };
+        return { id: "intent-1", finalStorageKey: input.finalStorageKey };
+      }),
       finalizeUploadIntent: vi.fn(async (input) => {
+        finalizationOrder.push("finalize");
         storedIntent = { ...storedIntent, finalStorageKey: input.finalStorageKey, sha256: input.sha256, finalizedAt: input.completedAt };
         return { id: "intent-1", finalStorageKey: input.finalStorageKey };
       }),
       queueTempObjectDeletion: vi.fn(async () => undefined),
+      queueFinalObjectDeletion: vi.fn(async () => undefined),
     };
     const storage: ObjectStorage & PrivateFinalizationStorage = {
       presignUpload: vi.fn(async () => ({ url: "https://upload.example/signed", method: "PUT" as const, headers: { "content-type": upload.type } })),
       headObject: vi.fn(async () => ({ contentType: upload.type, contentLength: upload.size, etag: "etag" })),
-      deleteObject: vi.fn(),
+      deleteObject: vi.fn(async () => { throw new Error("temporary delete failed"); }),
       readPrivateObject: vi.fn(async () => new TextEncoder().encode("%PDF-1.7")),
-      putImmutableObject: vi.fn(async () => undefined),
+      putImmutableObject: vi.fn(async () => { finalizationOrder.push("put"); }),
     };
     const secret = "a sufficiently long private keyed hashing secret";
     const sessions = new DeterministicUploadSessionRepository();
@@ -202,11 +237,20 @@ describe("private inquiry attachments", () => {
     await expect(completeInquiryAttachmentUpload({ ...dependencies, now: () => new Date("2026-08-08T00:01:00Z") }, { binding, key, upload })).rejects.toMatchObject({ code: "inquiry_upload_intent_expired" });
     storedIntent = { ...storedIntent, expiresAt: new Date("2026-08-08T00:15:00Z") };
     await expect(completeInquiryAttachmentUpload({ ...dependencies, now: () => new Date("2026-08-08T00:01:00Z") }, { binding, key, upload })).resolves.toMatchObject({ token: "intent-1", storageKey: expect.stringMatching(/^inquiry\/final\/[a-f0-9]{64}\.pdf$/) });
+    expect(finalizationOrder).toEqual(["reserve", "put", "finalize"]);
+    expect(repository.queueTempObjectDeletion).toHaveBeenCalledWith(key);
     const immutableWrite = vi.mocked(storage.putImmutableObject).mock.calls[0][0];
     vi.mocked(storage.readPrivateObject).mockResolvedValue(new TextEncoder().encode("overwritten temp"));
     expect(new TextDecoder().decode(immutableWrite.body)).toBe("%PDF-1.7");
     await expect(completeInquiryAttachmentUpload({ ...dependencies, now: () => new Date("2026-08-08T00:02:00Z") }, { binding, key, upload })).rejects.toMatchObject({ code: "inquiry_upload_intent_consumed" });
     expect(repository.finalizeUploadIntent).toHaveBeenCalledTimes(1);
+
+    storedIntent = { ...storedIntent, finalStorageKey: null, sha256: null, finalizedAt: null, consumedAt: null };
+    vi.mocked(storage.readPrivateObject).mockResolvedValue(new TextEncoder().encode("%PDF-1.7"));
+    vi.mocked(storage.putImmutableObject).mockRejectedValueOnce(new Error("final write failed"));
+    await expect(completeInquiryAttachmentUpload({ ...dependencies, now: () => new Date("2026-08-08T00:03:00Z") }, { binding, key, upload }))
+      .rejects.toThrow("final write failed");
+    expect(repository.queueFinalObjectDeletion).toHaveBeenCalledWith(expect.stringMatching(/^inquiry\/final\/[a-f0-9]{64}\.pdf$/));
   });
 
   it("fails closed for attachment downloads until staff authorization wiring exists", async () => {

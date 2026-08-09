@@ -70,11 +70,42 @@ export const prismaNewsAdminRepository: NewsAdminRepository = {
   async archiveTag(tagId, actorId, version) { await serializableRetry(() => prisma.$transaction(async (tx) => { if (await tx.article.count({ where: { deletedAt: null, tags: { some: { id: tagId } } } })) throw new Error("This tag is referenced by articles and cannot be archived"); const changed = await tx.tag.updateMany({ where: { id: tagId, deletedAt: null, updatedAt: new Date(version) }, data: { deletedAt: new Date() } }); if (changed.count !== 1) throw new Error("Tag changed by another administrator"); await audit(tx, actorId, "TAG_ARCHIVED", "Tag", tagId); }, { isolationLevel: "Serializable" })); },
 };
 
-export const prismaInquiryAdminRepository: InquiryAdminRepository = {
-  async getStatus(inquiryId) { const record = await prisma.inquiry.findUnique({ where: { id: inquiryId }, select: { status: true } }); return record?.status ?? null; },
-  async updateStatus(input) { return serializableRetry(() => prisma.$transaction(async (tx) => { const updated = await tx.inquiry.updateMany({ where: { id: input.inquiryId, status: input.expectedStatus }, data: { status: input.status } }); if (updated.count !== 1) return false; await audit(tx, input.actorId, "INQUIRY_STATUS_CHANGED", "Inquiry", input.inquiryId, { from: input.expectedStatus, status: input.status }); return true; }, { isolationLevel: "Serializable" })); },
-  async saveNotes(input) { return serializableRetry(() => prisma.$transaction(async (tx) => { const updated = await tx.inquiry.updateMany({ where: { id: input.inquiryId }, data: { internalNotes: input.internalNotes } }); if (updated.count !== 1) return false; await audit(tx, input.actorId, "INQUIRY_NOTES_UPDATED", "Inquiry", input.inquiryId); return true; }, { isolationLevel: "Serializable" })); },
-};
+type InquiryAdminDatabase = Pick<typeof prisma, "inquiry" | "$transaction">;
+
+export function createPrismaInquiryAdminRepository(database: InquiryAdminDatabase): InquiryAdminRepository {
+  return {
+    async getStatus(inquiryId) {
+      const record = await database.inquiry.findUnique({ where: { id: inquiryId }, select: { status: true, updatedAt: true } });
+      return record ? { status: record.status, version: record.updatedAt.toISOString() } : null;
+    },
+    async updateStatus(input) {
+      return serializableRetry(() => database.$transaction(async (tx) => {
+        const updated = await tx.inquiry.updateMany({
+          where: { id: input.inquiryId, status: input.expectedStatus, updatedAt: new Date(input.version) },
+          data: { status: input.status },
+        });
+        if (updated.count !== 1) return null;
+        const record = await tx.inquiry.findUniqueOrThrow({ where: { id: input.inquiryId }, select: { updatedAt: true } });
+        await audit(tx, input.actorId, "INQUIRY_STATUS_CHANGED", "Inquiry", input.inquiryId, { from: input.expectedStatus, status: input.status });
+        return { version: record.updatedAt.toISOString() };
+      }, { isolationLevel: "Serializable" }));
+    },
+    async saveNotes(input) {
+      return serializableRetry(() => database.$transaction(async (tx) => {
+        const updated = await tx.inquiry.updateMany({
+          where: { id: input.inquiryId, updatedAt: new Date(input.version) },
+          data: { internalNotes: input.internalNotes },
+        });
+        if (updated.count !== 1) return null;
+        const record = await tx.inquiry.findUniqueOrThrow({ where: { id: input.inquiryId }, select: { updatedAt: true } });
+        await audit(tx, input.actorId, "INQUIRY_NOTES_UPDATED", "Inquiry", input.inquiryId);
+        return { version: record.updatedAt.toISOString() };
+      }, { isolationLevel: "Serializable" }));
+    },
+  };
+}
+
+export const prismaInquiryAdminRepository = createPrismaInquiryAdminRepository(prisma);
 
 export const prismaUserAdminRepository: UserAdminRepository = {
   async createUser(input) { return serializableRetry(() => prisma.$transaction(async (tx) => { const user = await tx.user.create({ data: { email: input.email, passwordHash: input.passwordHash, role: input.role } }); await audit(tx, input.actorId, "USER_CREATED", "User", user.id, { role: user.role }); return { id: user.id }; }, { isolationLevel: "Serializable" })); },

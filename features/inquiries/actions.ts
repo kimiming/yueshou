@@ -6,9 +6,9 @@ import { createObjectStorage } from "@/lib/storage";
 import { parseEnv } from "@/lib/env";
 import { completeInquiryAttachmentUpload, createInquiryAttachmentUpload, type InquiryAttachmentBinding } from "./attachments";
 import { PrismaInquiryRateLimitAdapter, prismaInquiryAttachmentRepository, prismaInquiryRepository, prismaUploadSessionRepository } from "./repository";
-import { createSubmitInquiry, type InquiryActionState } from "./service";
+import { createSubmitInquiry, validateInquiryFormData, type InquiryActionState } from "./service";
 import { resolveClientIp } from "./request-context";
-import { inquirySchema, type InquiryAttachmentInput } from "./schemas";
+import { type InquiryAttachmentInput } from "./schemas";
 import { applyInquiryRateLimits } from "./rate-limit";
 import { createUploadSession } from "./upload-session";
 
@@ -51,14 +51,13 @@ export async function finalizeInquiryAttachmentUpload(binding: InquiryAttachment
 }
 
 export async function prepareInquirySubmission(formData: FormData) {
+  const validation = validateInquiryFormData(formData);
+  if (!validation.success) return { ok: false as const, state: validation.state };
   const env = parseEnv(process.env); const request = await getRequestContext(env.INQUIRY_PROXY_MODE);
-  const value = Object.fromEntries(["company", "contact", "email", "country", "details", "gdprConsent"].map((key) => [key, formData.get(key)]));
-  const parsed = inquirySchema.safeParse(value);
-  if (!parsed.success) return { ok: false as const, code: "inquiry_error_validation" };
   try {
-    await applyInquiryRateLimits(new PrismaInquiryRateLimitAdapter(), { ip: request.ip, email: parsed.data.email, now: new Date(), secret: env.INQUIRY_HASH_SECRET });
-    const capability = await createUploadSession({ repository: prismaUploadSessionRepository, secret: env.INQUIRY_HASH_SECRET }, { email: parsed.data.email, ip: request.ip });
-    return { ok: true as const, value: { ...capability, email: parsed.data.email } };
+    await applyInquiryRateLimits(new PrismaInquiryRateLimitAdapter(), { ip: request.ip, email: validation.data.email, now: new Date(), secret: env.INQUIRY_HASH_SECRET });
+    const capability = await createUploadSession({ repository: prismaUploadSessionRepository, secret: env.INQUIRY_HASH_SECRET }, { email: validation.data.email, ip: request.ip });
+    return { ok: true as const, value: { ...capability, email: validation.data.email } };
   } catch { return { ok: false as const, code: "inquiry_error_rate_limited" }; }
 }
 

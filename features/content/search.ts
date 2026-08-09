@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/db/prisma";
 import {
   isLocale,
+  fromDatabaseLocale,
   toDatabaseLocale,
   type DatabaseLocale,
   type Locale,
 } from "@/lib/i18n/config";
-import { resolveTranslation } from "@/lib/i18n/resolve-translation";
 import { isLegalPageSlug, LEGAL_PAGE_SLUGS } from "@/features/content/public-slug";
 
 export const SEARCH_QUERY_MAX_LENGTH = 100;
@@ -20,6 +20,8 @@ type SearchTranslation = {
 type SearchRecord = {
   id: string;
   slug: string;
+  contentRevision?: number;
+  legalReviewedRevision?: number | null;
   translations: SearchTranslation[];
 };
 
@@ -53,6 +55,8 @@ export type SearchResultViewModel = {
   href: string;
   relevance: number;
   publishedAt: string | null;
+  translationLocale: Locale;
+  usedFallback: boolean;
 };
 
 export function normalizeSearchQuery(input: string) {
@@ -110,20 +114,27 @@ function mapResult(
   locale: Locale,
   query: string,
 ): SearchResultViewModel | null {
-  const resolved = resolveTranslation(record.translations, toDatabaseLocale(locale));
-  const score = relevance(type, query, resolved.value, record);
+  const requestedLocale = toDatabaseLocale(locale);
+  const requested = record.translations.find((translation) => translation.locale === requestedLocale);
+  const english = record.translations.find((translation) => translation.locale === "en");
+  if (!english) throw new Error("English translation is required");
+  const requestedScore = requested ? relevance(type, query, requested, record) : 0;
+  const selected = requested && requestedScore > 0 ? requested : english;
+  const score = requestedScore > 0 ? requestedScore : relevance(type, query, english, record);
   if (score === 0) return null;
   return {
     id: record.id,
     type,
-    title: resolved.value.title,
-    excerpt: excerpt(resolved.value.body),
+    title: selected.title,
+    excerpt: excerpt(selected.body),
     href: resultHref(type, record.slug, locale),
     relevance: score,
     publishedAt:
       "publishedAt" in record && record.publishedAt
         ? record.publishedAt.toISOString()
         : null,
+    translationLocale: fromDatabaseLocale(selected.locale),
+    usedFallback: selected.locale !== requestedLocale,
   };
 }
 
@@ -144,12 +155,13 @@ export function createContentSearch(database: ContentSearchDatabase) {
     const databaseLocale = toDatabaseLocale(locale);
     const escapedQuery = escapeLikePattern(query);
     const textFilter = { contains: escapedQuery, mode: "insensitive" as const };
+    const translationLocales = [...new Set<DatabaseLocale>([databaseLocale, "en"])];
     const translationWhere = {
-      locale: databaseLocale,
+      locale: { in: translationLocales },
       OR: [{ title: textFilter }, { body: textFilter }],
     };
     const translationSelect = {
-      where: { locale: { in: [...new Set<DatabaseLocale>([databaseLocale, "en"])] } },
+      where: { locale: { in: translationLocales } },
       select: { locale: true, title: true, body: true },
     };
 
@@ -191,13 +203,13 @@ export function createContentSearch(database: ContentSearchDatabase) {
           deletedAt: null,
           OR: [
             { slug: { notIn: [...LEGAL_PAGE_SLUGS] } },
-            { legalReviewStatus: "APPROVED", legalReviewedAt: { not: null } },
+            { legalReviewStatus: "APPROVED", legalReviewedAt: { not: null }, legalReviewedRevision: { not: null } },
           ],
           translations: { some: translationWhere },
         },
         orderBy: { id: "asc" },
         take: SEARCH_RESULT_LIMIT,
-        select: { id: true, slug: true, translations: translationSelect },
+        select: { id: true, slug: true, contentRevision: true, legalReviewedRevision: true, translations: translationSelect },
       }),
       database.article.findMany({
         where: {
@@ -221,7 +233,13 @@ export function createContentSearch(database: ContentSearchDatabase) {
     return [
       ...products.map((record) => mapResult("product", record, locale, query)),
       ...services.map((record) => mapResult("service", record, locale, query)),
-      ...pages.map((record) => mapResult("page", record, locale, query)),
+      ...pages
+        .filter((record) => !isLegalPageSlug(record.slug) || (
+          typeof record.contentRevision === "number" &&
+          typeof record.legalReviewedRevision === "number" &&
+          record.legalReviewedRevision === record.contentRevision
+        ))
+        .map((record) => mapResult("page", record, locale, query)),
       ...articles
         .filter((record) => record.publishedAt !== null)
         .map((record) => mapResult("article", record, locale, query)),
@@ -229,6 +247,7 @@ export function createContentSearch(database: ContentSearchDatabase) {
       .filter((result): result is SearchResultViewModel => result !== null)
       .toSorted(
         (left, right) =>
+          Number(left.usedFallback) - Number(right.usedFallback) ||
           right.relevance - left.relevance ||
           typeOrder[left.type] - typeOrder[right.type] ||
           left.title.localeCompare(right.title, locale) ||

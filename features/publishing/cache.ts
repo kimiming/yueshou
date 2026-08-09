@@ -1,9 +1,12 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 
 import type { PublishedEntityType } from "@/features/content/types";
+import { isLegalPageSlug } from "@/features/content/public-slug";
 import type { Locale } from "@/lib/i18n/config";
 
 export type { PublishedEntityType } from "@/features/content/types";
+
+export type ContentCacheEntityType = PublishedEntityType | "service";
 
 type CacheInvalidation = {
   revalidatePath(path: string, type?: "layout" | "page"): void;
@@ -15,11 +18,11 @@ const defaultCacheInvalidation: CacheInvalidation = {
   revalidateTag,
 };
 
-export function contentTags(type: PublishedEntityType, slug: string) {
+export function contentTags(type: ContentCacheEntityType, slug: string) {
   return [`${type}:${slug}`, `${type}:list`];
 }
 
-function publishedPath(type: PublishedEntityType, slug: string, locale: Locale) {
+function publishedPath(type: ContentCacheEntityType, slug: string, locale: Locale) {
   if (type === "article") {
     return `/${locale}/news/${slug}`;
   }
@@ -28,11 +31,19 @@ function publishedPath(type: PublishedEntityType, slug: string, locale: Locale) 
     return `/${locale}/products/${slug}`;
   }
 
+  if (type === "service") {
+    return `/${locale}/services/${slug}`;
+  }
+
+  if (isLegalPageSlug(slug)) {
+    return `/${locale}/legal/${slug}`;
+  }
+
   return slug === "home" ? `/${locale}` : `/${locale}/${slug}`;
 }
 
 export function invalidatePublishedEntity(
-  type: PublishedEntityType,
+  type: ContentCacheEntityType,
   slug: string,
   locales: readonly Locale[],
   cache: CacheInvalidation = defaultCacheInvalidation,
@@ -42,10 +53,28 @@ export function invalidatePublishedEntity(
     cache.revalidatePath(path);
   }
 
-  const tags = new Set([...contentTags(type, slug), "page:home"]);
+  const tags = new Set([...contentTags(type, slug), "page:home", "sitemap:content"]);
   for (const tag of tags) {
     cache.revalidateTag(tag, "max");
   }
+}
+
+export function invalidatePublishedCollection(
+  type: "article" | "product",
+  locales: readonly Locale[],
+  cache: CacheInvalidation = defaultCacheInvalidation,
+) {
+  const collection = type === "article" ? "news" : "products";
+  for (const locale of new Set(locales)) {
+    cache.revalidatePath(`/${locale}/${collection}`);
+  }
+  const tags = new Set([
+    `${type}:list`,
+    ...(type === "product" ? ["product-category:list"] : []),
+    "page:home",
+    "sitemap:content",
+  ]);
+  for (const tag of tags) cache.revalidateTag(tag, "max");
 }
 
 export function invalidateMarketingShell(

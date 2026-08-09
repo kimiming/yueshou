@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import type { MarketingLinkViewModel } from "@/components/marketing/types";
 import { SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/config";
@@ -12,9 +12,11 @@ type MobileNavigationProps = {
   items: MarketingLinkViewModel[];
   menuLabel: string;
   closeLabel: string;
+  searchAction: { label: string; href: string };
+  quoteAction: { label: string; href: string };
 };
 
-export function MobileNavigation({ label, items, menuLabel, closeLabel }: MobileNavigationProps) {
+export function MobileNavigation({ label, items, menuLabel, closeLabel, searchAction, quoteAction }: MobileNavigationProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -58,6 +60,10 @@ export function MobileNavigation({ label, items, menuLabel, closeLabel }: Mobile
       {open ? (
         <nav id={menuId} className="mobile-navigation__panel" aria-label={label}>
           {links(items)}
+          <ul className="mobile-navigation__actions">
+            <li><Link href={searchAction.href} onClick={() => setOpen(false)}>{searchAction.label}</Link></li>
+            <li><Link href={quoteAction.href} onClick={() => setOpen(false)}>{quoteAction.label}</Link></li>
+          </ul>
         </nav>
       ) : null}
     </div>
@@ -83,13 +89,22 @@ function localizedPath(pathname: string, locale: Locale) {
 
 export function LanguageSwitcher({ locale, label }: { locale: Locale; label: string }) {
   const pathname = usePathname() || `/${locale}`;
+  const searchParams = useSearchParams();
+  const [hash, setHash] = useState("");
+  useEffect(() => {
+    const readHash = () => setHash(window.location.hash);
+    readHash();
+    window.addEventListener("hashchange", readHash);
+    return () => window.removeEventListener("hashchange", readHash);
+  }, []);
+  const query = searchParams.toString();
   return (
     <nav className="language-switcher" aria-label={label}>
       <ul>
         {SUPPORTED_LOCALES.map((candidate) => (
           <li key={candidate}>
             <Link
-              href={localizedPath(pathname, candidate)}
+              href={`${localizedPath(pathname, candidate)}${query ? `?${query}` : ""}${hash}`}
               hrefLang={candidate}
               lang={candidate}
               aria-current={candidate === locale ? "page" : undefined}

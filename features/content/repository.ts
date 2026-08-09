@@ -155,6 +155,8 @@ export type SitemapContentRecord = {
   updatedAt: Date;
   legalReviewStatus?: "NOT_REQUIRED" | "PENDING" | "APPROVED";
   legalReviewedAt?: Date | null;
+  contentRevision?: number;
+  legalReviewedRevision?: number | null;
 };
 
 export type PublishedPageRecord = {
@@ -311,18 +313,25 @@ export function createContentRepository(database: ContentDatabase) {
       });
     },
 
-    findApprovedLegalPageBySlug(slug: string): Promise<PublishedPageRecord | null> {
+    async findApprovedLegalPageBySlug(slug: string): Promise<PublishedPageRecord | null> {
       if (!isLegalPageSlug(slug)) return Promise.resolve(null);
-      return database.page.findFirst({
+      const record = await database.page.findFirst({
         where: {
           slug,
           status: "PUBLISHED",
           deletedAt: null,
           legalReviewStatus: "APPROVED",
           legalReviewedAt: { not: null },
+          legalReviewedRevision: { not: null },
         },
         include: pageInclude,
       });
+      return record &&
+        typeof record.contentRevision === "number" &&
+        typeof record.legalReviewedRevision === "number" &&
+        record.legalReviewedRevision === record.contentRevision
+        ? record
+        : null;
     },
 
     async findPublishedArticleBySlug(slug: string): Promise<PublishedArticleRecord | null> {
@@ -472,7 +481,7 @@ export function createContentRepository(database: ContentDatabase) {
             deletedAt: null,
             OR: [
               { legalReviewStatus: "NOT_REQUIRED" },
-              { legalReviewStatus: "APPROVED", legalReviewedAt: { not: null } },
+              { legalReviewStatus: "APPROVED", legalReviewedAt: { not: null }, legalReviewedRevision: { not: null } },
             ],
           },
           select: {
@@ -483,6 +492,8 @@ export function createContentRepository(database: ContentDatabase) {
             updatedAt: true,
             legalReviewStatus: true,
             legalReviewedAt: true,
+            contentRevision: true,
+            legalReviewedRevision: true,
           },
         }),
         database.service.findMany({
@@ -551,12 +562,17 @@ export function createContentRepository(database: ContentDatabase) {
                 slug: true,
                 legalReviewStatus: true,
                 legalReviewedAt: true,
+                contentRevision: true,
+                legalReviewedRevision: true,
               },
             });
 
             if (
               page.legalReviewStatus !== "NOT_REQUIRED" &&
-              (page.legalReviewStatus !== "APPROVED" || page.legalReviewedAt === null)
+              (page.legalReviewStatus !== "APPROVED" ||
+                page.legalReviewedAt === null ||
+                page.legalReviewedRevision === null ||
+                page.legalReviewedRevision !== page.contentRevision)
             ) {
               throw new LegalReviewRequiredError(page.id);
             }

@@ -33,6 +33,22 @@ export interface AuthRateLimitAdapter {
   consume(input: AuthRateLimitInput): Promise<boolean>;
 }
 
+export type AuthenticationAuditOutcome = "SUCCESS" | "FAILED" | "THROTTLED";
+
+type AuthenticationAuditEvent = {
+  outcome: AuthenticationAuditOutcome;
+  actorId?: string;
+  email: string;
+  ip: string;
+  occurredAt: Date;
+};
+
+type AuthenticationAuditDatabase = {
+  auditLog: {
+    create(input: { data: { actorId: string | null; action: string; entityType: string; entityId?: string; metadata: Record<string, string> } }): Promise<unknown>;
+  };
+};
+
 export function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -42,25 +58,58 @@ function authRateLimitKey(kind: "pair" | "email" | "ip", value: string, secret: 
   return createHmac("sha256", secret).update(`auth:${kind}:${value}`).digest("hex");
 }
 
+function authenticationAuditDigest(kind: "email" | "ip", value: string, secret: string): string {
+  if (secret.length < 32) throw new Error("AUTH_SECRET must contain at least 32 characters");
+  return createHmac("sha256", secret).update(`auth-audit:${kind}:${value}`).digest("hex");
+}
+
+export async function recordAuthenticationAudit(
+  database: AuthenticationAuditDatabase,
+  input: AuthenticationAuditEvent & { secret: string },
+): Promise<void> {
+  const action = input.outcome === "SUCCESS"
+    ? "AUTH_LOGIN_SUCCEEDED"
+    : input.outcome === "THROTTLED"
+      ? "AUTH_LOGIN_THROTTLED"
+      : "AUTH_LOGIN_FAILED";
+  await database.auditLog.create({
+    data: {
+      actorId: input.actorId ?? null,
+      action,
+      entityType: "Authentication",
+      ...(input.actorId ? { entityId: input.actorId } : {}),
+      metadata: {
+        outcome: input.outcome,
+        occurredAt: input.occurredAt.toISOString(),
+        emailDigest: authenticationAuditDigest("email", normalizeEmail(input.email), input.secret),
+        ipDigest: authenticationAuditDigest("ip", input.ip.trim(), input.secret),
+      },
+    },
+  });
+}
+
 export async function applyAuthRateLimits(
   adapter: AuthRateLimitAdapter,
   input: { email: string; ip: string; now: Date; secret: string },
 ): Promise<boolean> {
   const email = normalizeEmail(input.email);
   const requests: AuthRateLimitInput[] = [
-    { key: authRateLimitKey("pair", `${input.ip}\n${email}`, input.secret), limit: 5, windowSeconds: 15 * 60, now: input.now },
-    { key: authRateLimitKey("email", email, input.secret), limit: 20, windowSeconds: 60 * 60, now: input.now },
     { key: authRateLimitKey("ip", input.ip, input.secret), limit: 50, windowSeconds: 60 * 60, now: input.now },
+    { key: authRateLimitKey("email", email, input.secret), limit: 20, windowSeconds: 60 * 60, now: input.now },
+    { key: authRateLimitKey("pair", `${input.ip}\n${email}`, input.secret), limit: 5, windowSeconds: 15 * 60, now: input.now },
   ];
 
-  const results = await Promise.all(requests.map((request) => adapter.consume(request)));
-  return results.every(Boolean);
+  for (const request of requests) {
+    if (!await adapter.consume(request)) return false;
+  }
+  return true;
 }
 
 type CredentialAuthorizerDependencies = {
   findActiveUserByEmail(email: string): Promise<CredentialUser | null>;
   verify(passwordHash: string, password: string): Promise<boolean>;
   consumeRateLimit(input: { email: string; ip: string }): Promise<boolean>;
+  auditLogin?(input: AuthenticationAuditEvent): Promise<void>;
 };
 
 export function createCredentialAuthorizer(dependencies: CredentialAuthorizerDependencies) {
@@ -73,12 +122,19 @@ export function createCredentialAuthorizer(dependencies: CredentialAuthorizerDep
     const email = normalizeEmail(credentials?.email ?? "");
     const password = credentials?.password ?? "";
     const allowed = await dependencies.consumeRateLimit({ email, ip: context.ip });
-    if (!allowed) return null;
+    if (!allowed) {
+      await dependencies.auditLogin?.({ outcome: "THROTTLED", email, ip: context.ip, occurredAt: new Date() });
+      return null;
+    }
 
     const user = await dependencies.findActiveUserByEmail(email);
     const passwordMatches = await dependencies.verify(user?.passwordHash ?? DUMMY_PASSWORD_HASH, password);
 
-    if (!user || !passwordMatches) return null;
+    if (!user || !passwordMatches) {
+      await dependencies.auditLogin?.({ outcome: "FAILED", email, ip: context.ip, occurredAt: new Date() });
+      return null;
+    }
+    await dependencies.auditLogin?.({ outcome: "SUCCESS", actorId: user.id, email, ip: context.ip, occurredAt: new Date() });
     return {
       id: user.id,
       role: user.role,
@@ -131,6 +187,11 @@ const authorizeCredentials = createCredentialAuthorizer({
     const secret = process.env.AUTH_SECRET;
     if (!secret) throw new Error("AUTH_SECRET is required");
     return applyAuthRateLimits(new PrismaInquiryRateLimitAdapter(), { email, ip, now: new Date(), secret });
+  },
+  auditLogin(input) {
+    const secret = process.env.AUTH_SECRET;
+    if (!secret) throw new Error("AUTH_SECRET is required");
+    return recordAuthenticationAudit(prisma, { ...input, secret });
   },
 });
 

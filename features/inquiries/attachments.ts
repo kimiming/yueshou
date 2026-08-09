@@ -9,8 +9,10 @@ export type InquiryUploadIntentRecord = { id: string; uploadSessionId: string; s
 export interface InquiryAttachmentRepository {
   createUploadIntent(input: Omit<InquiryUploadIntentRecord, "id" | "finalStorageKey" | "sha256" | "finalizedAt" | "consumedAt">): Promise<InquiryUploadIntentRecord>;
   findUploadIntent(storageKey: string): Promise<InquiryUploadIntentRecord | null>;
+  reserveFinalStorageKey(input: { intentId: string; uploadSessionId: string; storageKey: string; finalStorageKey: string; sha256: string; completedAt: Date }): Promise<{ id: string; finalStorageKey: string } | null>;
   finalizeUploadIntent(input: { intentId: string; uploadSessionId: string; storageKey: string; finalStorageKey: string; sha256: string; completedAt: Date }): Promise<{ id: string; finalStorageKey: string } | null>;
   queueTempObjectDeletion(storageKey: string): Promise<void>;
+  queueFinalObjectDeletion(storageKey: string): Promise<void>;
 }
 export class InquiryAttachmentError extends Error { constructor(readonly code: string) { super(code); this.name = "InquiryAttachmentError"; } }
 export class InquiryAttachmentAuthorizationError extends InquiryAttachmentError { constructor() { super("inquiry_attachment_forbidden"); } }
@@ -48,9 +50,19 @@ export async function completeInquiryAttachmentUpload(dependencies: Dependencies
   const bytes = await dependencies.storage.readPrivateObject(storageKey, MAX_INQUIRY_ATTACHMENT_BYTES);
   try { validateAttachmentBytes(upload, bytes); } catch { throw new InquiryAttachmentError("inquiry_attachment_signature"); }
   const sha256 = createHash("sha256").update(bytes).digest("hex"); const finalStorageKey = `inquiry/final/${sha256}.${intent.extension}`;
-  await dependencies.storage.putImmutableObject({ key: finalStorageKey, body: bytes, contentType: upload.type, sha256 });
+  const reserved = await dependencies.repository.reserveFinalStorageKey({ intentId: intent.id, uploadSessionId: input.binding.id, storageKey, finalStorageKey, sha256, completedAt: now });
+  if (!reserved) throw new InquiryAttachmentError("inquiry_upload_intent_conflict");
+  try {
+    await dependencies.storage.putImmutableObject({ key: finalStorageKey, body: bytes, contentType: upload.type, sha256 });
+  } catch (error) {
+    await dependencies.repository.queueFinalObjectDeletion(finalStorageKey);
+    throw error;
+  }
   const finalized = await dependencies.repository.finalizeUploadIntent({ intentId: intent.id, uploadSessionId: input.binding.id, storageKey, finalStorageKey, sha256, completedAt: now });
-  if (!finalized) throw new InquiryAttachmentError("inquiry_upload_intent_conflict");
+  if (!finalized) {
+    await dependencies.repository.queueFinalObjectDeletion(finalStorageKey);
+    throw new InquiryAttachmentError("inquiry_upload_intent_conflict");
+  }
   try { await dependencies.storage.deleteObject(storageKey); } catch { await dependencies.repository.queueTempObjectDeletion(storageKey); }
   return { token: finalized.id, storageKey: finalized.finalStorageKey, sha256 };
 }

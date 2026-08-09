@@ -2,8 +2,7 @@ import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 
-import { AnalyticsConsentBoundary } from "@/components/consent/analytics-consent-boundary";
-import { CookieConsentBanner } from "@/components/consent/cookie-consent-banner";
+import { ConsentRuntime } from "@/components/consent/analytics-consent-boundary";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { SeoJsonLd } from "@/components/marketing/seo-json-ld";
@@ -62,10 +61,9 @@ export default async function MarketingLayout({ children, params }: MarketingLay
       <SiteHeader model={shell} />
       {children}
       <SiteFooter model={shell} />
-      <CookieConsentBanner labels={dictionary.consent} initialPreferences={consentPreferences} />
-      <AnalyticsConsentBoundary preferences={consentPreferences}>
+      <ConsentRuntime labels={dictionary.consent} initialPreferences={consentPreferences}>
         <div data-analytics-enabled hidden />
-      </AnalyticsConsentBoundary>
+      </ConsentRuntime>
     </>
   );
 }

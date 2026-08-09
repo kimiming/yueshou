@@ -20,6 +20,11 @@
   "inquiryErrors": { "inquiry_error_validation": "Please correct the highlighted fields before uploading.", "inquiry_error_attachment_count": "Select no more than five files.", "inquiry_error_attachment_bytes": "Attachments must total 75 MB or less.", "inquiry_upload_session_invalid": "The secure upload session expired. Please try again.", "inquiry_attachment_upload_failed": "The attachment upload failed. Please try again." },
   "marketing": {
     "accessibility": {
+      "fallbackNotice": "This content is not available in your selected language. The English version is shown.",
+      "email": "Email",
+      "phone": "Phone",
+      "socialLinks": "Social links",
+      "productMedia": "Product media",
       "home": "YueShou home",
       "mobileNavigation": "Mobile navigation",
       "scientificWorkflow": "Scientific workflow",

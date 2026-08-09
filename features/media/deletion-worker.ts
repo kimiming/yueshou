@@ -11,23 +11,30 @@ export async function processDueMediaDeletionJobs(dependencies: {
   repository: MediaDeletionJobRepository;
   storage: Pick<ObjectStorage, "deleteObject">;
   now?: () => Date;
+  limit?: number;
 }) {
-  const now = dependencies.now?.() ?? new Date();
-  const job = await dependencies.repository.claimDue(now);
-  if (!job) return { processed: 0, failed: 0 };
-  const authorization = job.alreadyAuthorized
-    ? { authorizationToken: job.leaseToken }
-    : dependencies.repository.confirmDeletable
-    ? await dependencies.repository.confirmDeletable(job.id, job.leaseToken)
-    : { authorizationToken: job.leaseToken };
-  if (!authorization) return { processed: 0, failed: 0 };
-  try {
-    await dependencies.storage.deleteObject(job.storageKey);
-    await dependencies.repository.complete(job.id, authorization.authorizationToken, now);
-    return { processed: 1, failed: 0 };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Object deletion failed";
-    await dependencies.repository.fail(job.id, authorization.authorizationToken, message, now);
-    return { processed: 0, failed: 1 };
+  let processed = 0;
+  let failed = 0;
+  const limit = Math.max(0, Math.min(100, Math.floor(dependencies.limit ?? 1)));
+  for (let index = 0; index < limit; index += 1) {
+    const now = dependencies.now?.() ?? new Date();
+    const job = await dependencies.repository.claimDue(now);
+    if (!job) break;
+    const authorization = job.alreadyAuthorized
+      ? { authorizationToken: job.leaseToken }
+      : dependencies.repository.confirmDeletable
+      ? await dependencies.repository.confirmDeletable(job.id, job.leaseToken)
+      : { authorizationToken: job.leaseToken };
+    if (!authorization) continue;
+    try {
+      await dependencies.storage.deleteObject(job.storageKey);
+      await dependencies.repository.complete(job.id, authorization.authorizationToken, now);
+      processed += 1;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Object deletion failed";
+      await dependencies.repository.fail(job.id, authorization.authorizationToken, message, now);
+      failed += 1;
+    }
   }
+  return { processed, failed };
 }

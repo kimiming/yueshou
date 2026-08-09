@@ -132,8 +132,9 @@ export type AdminEditorRepository = {
     translations: EditorTranslation[];
     sections: Array<{ id: string; isEnabled: boolean; type: string; config: unknown; translations: EditorTranslation[] }>;
   } | null>;
-  savePage(input: z.infer<typeof pageInputSchema> & { audit?: AuditStamp }): Promise<{ id: string; slug: string; version: string } | null>;
+  savePage(input: z.infer<typeof pageInputSchema> & { audit?: AuditStamp }): Promise<{ id: string; slug: string; version: string; contentRevision?: number } | null>;
   savePageAndChangeStatus?(input: z.infer<typeof pageInputSchema> & { status: "DRAFT" | "PUBLISHED" | "ARCHIVED"; audit?: AuditStamp; statusAudit?: AuditStamp }): Promise<{ id: string; slug: string; publishedAt: Date | null; version: string } | null>;
+  approveLegalPage?(input: { pageId: string; version: string; expectedRevision: number; actorId: string; audit?: AuditStamp }): Promise<{ id: string; slug: string; version: string; contentRevision: number; legalReviewedRevision: number } | null>;
   savePageSection(input: z.output<typeof pageSectionInputSchema> & { audit?: AuditStamp }): Promise<{ id: string; version: string } | null>;
   reorderPageSections(input: { pageId: string; orderedIds: string[]; audit?: AuditStamp }): Promise<void>;
   changePageStatus(input: { pageId: string; version: string; status: "DRAFT" | "PUBLISHED" | "ARCHIVED"; audit?: AuditStamp }): Promise<{
@@ -290,6 +291,31 @@ export function createAdminEditorService(dependencies: {
       }
       if (status === "PUBLISHED") invalidate("page", result.slug);
       return { ...result, status };
+    },
+
+    async approveLegalPage(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
+      requireAdmin(input.actor);
+      const payload = z.object({
+        pageId: z.string().min(1),
+        version: z.string().datetime(),
+        contentRevision: z.number().int().positive(),
+      }).parse(input);
+      if (!repository.approveLegalPage) throw new EditorValidationError("Legal approval is not available");
+      const result = await repository.approveLegalPage({
+        pageId: payload.pageId,
+        version: payload.version,
+        expectedRevision: payload.contentRevision,
+        actorId: input.actor.id,
+        audit: {
+          actorId: input.actor.id,
+          action: "LEGAL_PAGE_APPROVED",
+          entityType: "Page",
+          metadata: { contentRevision: payload.contentRevision },
+        },
+      });
+      if (!result) throw new EditorConflictError();
+      if (!repository.auditsMutations) await audit(repository, input.actor, "LEGAL_PAGE_APPROVED", "Page", result.id, { contentRevision: result.contentRevision });
+      return result;
     },
 
     publishPage(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {

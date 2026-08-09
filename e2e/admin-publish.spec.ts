@@ -30,7 +30,7 @@ test.describe("admin publication release journeys", () => {
     await signInAsConfiguredAdmin(page);
     await page.goto("/admin/settings");
     await expect(page.getByRole("heading", { name: "Site settings" })).toBeVisible();
-    await expect(page.getByLabel("Logo media ID")).toBeVisible();
+    await expect(page.getByTestId("logo-media-picker").getByRole("button", { name: /^logo\.png/ })).toBeVisible();
     await expect(page.getByLabel("Email")).toBeVisible();
   });
 
@@ -55,7 +55,7 @@ test.describe("admin publication release journeys", () => {
 
     await signInAsConfiguredAdmin(page);
     await page.goto("/admin/settings");
-    await page.getByLabel("Logo media ID").fill(e2eMutationFixture.logoMediaId!);
+    await page.getByTestId("logo-media-picker").getByRole("button", { name: /^logo\.png/ }).click();
     await page.getByLabel("Slogan").fill(slogan);
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Phone").fill(phone);
@@ -66,7 +66,7 @@ test.describe("admin publication release journeys", () => {
 
     await page.goto(`/admin/pages/${e2eMutationFixture.homePageId}`);
     const heroEditor = page.locator(".ant-card").filter({ hasText: "Edit HERO" });
-    await heroEditor.getByLabel("Media ID").fill(e2eMutationFixture.heroMediaId!);
+    await heroEditor.getByRole("button", { name: /^hero\.png/ }).click();
     await heroEditor.getByRole("button", { name: "Save section" }).click();
     await expect(heroEditor.getByRole("status")).toHaveText("Section saved");
 

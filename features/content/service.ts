@@ -533,20 +533,76 @@ export function createContentService(repository: ContentRepository) {
 
 const contentService = createContentService(contentRepository);
 
-export const getHomePage = contentService.getHomePage;
+function cachedContent<T>(keyParts: string[], tags: string[], load: () => Promise<T>) {
+  return unstable_cache(load, keyParts, { tags })();
+}
+
+export const getHomePage = cache((locale: string) => cachedContent(
+  ["content", "page", "home", locale],
+  ["page:home", "service:list", "product-category:list", "article:list", "homepage-item:list", "media:global"],
+  () => contentService.getHomePage(locale),
+));
 const getCachedMarketingShell = unstable_cache(
   async (locale: string) => contentService.getMarketingShell(locale),
   ["marketing-shell"],
   { tags: ["site:global", "media:global"] },
 );
 export const getMarketingShell = cache(getCachedMarketingShell);
-export const getPageBySlug = contentService.getPageBySlug;
-export const getApprovedLegalPageBySlug = contentService.getApprovedLegalPageBySlug;
-export const getPublishedArticle = contentService.getPublishedArticle;
-export const getPublishedProduct = contentService.getPublishedProduct;
-export const getPublishedService = contentService.getPublishedService;
-export const getPublishedServices = contentService.getPublishedServices;
-export const getPublishedProducts = contentService.getPublishedProducts;
-export const getProductCatalog = contentService.getProductCatalog;
-export const getPublishedArticles = contentService.getPublishedArticles;
-export const getSitemapContent = contentService.getSitemapContent;
+export const getPageBySlug = cache((locale: string, slug: string) => cachedContent(
+  ["content", "page", slug, locale],
+  [`page:${slug}`, "page:list"],
+  () => contentService.getPageBySlug(locale, slug),
+));
+export const getApprovedLegalPageBySlug = cache((locale: string, slug: string) => cachedContent(
+  ["content", "legal", slug, locale],
+  [`page:${slug}`, "page:list"],
+  () => contentService.getApprovedLegalPageBySlug(locale, slug),
+));
+export const getPublishedArticle = cache((locale: string, slug: string) => cachedContent(
+  ["content", "article", slug, locale],
+  [`article:${slug}`, "article:list", "media:global"],
+  () => contentService.getPublishedArticle(locale, slug),
+));
+export const getPublishedProduct = cache((locale: string, slug: string) => cachedContent(
+  ["content", "product", slug, locale],
+  [`product:${slug}`, "product:list", "media:global"],
+  () => contentService.getPublishedProduct(locale, slug),
+));
+export const getPublishedService = cache((locale: string, slug: string) => cachedContent(
+  ["content", "service", slug, locale],
+  [`service:${slug}`, "service:list"],
+  () => contentService.getPublishedService(locale, slug),
+));
+export const getPublishedServices = cache((locale: string) => cachedContent(
+  ["content", "service-list", locale],
+  ["service:list"],
+  () => contentService.getPublishedServices(locale),
+));
+export const getPublishedProducts = cache((locale: string) => cachedContent(
+  ["content", "product-list", locale],
+  ["product:list", "media:global"],
+  () => contentService.getPublishedProducts(locale),
+));
+export const getProductCatalog = cache((
+  locale: string,
+  filters: { query?: string; category?: string; page?: string | number } = {},
+) => {
+  const query = normalizeSearchQuery(filters.query ?? "").toLocaleLowerCase("en");
+  const category = filters.category && isPublicContentSlug(filters.category) ? filters.category : "";
+  const page = String(normalizeRequestedPage(filters.page));
+  return cachedContent(
+    ["content", "product-catalog", locale, query, category, page],
+    ["product:list", "product-category:list", "media:global"],
+    () => contentService.getProductCatalog(locale, filters),
+  );
+});
+export const getPublishedArticles = cache((locale: string) => cachedContent(
+  ["content", "article-list", locale],
+  ["article:list", "media:global"],
+  () => contentService.getPublishedArticles(locale),
+));
+export const getSitemapContent = cache(() => cachedContent(
+  ["content", "sitemap"],
+  ["sitemap:content"],
+  () => contentService.getSitemapContent(),
+));

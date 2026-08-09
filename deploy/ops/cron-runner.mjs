@@ -19,3 +19,4 @@ async function invoke(path) {
 
 await invoke("/api/internal/publish-scheduled");
 await invoke("/api/internal/media-deletion-jobs");
+await invoke("/api/internal/storage-maintenance");

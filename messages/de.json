@@ -20,6 +20,11 @@
   "inquiryErrors": { "inquiry_error_validation": "Korrigieren Sie die markierten Felder vor dem Upload.", "inquiry_error_attachment_count": "Wählen Sie höchstens fünf Dateien.", "inquiry_error_attachment_bytes": "Anhänge dürfen insgesamt höchstens 75 MB groß sein.", "inquiry_upload_session_invalid": "Die sichere Upload-Sitzung ist abgelaufen.", "inquiry_attachment_upload_failed": "Der Anhang konnte nicht hochgeladen werden." },
   "marketing": {
     "accessibility": {
+      "fallbackNotice": "Dieser Inhalt ist in der gewählten Sprache nicht verfügbar. Die englische Version wird angezeigt.",
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "socialLinks": "Soziale Links",
+      "productMedia": "Produktmedien",
       "home": "YueShou Startseite",
       "mobileNavigation": "Mobile Navigation",
       "scientificWorkflow": "Wissenschaftlicher Arbeitsablauf",

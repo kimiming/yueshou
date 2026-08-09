@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import type { MediaReferences, MediaRepository } from "./service";
 import type { MediaDeletionJobRepository } from "./deletion-worker";
+import { queueStorageDeletionJob } from "@/features/storage-cleanup/repository";
 
 function jsonContainsMediaId(value: unknown, mediaId: string): boolean {
   if (value === mediaId) return true;
@@ -11,6 +12,14 @@ function jsonContainsMediaId(value: unknown, mediaId: string): boolean {
     return Object.values(value).some((item) => jsonContainsMediaId(item, mediaId));
   }
   return false;
+}
+
+function safeDeletionFailureMessage(message: string): string {
+  return message
+    .replace(/https?:\/\/\S+/gi, "[url]")
+    .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, "[email]")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .slice(0, 500) || "storage_delete_failed";
 }
 
 export const prismaMediaRepository: MediaRepository = {
@@ -52,7 +61,8 @@ export const prismaMediaRepository: MediaRepository = {
         where: {
           id: input.intentId,
           actorId: input.actorId,
-          storageKey: input.storageKey,
+          storageKey: input.pendingStorageKey,
+          finalStorageKey: input.storageKey,
           consumedAt: null,
           expiresAt: { gt: input.completedAt },
         },
@@ -66,8 +76,20 @@ export const prismaMediaRepository: MediaRepository = {
           filename: input.filename,
           mimeType: input.mimeType,
           sizeBytes: input.sizeBytes,
+          width: input.width,
+          height: input.height,
         },
       });
+    });
+  },
+
+  async queueUploadObjectDeletion(input) {
+    await queueStorageDeletionJob({
+      storageKey: input.storageKey,
+      kind: input.kind,
+      sourceType: "MediaUploadIntent",
+      sourceId: input.sourceId,
+      notBefore: new Date(),
     });
   },
 
@@ -153,9 +175,32 @@ export const prismaMediaDeletionJobRepository: MediaDeletionJobRepository = {
         return null;
       }
       const authorized = await tx.mediaDeletionJob.updateMany({ where: { id, status: "PROCESSING", leaseToken, deleteAfter: job.deleteAfter, leaseUntil: job.leaseUntil }, data: { status: "DELETING" } });
-      return authorized.count === 1 ? { authorizationToken: leaseToken } : null;
+      if (authorized.count !== 1) return null;
+      await tx.auditLog.create({ data: { action: "MEDIA_DELETION_AUTHORIZED", entityType: "MediaAsset", entityId: job.mediaAssetId, metadata: { jobId: id } } });
+      return { authorizationToken: leaseToken };
     });
   },
-  async complete(id, leaseToken, completedAt) { await prisma.mediaDeletionJob.updateMany({ where: { id, status: "DELETING", leaseToken }, data: { status: "COMPLETED", completedAt, leaseUntil: null, leaseToken: null, lastError: null } }); },
-  async fail(id, leaseToken, message, failedAt) { await prisma.mediaDeletionJob.updateMany({ where: { id, status: "DELETING", leaseToken }, data: { status: "FAILED", lastError: message.slice(0, 1_000), leaseUntil: new Date(failedAt.getTime() + 60_000), leaseToken: null } }); },
+  async complete(id, leaseToken, completedAt) {
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.mediaDeletionJob.updateMany({ where: { id, status: "DELETING", leaseToken }, data: { status: "COMPLETED", completedAt, leaseUntil: null, leaseToken: null, lastError: null } });
+      if (changed.count === 1) await tx.auditLog.create({ data: { action: "MEDIA_DELETION_COMPLETED", entityType: "MediaDeletionJob", entityId: id } });
+    });
+  },
+  async fail(id, leaseToken, message, failedAt) {
+    await prisma.$transaction(async (tx) => {
+      const job = await tx.mediaDeletionJob.findFirst({ where: { id, status: "DELETING", leaseToken }, select: { mediaAssetId: true, attempts: true, maxAttempts: true } });
+      if (!job) return;
+      const terminal = job.attempts >= job.maxAttempts;
+      const retryAt = new Date(failedAt.getTime() + Math.min(86_400_000, 60_000 * (2 ** Math.max(0, job.attempts - 1))));
+      const changed = await tx.mediaDeletionJob.updateMany({
+        where: { id, status: "DELETING", leaseToken },
+        data: terminal
+          ? { status: "DEAD_LETTER", lastError: safeDeletionFailureMessage(message), deadLetterAt: failedAt, leaseUntil: null, leaseToken: null }
+          : { status: "FAILED", lastError: safeDeletionFailureMessage(message), leaseUntil: retryAt, leaseToken: null },
+      });
+      if (changed.count === 1) {
+        await tx.auditLog.create({ data: { action: terminal ? "MEDIA_DELETION_DEAD_LETTERED" : "MEDIA_DELETION_RETRY_SCHEDULED", entityType: "MediaAsset", entityId: job.mediaAssetId, metadata: { jobId: id, attempts: job.attempts } } });
+      }
+    });
+  },
 };

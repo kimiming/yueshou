@@ -17,13 +17,14 @@ afterEach(() => vi.restoreAllMocks());
 describe("media deletion authorization protocol", () => {
   it("authorizes external deletion only through an exact PROCESSING lease-and-schedule CAS", async () => {
     const updateMany = vi.fn(async () => ({ count: 1 }));
+    const auditCreate = vi.fn(async () => undefined);
     const tx = {
       mediaDeletionJob: { findFirst: vi.fn(async () => ({ mediaAssetId: "media-1", deleteAfter, leaseUntil })), updateMany },
       product: { count: vi.fn(async () => 0) },
       article: { count: vi.fn(async () => 0) },
       pageSection: { findMany: vi.fn(async () => []) },
       siteSetting: { findMany: vi.fn(async () => []) },
-      auditLog: { create: vi.fn(async () => undefined) },
+      auditLog: { create: auditCreate },
     };
     withTransaction(tx);
 
@@ -32,6 +33,62 @@ describe("media deletion authorization protocol", () => {
       where: { id: "job-1", status: "PROCESSING", leaseToken: "lease-1", deleteAfter, leaseUntil },
       data: { status: "DELETING" },
     }));
+    expect(auditCreate).toHaveBeenCalledWith({ data: {
+      action: "MEDIA_DELETION_AUTHORIZED",
+      entityType: "MediaAsset",
+      entityId: "media-1",
+      metadata: { jobId: "job-1" },
+    } });
+  });
+
+  it("audits completion only when the exact authorized deletion CAS wins", async () => {
+    const updateMany = vi.fn(async () => ({ count: 1 }));
+    const auditCreate = vi.fn(async () => undefined);
+    withTransaction({ mediaDeletionJob: { updateMany }, auditLog: { create: auditCreate } });
+
+    await prismaMediaDeletionJobRepository.complete("job-1", "lease-1", deleteAfter);
+
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: "job-1", status: "DELETING", leaseToken: "lease-1" },
+    }));
+    expect(auditCreate).toHaveBeenCalledWith({ data: {
+      action: "MEDIA_DELETION_COMPLETED",
+      entityType: "MediaDeletionJob",
+      entityId: "job-1",
+    } });
+  });
+
+  it("sanitizes provider failures and audits retry transitions without leaking the error", async () => {
+    const updateMany = vi.fn(async (input: unknown) => {
+      void input;
+      return { count: 1 };
+    });
+    const auditCreate = vi.fn(async () => undefined);
+    withTransaction({
+      mediaDeletionJob: {
+        findFirst: vi.fn(async () => ({ mediaAssetId: "media-1", attempts: 1, maxAttempts: 8 })),
+        updateMany,
+      },
+      auditLog: { create: auditCreate },
+    });
+
+    await prismaMediaDeletionJobRepository.fail(
+      "job-1",
+      "lease-1",
+      "https://provider.invalid/private?token=secret admin@example.com\nfailed",
+      deleteAfter,
+    );
+
+    const update = updateMany.mock.calls[0]?.[0];
+    expect(JSON.stringify(update)).not.toContain("provider.invalid");
+    expect(JSON.stringify(update)).not.toContain("admin@example.com");
+    expect(auditCreate).toHaveBeenCalledWith({ data: {
+      action: "MEDIA_DELETION_RETRY_SCHEDULED",
+      entityType: "MediaAsset",
+      entityId: "media-1",
+      metadata: { jobId: "job-1", attempts: 1 },
+    } });
+    expect(JSON.stringify(auditCreate.mock.calls)).not.toContain("provider.invalid");
   });
 
   it("refuses a stale authorization when the observed deletion schedule no longer matches", async () => {
@@ -110,12 +167,18 @@ describe("media deletion authorization protocol", () => {
   });
 
   it("makes stale completion and failure tokens no-ops after authorization is reclaimed", async () => {
-    const updateMany = vi.spyOn(prisma.mediaDeletionJob, "updateMany").mockResolvedValue({ count: 0 } as never);
+    const findFailureJob = vi.fn(async () => null);
+    const updateMany = vi.fn(async () => ({ count: 0 }));
+    withTransaction({
+      mediaDeletionJob: { findFirst: findFailureJob, updateMany },
+      auditLog: { create: vi.fn(async () => undefined) },
+    });
 
     await prismaMediaDeletionJobRepository.complete("job-1", "old-token", new Date("2026-09-07T00:10:00.000Z"));
     await prismaMediaDeletionJobRepository.fail("job-1", "old-token", "late worker", new Date("2026-09-07T00:10:00.000Z"));
 
-    expect(updateMany).toHaveBeenNthCalledWith(1, expect.objectContaining({ where: { id: "job-1", status: "DELETING", leaseToken: "old-token" } }));
-    expect(updateMany).toHaveBeenNthCalledWith(2, expect.objectContaining({ where: { id: "job-1", status: "DELETING", leaseToken: "old-token" } }));
+    expect(updateMany).toHaveBeenCalledOnce();
+    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "job-1", status: "DELETING", leaseToken: "old-token" } }));
+    expect(findFailureJob).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "job-1", status: "DELETING", leaseToken: "old-token" } }));
   });
 });

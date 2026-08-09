@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
+import { ContentLanguageFallbackNotice } from "@/components/marketing/content-language-fallback";
 import { RichContent } from "@/components/marketing/rich-content";
 import { SeoJsonLd } from "@/components/marketing/seo-json-ld";
 import { getPublishedService } from "@/features/content/service";
@@ -10,7 +11,7 @@ import { isPublicContentSlug } from "@/features/content/public-slug";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "auto";
 
 type ServicePageProps = {
   params: Promise<{ locale: string; slug: string }>;
@@ -21,7 +22,7 @@ export async function generateMetadata({ params }: ServicePageProps) {
   if (!isLocale(locale) || !isPublicContentSlug(slug)) notFound();
   const service = await getPublishedService(locale, slug);
   if (!service) notFound();
-  return buildMetadata({ locale, path: `/services/${slug}`, title: service.title });
+  return buildMetadata({ locale, contentLocale: service.translationLocale, path: `/services/${slug}`, title: service.title });
 }
 
 export default async function ServicePage({ params }: ServicePageProps) {
@@ -39,7 +40,8 @@ export default async function ServicePage({ params }: ServicePageProps) {
         { label: dictionary.navigation.services },
         { label: service.title },
       ]} />
-      <article>
+      <article lang={service.translationLocale}>
+        <ContentLanguageFallbackNotice usedFallback={service.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
         <h1>{service.title}</h1>
         <RichContent html={service.body} />
       </article>

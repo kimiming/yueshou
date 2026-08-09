@@ -193,6 +193,7 @@ describe("content service", () => {
         deletedAt: null;
         legalReviewStatus: string;
         legalReviewedAt: { not: null };
+        legalReviewedRevision: { not: null };
       };
     }) => {
       if (
@@ -213,6 +214,7 @@ describe("content service", () => {
         deletedAt: null,
         legalReviewStatus: "APPROVED",
         legalReviewedAt: { not: null },
+        legalReviewedRevision: { not: null },
       },
     }));
   });

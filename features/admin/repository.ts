@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 
 import { archiveMediaAsset } from "@/features/media/service";
 import { prismaMediaRepository } from "@/features/media/repository";
+import { isLegalPageSlug } from "@/features/content/public-slug";
 import { prisma } from "@/lib/db/prisma";
 import { toDatabaseLocale } from "@/lib/i18n/config";
 
@@ -9,6 +10,7 @@ import type { AdminDashboardRepository } from "./dashboard";
 import { EditorValidationError, type AdminEditorRepository } from "./editors";
 import { validatePagePublication } from "./publication";
 import { assertExactLiveSet } from "./ordering";
+import { validateSectionReferences } from "./section-references";
 
 const requiredLocales = new Set(["en", "zh_CN", "de", "fr", "es"]);
 
@@ -262,10 +264,11 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
     return prisma.$transaction(async (tx) => {
       if (!input.id) {
         try {
-          const created = await tx.page.create({ data: { slug: input.slug } });
+          const created = await tx.page.create({ data: { slug: input.slug, legalReviewStatus: isLegalPageSlug(input.slug) ? "PENDING" : "NOT_REQUIRED" } });
           await replaceTranslations(tx, "page", created.id, input.translations);
+          const record = await tx.page.findUniqueOrThrow({ where: { id: created.id }, select: { id: true, slug: true, updatedAt: true, contentRevision: true } });
           await writeAudit(tx, input.audit, created.id);
-          return { id: created.id, slug: created.slug, version: version(created.updatedAt) };
+          return { id: record.id, slug: record.slug, version: version(record.updatedAt), contentRevision: record.contentRevision };
         } catch (error) {
           if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error);
           throw error;
@@ -273,14 +276,15 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
       }
       const updated = await tx.page.updateMany({ where: { id: input.id, updatedAt: new Date(input.version ?? ""), deletedAt: null }, data: { slug: input.slug } });
       if (updated.count !== 1) return null;
-      const record = await tx.page.findUniqueOrThrow({ where: { id: input.id }, select: { id: true, slug: true, status: true, updatedAt: true } });
-      await replaceTranslations(tx, "page", record.id, input.translations);
-      if (record.status === "PUBLISHED") {
-        const publication = await tx.page.findUniqueOrThrow({ where: { id: record.id }, select: { translations: { select: { locale: true, title: true, body: true } }, sections: { where: { deletedAt: null }, select: { id: true, isEnabled: true, type: true, config: true, translations: { select: { locale: true, title: true, body: true } } } } } });
+      const current = await tx.page.findUniqueOrThrow({ where: { id: input.id }, select: { id: true, status: true } });
+      await replaceTranslations(tx, "page", current.id, input.translations);
+      if (current.status === "PUBLISHED") {
+        const publication = await tx.page.findUniqueOrThrow({ where: { id: current.id }, select: { translations: { select: { locale: true, title: true, body: true } }, sections: { where: { deletedAt: null }, select: { id: true, isEnabled: true, type: true, config: true, translations: { select: { locale: true, title: true, body: true } } } } } });
         validatePagePublication(publicationRecord(publication));
       }
+      const record = await tx.page.findUniqueOrThrow({ where: { id: current.id }, select: { id: true, slug: true, updatedAt: true, contentRevision: true } });
       await writeAudit(tx, input.audit, record.id);
-      return { id: record.id, slug: record.slug, version: version(record.updatedAt) };
+      return { id: record.id, slug: record.slug, version: version(record.updatedAt), contentRevision: record.contentRevision };
     }, { isolationLevel: "Serializable" }).catch((error) => {
       if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error);
       throw error;
@@ -304,11 +308,69 @@ export const prismaAdminEditorRepository: AdminEditorRepository = {
     }, { isolationLevel: "Serializable" }).catch((error) => { if (isUniqueConstraintError(error)) throw uniqueConstraintConflict(error); throw error; });
   },
 
+  async approveLegalPage({ pageId, version: expectedVersion, expectedRevision, actorId, audit }) {
+    const reviewedAt = new Date();
+    return prisma.$transaction(async (tx) => {
+      const current = await tx.page.findFirst({
+        where: {
+          id: pageId,
+          updatedAt: new Date(expectedVersion),
+          contentRevision: expectedRevision,
+          status: "DRAFT",
+          legalReviewStatus: "PENDING",
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          slug: true,
+          translations: { select: { locale: true, title: true, body: true } },
+          sections: { where: { deletedAt: null }, select: { id: true, isEnabled: true, type: true, config: true, translations: { select: { locale: true, title: true, body: true } } } },
+        },
+      });
+      if (!current) return null;
+      validatePagePublication(publicationRecord(current));
+      const approved = await tx.page.updateMany({
+        where: {
+          id: pageId,
+          updatedAt: new Date(expectedVersion),
+          contentRevision: expectedRevision,
+          status: "DRAFT",
+          legalReviewStatus: "PENDING",
+          deletedAt: null,
+        },
+        data: {
+          legalReviewStatus: "APPROVED",
+          legalReviewedAt: reviewedAt,
+          legalReviewedRevision: expectedRevision,
+          legalReviewedById: actorId,
+        },
+      });
+      if (approved.count !== 1) return null;
+      const record = await tx.page.findUniqueOrThrow({
+        where: { id: pageId },
+        select: { id: true, slug: true, updatedAt: true, contentRevision: true, legalReviewedRevision: true },
+      });
+      await writeAudit(tx, audit, pageId);
+      return {
+        id: record.id,
+        slug: record.slug,
+        version: version(record.updatedAt),
+        contentRevision: record.contentRevision,
+        legalReviewedRevision: record.legalReviewedRevision!,
+      };
+    }, { isolationLevel: "Serializable" });
+  },
+
   async savePageSection(input) {
     return prisma.$transaction(async (tx) => {
       await assertUsableReferencedMedia(tx, sectionMediaIds(input.section.config));
       const page = await tx.page.findUnique({ where: { id: input.pageId }, select: { status: true, deletedAt: true } });
       if (!page || page.deletedAt) return null;
+      await validateSectionReferences({
+        countServices: (ids, requirePublished) => tx.service.count({ where: { id: { in: ids }, deletedAt: null, status: requirePublished ? "PUBLISHED" : { not: "ARCHIVED" } } }),
+        countProductCategories: (ids, requirePublished) => tx.productCategory.count({ where: { id: { in: ids }, deletedAt: null, status: requirePublished ? "PUBLISHED" : { not: "ARCHIVED" } } }),
+        countHomepageItems: (ids, requirePublished) => tx.siteSetting.count({ where: { id: { in: ids }, key: { not: "brand" }, deletedAt: null, status: requirePublished ? "PUBLISHED" : { not: "ARCHIVED" } } }),
+      }, input.section.config, page.status === "PUBLISHED");
       if (page.status === "PUBLISHED" && input.isEnabled && !hasEnglishTranslation(input.translations)) {
         throw new EditorValidationError("English translation is required before enabling a published page section");
       }

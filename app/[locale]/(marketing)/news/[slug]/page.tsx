@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
+import { ContentLanguageFallbackNotice } from "@/components/marketing/content-language-fallback";
 import { RichContent } from "@/components/marketing/rich-content";
 import { SeoJsonLd } from "@/components/marketing/seo-json-ld";
 import { getPublishedArticle } from "@/features/content/service";
@@ -12,7 +13,7 @@ import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { publicMediaUrl } from "@/features/media/public-url";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "auto";
 
 type NewsArticlePageProps = {
   params: Promise<{ locale: string; slug: string }>;
@@ -25,6 +26,7 @@ export async function generateMetadata({ params }: NewsArticlePageProps) {
   if (!article) notFound();
   return buildMetadata({
     locale,
+    contentLocale: article.translationLocale,
     path: `/news/${slug}`,
     title: article.title,
     description: article.excerpt,
@@ -48,7 +50,8 @@ export default async function NewsArticlePage({ params }: NewsArticlePageProps) 
         { label: dictionary.marketing.public.news, href: `/${locale}/news` },
         { label: article.title },
       ]} />
-      <article>
+      <article lang={article.translationLocale}>
+        <ContentLanguageFallbackNotice usedFallback={article.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
         <p>{article.category.title}</p>
         <h1>{article.title}</h1>
         {article.publishedAt ? <time dateTime={article.publishedAt}>{new Intl.DateTimeFormat(locale).format(new Date(article.publishedAt))}</time> : null}

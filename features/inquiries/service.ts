@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 
-import { inquirySchema, INQUIRY_POLICY_VERSION } from "./schemas";
+import { inquirySchema, INQUIRY_POLICY_VERSION, type InquiryInput } from "./schemas";
 import { applyInquiryRateLimits, InquiryRateLimitError, type RateLimitAdapter } from "./rate-limit";
 import { uploadDigest } from "./upload-session";
 
@@ -19,12 +19,18 @@ export interface InquiryRepository {
   createInquiryWithConsent(input: InquiryWrite): Promise<{ id: string }>;
 }
 
-type SafeFields = Partial<Record<"company" | "contact" | "email" | "country" | "details", string>>;
+export type SafeFields = Partial<Record<"company" | "contact" | "email" | "country" | "details", string>>;
+
+export type InquiryValidationState = {
+  status: "validation_error";
+  fieldErrors: Record<string, string[]>;
+  fields: SafeFields;
+};
 
 export type InquiryActionState =
   | undefined
   | { status: "success"; inquiryId: string; fields: Record<string, never> }
-  | { status: "validation_error"; fieldErrors: Record<string, string[]>; fields: SafeFields }
+  | InquiryValidationState
   | { status: "rate_limited" | "service_error"; messageCode: string; fields: SafeFields };
 
 type SubmitDependencies = {
@@ -51,6 +57,21 @@ function safeFields(formData: FormData): SafeFields {
   };
 }
 
+export function validateInquiryFormData(formData: FormData):
+  | { success: true; data: InquiryInput; fields: SafeFields }
+  | { success: false; state: InquiryValidationState } {
+  const fields = safeFields(formData);
+  const result = inquirySchema.safeParse({ ...fields, gdprConsent: readString(formData, "gdprConsent") });
+  if (result.success) return { success: true, data: result.data, fields };
+  const fieldErrors = Object.fromEntries(
+    Object.keys(result.error.flatten().fieldErrors).map((key) => [
+      key,
+      [`inquiry_error_${key === "email" ? "email" : "required"}`],
+    ]),
+  );
+  return { success: false, state: { status: "validation_error", fieldErrors, fields } };
+}
+
 function evidenceKey(secret: string, namespace: string, value: string): string {
   return createHmac("sha256", secret).update(`${namespace}:${value}`).digest("hex");
 }
@@ -60,12 +81,9 @@ export function createSubmitInquiry(dependencies: SubmitDependencies) {
     _previousState: InquiryActionState,
     formData: FormData,
   ): Promise<Exclude<InquiryActionState, undefined>> {
-    const fields = safeFields(formData);
-    const result = inquirySchema.safeParse({ ...fields, gdprConsent: readString(formData, "gdprConsent") });
-    if (!result.success) {
-      const fieldErrors = Object.fromEntries(Object.keys(result.error.flatten().fieldErrors).map((key) => [key, [`inquiry_error_${key === "email" ? "email" : "required"}`]]));
-      return { status: "validation_error", fieldErrors, fields };
-    }
+    const validation = validateInquiryFormData(formData);
+    if (!validation.success) return validation.state;
+    const { data: parsedInquiry, fields } = validation;
 
     const now = dependencies.now?.() ?? new Date();
     try {
@@ -77,22 +95,22 @@ export function createSubmitInquiry(dependencies: SubmitDependencies) {
         let intentIds: string[];
         try { intentIds = JSON.parse(attachmentTokensValue || "[]"); } catch { return { status: "validation_error", fieldErrors: { attachments: ["inquiry_error_attachment"] }, fields }; }
         if (!Array.isArray(intentIds) || intentIds.length > 5 || intentIds.some((token) => typeof token !== "string" || !token)) return { status: "validation_error", fieldErrors: { attachments: ["inquiry_error_attachment"] }, fields };
-        attachmentClaim = { intentIds, sessionId, secretDigest: uploadDigest(dependencies.secret, "capability", sessionSecret), emailDigest: uploadDigest(dependencies.secret, "email", result.data.email), claimedAt: now };
+        attachmentClaim = { intentIds, sessionId, secretDigest: uploadDigest(dependencies.secret, "capability", sessionSecret), emailDigest: uploadDigest(dependencies.secret, "email", parsedInquiry.email), claimedAt: now };
       } else if (dependencies.requirePreparedSession) {
         return { status: "validation_error", fieldErrors: { attachments: ["inquiry_upload_session_invalid"] }, fields };
       } else {
-        await applyInquiryRateLimits(dependencies.rateLimit, { ip: request.ip, email: result.data.email, now, secret: dependencies.secret });
+        await applyInquiryRateLimits(dependencies.rateLimit, { ip: request.ip, email: parsedInquiry.email, now, secret: dependencies.secret });
       }
       const record = await dependencies.repository.createInquiryWithConsent({
         inquiry: {
-          companyName: result.data.company,
-          contactName: result.data.contact,
-          email: result.data.email,
-          country: result.data.country,
-          message: result.data.details,
+          companyName: parsedInquiry.company,
+          contactName: parsedInquiry.contact,
+          email: parsedInquiry.email,
+          country: parsedInquiry.country,
+          message: parsedInquiry.details,
         },
         consent: {
-          subject: result.data.email,
+          subject: parsedInquiry.email,
           categories: { inquiry: true },
           policyVersion: INQUIRY_POLICY_VERSION,
           evidence: {

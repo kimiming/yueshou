@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
+import { ContentLanguageFallbackNotice } from "@/components/marketing/content-language-fallback";
 import { RichContent } from "@/components/marketing/rich-content";
 import { SeoJsonLd } from "@/components/marketing/seo-json-ld";
 import { getPublishedProduct } from "@/features/content/service";
@@ -12,7 +13,7 @@ import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { publicMediaUrl } from "@/features/media/public-url";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "auto";
 
 type ProductPageProps = {
   params: Promise<{ locale: string; slug: string }>;
@@ -23,7 +24,7 @@ export async function generateMetadata({ params }: ProductPageProps) {
   if (!isLocale(locale) || !isPublicContentSlug(slug)) notFound();
   const product = await getPublishedProduct(locale, slug);
   if (!product) notFound();
-  return buildMetadata({ locale, path: `/products/${slug}`, title: product.title });
+  return buildMetadata({ locale, contentLocale: product.translationLocale, path: `/products/${slug}`, title: product.title });
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
@@ -49,7 +50,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
         { label: dictionary.navigation.products, href: `/${locale}/products` },
         { label: product.title },
       ]} />
-      <article>
+      <article lang={product.translationLocale}>
+        <ContentLanguageFallbackNotice usedFallback={product.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
         <p>{product.category.title}</p>
         <h1>{product.title}</h1>
         {(product.casNumber || product.sequence) ? (
@@ -58,7 +60,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {product.sequence ? <div><dt>{dictionary.marketing.public.sequence}</dt><dd>{product.sequence}</dd></div> : null}
           </dl>
         ) : null}
-        {product.media.length ? <ul aria-label="Product media">{product.media.map((media) => <li key={media.id}><Image src={publicMediaUrl(media.id)} alt={media.alt} width={media.width ?? 1200} height={media.height ?? 675} /></li>)}</ul> : null}
+        {product.media.length ? <ul aria-label={dictionary.marketing.accessibility.productMedia}>{product.media.map((media) => <li key={media.id}><Image src={publicMediaUrl(media.id)} alt={media.alt} width={media.width ?? 1200} height={media.height ?? 675} /></li>)}</ul> : null}
         <RichContent html={product.body} />
       </article>
     </main>

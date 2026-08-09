@@ -57,6 +57,8 @@ describe("public sitemap", () => {
         updatedAt: "2026-08-04T00:00:00.000Z",
         legalReviewStatus: "APPROVED",
         legalReviewedAt: "2026-07-30T12:00:00.000Z",
+        contentRevision: 2,
+        legalReviewedRevision: 2,
       },
     ];
 
@@ -128,6 +130,18 @@ describe("public sitemap", () => {
         deletedAt: "2026-08-05T00:00:00.000Z",
         publishedAt: "2026-08-01T00:00:00.000Z",
         updatedAt: "2026-08-05T00:00:00.000Z",
+      },
+      {
+        kind: "page",
+        slug: "privacy",
+        status: "PUBLISHED",
+        deletedAt: null,
+        publishedAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-05T00:00:00.000Z",
+        legalReviewStatus: "APPROVED",
+        legalReviewedAt: "2026-08-04T00:00:00.000Z",
+        contentRevision: 3,
+        legalReviewedRevision: 2,
       },
       {
         kind: "page",

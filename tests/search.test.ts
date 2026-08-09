@@ -95,7 +95,7 @@ describe("content search", () => {
           {
             translations: {
               some: {
-                locale: "en",
+                locale: { in: ["en"] },
                 OR: expect.arrayContaining([
                   { title: { contains: "\\%\\_\\\\", mode: "insensitive" } },
                   { body: { contains: "\\%\\_\\\\", mode: "insensitive" } },
@@ -107,6 +107,50 @@ describe("content search", () => {
       },
       take: 30,
     });
+  });
+
+  it("queries requested and English translations so localized search includes fallback content", async () => {
+    const database = createDatabase();
+
+    await createContentSearch(database as never)("de", "custom");
+
+    expect(database.service.findMany.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        translations: {
+          some: {
+            locale: { in: ["de", "en"] },
+          },
+        },
+      },
+    });
+  });
+
+  it("ranks a requested-language match before a stronger English fallback match", async () => {
+    const database = createDatabase();
+    database.service.findMany.mockResolvedValue([
+      {
+        id: "requested",
+        slug: "requested-service",
+        translations: [
+          { locale: "de", title: "Lokaler Treffer", body: "Beratung für custom peptide Programme" },
+          { locale: "en", title: "Local match", body: "Custom peptide programs" },
+        ],
+      },
+      {
+        id: "fallback",
+        slug: "fallback-service",
+        translations: [
+          { locale: "de", title: "Nicht passend", body: "Andere Leistungen" },
+          { locale: "en", title: "Custom peptide", body: "Exact English match" },
+        ],
+      },
+    ]);
+
+    const results = await createContentSearch(database as never)("de", "custom peptide");
+
+    expect(results.map(({ id }) => id)).toEqual(["requested", "fallback"]);
+    expect(results[0]).toMatchObject({ translationLocale: "de", usedFallback: false });
+    expect(results[1]).toMatchObject({ translationLocale: "en", usedFallback: true });
   });
 
   it("caps combined results at 30 with stable relevance, type, title, and id ordering", async () => {
@@ -143,7 +187,13 @@ describe("content search", () => {
       { id: "home", slug: "home", translations: translation("Needle home", "Needle") },
       { id: "about", slug: "about", translations: translation("Needle about", "Needle") },
       { id: "quality", slug: "quality", translations: translation("Needle quality", "Needle") },
-      { id: "privacy", slug: "privacy", translations: translation("Needle privacy", "Needle") },
+      {
+        id: "privacy",
+        slug: "privacy",
+        contentRevision: 2,
+        legalReviewedRevision: 2,
+        translations: translation("Needle privacy", "Needle"),
+      },
     ]);
 
     const results = await createContentSearch(database as never)("en", "needle");
@@ -168,10 +218,35 @@ describe("content search", () => {
           {
             legalReviewStatus: "APPROVED",
             legalReviewedAt: { not: null },
+            legalReviewedRevision: { not: null },
           },
         ],
       },
     });
+  });
+
+  it("defensively excludes a legal search result approved for an older revision", async () => {
+    const database = createDatabase();
+    database.page.findMany.mockResolvedValue([{
+      id: "privacy",
+      slug: "privacy",
+      contentRevision: 4,
+      legalReviewedRevision: 3,
+      translations: translation("Privacy", "Privacy notice"),
+    }]);
+
+    await expect(createContentSearch(database as never)("en", "privacy")).resolves.toEqual([]);
+  });
+
+  it("fails closed when a legal search record lacks exact revision metadata", async () => {
+    const database = createDatabase();
+    database.page.findMany.mockResolvedValue([{
+      id: "privacy",
+      slug: "privacy",
+      translations: translation("Privacy", "Privacy notice"),
+    }]);
+
+    await expect(createContentSearch(database as never)("en", "privacy")).resolves.toEqual([]);
   });
 
   it("requires and defensively enforces a publication timestamp for article results", async () => {

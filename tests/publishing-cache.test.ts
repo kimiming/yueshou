@@ -28,7 +28,7 @@ describe("publication cache", () => {
         "/fr/news/lab-update",
         "/es/news/lab-update",
       ],
-      tags: ["article:lab-update", "article:list", "page:home"],
+      tags: ["article:lab-update", "article:list", "page:home", "sitemap:content"],
     },
     {
       type: "product" as const,
@@ -40,7 +40,7 @@ describe("publication cache", () => {
         "/fr/products/bpc-157",
         "/es/products/bpc-157",
       ],
-      tags: ["product:bpc-157", "product:list", "page:home"],
+      tags: ["product:bpc-157", "product:list", "page:home", "sitemap:content"],
     },
     {
       type: "page" as const,
@@ -52,7 +52,7 @@ describe("publication cache", () => {
         "/fr/about",
         "/es/about",
       ],
-      tags: ["page:about", "page:list", "page:home"],
+      tags: ["page:about", "page:list", "page:home", "sitemap:content"],
     },
   ])("invalidates deterministic $type paths, entity tags, and the home tag", ({
     type,
@@ -91,6 +91,7 @@ describe("publication cache", () => {
     expect(revalidateTag.mock.calls).toEqual([
       ["page:home", "max"],
       ["page:list", "max"],
+      ["sitemap:content", "max"],
     ]);
   });
 
@@ -352,6 +353,8 @@ describe("publication cache", () => {
           slug: "terms",
           legalReviewStatus: "PENDING",
           legalReviewedAt: null,
+          contentRevision: 4,
+          legalReviewedRevision: null,
         })),
         update: vi.fn(),
       },
@@ -373,5 +376,74 @@ describe("publication cache", () => {
     ).rejects.toBeInstanceOf(LegalReviewRequiredError);
     expect(transaction.page.update).not.toHaveBeenCalled();
     expect(transaction.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a historic legal approval for an older content revision", async () => {
+    const transaction = {
+      page: {
+        findUniqueOrThrow: vi.fn(async () => ({
+          id: "page-terms",
+          slug: "terms",
+          legalReviewStatus: "APPROVED",
+          legalReviewedAt: new Date("2026-08-08T00:00:00.000Z"),
+          contentRevision: 5,
+          legalReviewedRevision: 4,
+        })),
+        update: vi.fn(),
+      },
+      auditLog: { create: vi.fn() },
+    } as unknown as Prisma.TransactionClient;
+    const database = {
+      $transaction: vi.fn((callback: (tx: Prisma.TransactionClient) => Promise<unknown>) => callback(transaction)),
+    } as unknown as PrismaClient;
+
+    await expect(createContentRepository(database).publishEntity(
+      { type: "page", id: "page-terms" },
+      { id: "admin-1" },
+      new Date("2026-08-08T01:00:00.000Z"),
+    )).rejects.toBeInstanceOf(LegalReviewRequiredError);
+
+    expect(transaction.page.update).not.toHaveBeenCalled();
+    expect(transaction.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it("defensively excludes a published legal page whose reviewed revision is stale", async () => {
+    const database = {
+      page: {
+        findFirst: vi.fn(async () => ({
+          id: "page-privacy",
+          slug: "privacy",
+          publishedAt: new Date("2026-08-08T00:00:00.000Z"),
+          legalReviewStatus: "APPROVED",
+          legalReviewedAt: new Date("2026-08-08T00:00:00.000Z"),
+          contentRevision: 3,
+          legalReviewedRevision: 2,
+          translations: [],
+          sections: [],
+        })),
+      },
+    } as unknown as PrismaClient;
+
+    await expect(createContentRepository(database).findApprovedLegalPageBySlug("privacy"))
+      .resolves.toBeNull();
+  });
+
+  it("fails closed when a legal page record lacks exact revision metadata", async () => {
+    const database = {
+      page: {
+        findFirst: vi.fn(async () => ({
+          id: "page-privacy",
+          slug: "privacy",
+          publishedAt: new Date("2026-08-08T00:00:00.000Z"),
+          legalReviewStatus: "APPROVED",
+          legalReviewedAt: new Date("2026-08-08T00:00:00.000Z"),
+          translations: [],
+          sections: [],
+        })),
+      },
+    } as unknown as PrismaClient;
+
+    await expect(createContentRepository(database).findApprovedLegalPageBySlug("privacy"))
+      .resolves.toBeNull();
   });
 });

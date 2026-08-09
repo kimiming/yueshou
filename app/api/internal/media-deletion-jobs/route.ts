@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 async function processJobs() {
   const env = parseEnv(process.env);
-  const result = await processDueMediaDeletionJobs({ repository: prismaMediaDeletionJobRepository, storage: createObjectStorage(env, env.STORAGE_BACKEND) });
+  const result = await processDueMediaDeletionJobs({ repository: prismaMediaDeletionJobRepository, storage: createObjectStorage(env, env.STORAGE_BACKEND), limit: 25 });
   return Response.json(result, { headers: { "cache-control": "no-store" } });
 }
 

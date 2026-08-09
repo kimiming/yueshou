@@ -16,6 +16,10 @@ export function SiteHeader({ model }: SiteHeaderProps) {
       <div className="site-header__utility">
         <div className="marketing-container site-header__utility-inner">
           <span>{model.slogan}</span>
+          <div className="site-header__contact">
+            {model.contact.email ? <a href={`mailto:${model.contact.email}`} aria-label={`${model.emailLabel}: ${model.contact.email}`}>{model.contact.email}</a> : null}
+            {model.contact.phone ? <a href={`tel:${model.contact.phone.replace(/[^+\d]/gu, "")}`} aria-label={`${model.phoneLabel}: ${model.contact.phone}`}>{model.contact.phone}</a> : null}
+          </div>
           <LanguageSwitcher locale={model.locale} label={model.languageLabel} />
         </div>
       </div>
@@ -30,8 +34,11 @@ export function SiteHeader({ model }: SiteHeaderProps) {
           menuLabel={model.mobileMenuLabel}
           closeLabel={model.mobileCloseLabel}
           mobileNavigationLabel={model.mobileNavigationLabel}
+          searchAction={{ label: model.searchLabel, href: localizeHref("/search", model.locale) }}
+          quoteAction={{ label: model.quoteLabel, href: localizeHref("/request-a-quote", model.locale) }}
         />
-        <Link className="button-link button-link--compact" href={localizeHref("/contact", model.locale)}>
+        <Link className="site-header__search" href={localizeHref("/search", model.locale)}>{model.searchLabel}</Link>
+        <Link className="button-link button-link--compact" href={localizeHref("/request-a-quote", model.locale)}>
           {model.quoteLabel}
         </Link>
       </div>

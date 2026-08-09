@@ -82,4 +82,78 @@ describeUpgrade("legal review guard upgrade", () => {
       `),
     ).rejects.toThrow();
   }, 20_000);
+
+  it("fails historic approvals closed and invalidates the exact approved revision on child edits", async () => {
+    await executeMigration("20260809010000_legal_content_revisions");
+
+    const migrated = await pool!.query<{
+      slug: string;
+      status: string;
+      contentRevision: number;
+      legalReviewedRevision: number | null;
+    }>(`
+      SELECT "slug", "status", "contentRevision", "legalReviewedRevision"
+      FROM "Page"
+      WHERE "slug" IN ('legacy-approved', 'legacy-non-legal')
+      ORDER BY "slug";
+    `);
+    expect(migrated.rows).toEqual([
+      { slug: "legacy-approved", status: "DRAFT", contentRevision: 2, legalReviewedRevision: null },
+      { slug: "legacy-non-legal", status: "PUBLISHED", contentRevision: 1, legalReviewedRevision: null },
+    ]);
+
+    await pool!.query(`
+      INSERT INTO "User" ("id", "email", "passwordHash", "role", "createdAt", "updatedAt")
+      VALUES
+        ('legal-admin', 'legal-admin@example.test', 'unused', 'ADMIN', NOW(), NOW()),
+        ('legal-editor', 'legal-editor@example.test', 'unused', 'EDITOR', NOW(), NOW());
+      INSERT INTO "PageTranslation" ("id", "pageId", "locale", "title", "body")
+      VALUES ('legal-copy', 'legacy-approved', 'en', 'Legal', 'Reviewed copy');
+    `);
+    const current = await pool!.query<{ contentRevision: number }>(`
+      SELECT "contentRevision" FROM "Page" WHERE "id" = 'legacy-approved';
+    `);
+    const approvedRevision = current.rows[0]!.contentRevision;
+    await expect(pool!.query(`
+      UPDATE "Page"
+      SET "legalReviewStatus" = 'APPROVED',
+          "legalReviewedAt" = NOW(),
+          "legalReviewedRevision" = $1,
+          "legalReviewedById" = 'legal-editor'
+      WHERE "id" = 'legacy-approved';
+    `, [approvedRevision])).rejects.toThrow();
+    await pool!.query(`
+      UPDATE "Page"
+      SET "legalReviewStatus" = 'APPROVED',
+          "legalReviewedAt" = NOW(),
+          "legalReviewedRevision" = $1,
+          "legalReviewedById" = 'legal-admin',
+          "status" = 'PUBLISHED',
+          "publishedAt" = NOW()
+      WHERE "id" = 'legacy-approved';
+    `, [approvedRevision]);
+
+    await pool!.query(`UPDATE "PageTranslation" SET "body" = 'Changed after approval' WHERE "id" = 'legal-copy';`);
+    const invalidated = await pool!.query<{
+      status: string;
+      publishedAt: Date | null;
+      contentRevision: number;
+      legalReviewStatus: string;
+      legalReviewedAt: Date | null;
+      legalReviewedRevision: number | null;
+      legalReviewedById: string | null;
+    }>(`
+      SELECT "status", "publishedAt", "contentRevision", "legalReviewStatus", "legalReviewedAt", "legalReviewedRevision", "legalReviewedById"
+      FROM "Page" WHERE "id" = 'legacy-approved';
+    `);
+    expect(invalidated.rows[0]).toEqual({
+      status: "DRAFT",
+      publishedAt: null,
+      contentRevision: approvedRevision + 1,
+      legalReviewStatus: "PENDING",
+      legalReviewedAt: null,
+      legalReviewedRevision: null,
+      legalReviewedById: null,
+    });
+  }, 20_000);
 });

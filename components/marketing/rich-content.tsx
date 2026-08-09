@@ -79,6 +79,18 @@ export function sanitizeRichContent(html: string) {
   return root.innerHTML;
 }
 
+export function plainTextExcerpt(html: string, maxLength = 240) {
+  const root = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [],
+    ALLOWED_ATTR: [],
+    FORBID_TAGS: ["iframe", "object", "embed", "script", "style", "form", "input", "button"],
+    RETURN_DOM: true,
+  }) as HTMLElement;
+  const text = (root.textContent ?? "").replace(/\s+/gu, " ").trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
 export function RichContent({ html, className }: { html: string; className?: string }) {
   return (
     <div

@@ -28,6 +28,10 @@ export type MarketingShellViewModel = {
   navigation: MarketingLinkViewModel[];
   contact: MarketingContactViewModel;
   quoteLabel: string;
+  searchLabel: string;
+  emailLabel: string;
+  phoneLabel: string;
+  socialLinksLabel: string;
   languageLabel: string;
   footerNavigationLabel: string;
   footerExploreLabel: string;

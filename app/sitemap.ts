@@ -22,6 +22,8 @@ export type SitemapContentEntry = {
   updatedAt: string;
   legalReviewStatus?: "NOT_REQUIRED" | "PENDING" | "APPROVED";
   legalReviewedAt?: string | null;
+  contentRevision?: number;
+  legalReviewedRevision?: number | null;
 };
 
 const internalPageSlugs = new Set([
@@ -49,7 +51,13 @@ function publicRoute(entry: SitemapContentEntry): string | null {
   if (entry.kind === "page" && internalPageSlugs.has(entry.slug)) return null;
 
   if (entry.kind === "page" && legalPageSlugs.has(entry.slug)) {
-    if (entry.legalReviewStatus !== "APPROVED" || !entry.legalReviewedAt) return null;
+    if (
+      entry.legalReviewStatus !== "APPROVED" ||
+      !entry.legalReviewedAt ||
+      entry.legalReviewedRevision === null ||
+      entry.legalReviewedRevision === undefined ||
+      entry.legalReviewedRevision !== entry.contentRevision
+    ) return null;
     return `/legal/${entry.slug}`;
   }
 

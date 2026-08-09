@@ -32,6 +32,7 @@ const openGraphLocale: Record<Locale, string> = {
 
 type BaseMetadataInput = {
   locale: Locale;
+  contentLocale?: Locale;
   path: string;
   title: string;
   description?: string | null;
@@ -82,6 +83,7 @@ export function buildMetadata(input: BuildMetadataInput): Metadata {
     throw new Error("Article metadata requires publishedTime");
   }
   const description = input.description?.trim() || SITE_DESCRIPTION;
+  const contentLocale = input.contentLocale ?? input.locale;
   const canonical = localizedAbsoluteUrl(input.locale, input.path);
   const imageUrl = absoluteSiteUrl("/og.png");
   const imageAlt = `${SITE_NAME} — ${SITE_DESCRIPTION}`;
@@ -90,9 +92,9 @@ export function buildMetadata(input: BuildMetadataInput): Metadata {
     description,
     url: canonical,
     siteName: SITE_NAME,
-    locale: openGraphLocale[input.locale],
+    locale: openGraphLocale[contentLocale],
     alternateLocale: SUPPORTED_LOCALES
-      .filter((locale) => locale !== input.locale)
+      .filter((locale) => locale !== contentLocale)
       .map((locale) => openGraphLocale[locale]),
     images: [
       {

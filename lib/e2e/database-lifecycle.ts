@@ -1,7 +1,11 @@
+import type { E2eMutationFixture } from "./mutation-fixture";
+
 export type E2eDatabaseLifecycle = {
   authenticate(phase: "setup" | "teardown"): Promise<void>;
   reset(): void;
-  seed(): void;
+  seedDatabase(): void;
+  seedStorage(): void;
+  resolveFixture(): Promise<E2eMutationFixture>;
 };
 
 /**
@@ -15,5 +19,7 @@ export async function runE2eDatabaseLifecycle(
 ) {
   await lifecycle.authenticate(phase);
   lifecycle.reset();
-  lifecycle.seed();
+  lifecycle.seedDatabase();
+  lifecycle.seedStorage();
+  return lifecycle.resolveFixture();
 }

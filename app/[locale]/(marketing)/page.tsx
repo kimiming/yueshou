@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { AboutSection } from "@/components/marketing/sections/about-section";
+import { ContentLanguageFallbackNotice } from "@/components/marketing/content-language-fallback";
 import { CapabilitiesSection } from "@/components/marketing/sections/capabilities-section";
 import { CtaSection } from "@/components/marketing/sections/cta-section";
 import { GlobalReachSection } from "@/components/marketing/sections/global-reach-section";
@@ -16,9 +17,9 @@ import { getHomePage } from "@/features/content/service";
 import type { PageViewModel } from "@/features/content/view-models";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
-import { buildMetadata } from "@/features/seo/metadata";
+import { buildMetadata, SITE_DESCRIPTION, SITE_NAME } from "@/features/seo/metadata";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "auto";
 
 type HomePageProps = {
   params: Promise<{ locale: string }>;
@@ -31,10 +32,16 @@ type HomePageDataResult =
 export async function generateMetadata({ params }: HomePageProps) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
-  const page = await getHomePage(locale);
+  let page: PageViewModel | null;
+  try {
+    page = await getHomePage(locale);
+  } catch {
+    return buildMetadata({ locale, path: "/", title: SITE_NAME, description: SITE_DESCRIPTION });
+  }
   if (!page) notFound();
   return buildMetadata({
     locale,
+    contentLocale: page.translationLocale,
     path: "/",
     title: page.seoTitle?.trim() || page.title,
     description: page.seoDescription,
@@ -114,7 +121,8 @@ export default async function HomePage({ params }: HomePageProps) {
     .toSorted((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
 
   return (
-    <main id="main-content">
+    <main id="main-content" lang={result.page.translationLocale}>
+      <ContentLanguageFallbackNotice usedFallback={result.page.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
       <h1 className="visually-hidden">{model.title}</h1>
       {sections.map((section) => renderSection(section, model.locale, model.labels))}
     </main>

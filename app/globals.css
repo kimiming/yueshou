@@ -105,6 +105,23 @@ a {
   gap: 24px;
 }
 
+.site-header__contact {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-left: auto;
+}
+
+.site-header__contact a {
+  color: inherit;
+}
+
+.site-header__search {
+  color: var(--navy-900);
+  font-size: 0.91rem;
+  font-weight: 700;
+}
+
 .site-header__main {
   min-height: 84px;
   display: flex;
@@ -849,6 +866,7 @@ a {
 
 @media (max-width: 1040px) {
   .primary-navigation,
+  .site-header__main > .site-header__search,
   .site-header__main > .button-link {
     display: none;
   }

@@ -4,6 +4,7 @@ import type { InquiryAttachmentDownloadRepository, InquiryAttachmentRepository }
 import type { RateLimitAdapter, RateLimitInput } from "./rate-limit";
 import type { InquiryRepository } from "./service";
 import type { UploadSessionRepository } from "./upload-session";
+import { queueStorageDeletionJob } from "@/features/storage-cleanup/repository";
 
 export class PrismaInquiryRateLimitAdapter implements RateLimitAdapter {
   async consume(input: RateLimitInput): Promise<boolean> {
@@ -76,23 +77,45 @@ export const prismaInquiryAttachmentRepository: InquiryAttachmentRepository = {
     return prisma.inquiryUploadIntent.findUnique({ where: { storageKey } });
   },
 
+  async reserveFinalStorageKey(input) {
+    const reserved = await prisma.inquiryUploadIntent.updateMany({
+      where: {
+        id: input.intentId,
+        storageKey: input.storageKey,
+        uploadSessionId: input.uploadSessionId,
+        finalStorageKey: null,
+        finalizedAt: null,
+        consumedAt: null,
+        expiresAt: { gt: input.completedAt },
+      },
+      data: { finalStorageKey: input.finalStorageKey, sha256: input.sha256 },
+    });
+    return reserved.count === 1 ? { id: input.intentId, finalStorageKey: input.finalStorageKey } : null;
+  },
+
   async finalizeUploadIntent(input) {
     const finalized = await prisma.inquiryUploadIntent.updateMany({
         where: {
           id: input.intentId,
           storageKey: input.storageKey,
           uploadSessionId: input.uploadSessionId,
+          finalStorageKey: input.finalStorageKey,
+          sha256: input.sha256,
           finalizedAt: null,
           consumedAt: null,
           expiresAt: { gt: input.completedAt },
         },
-        data: { finalizedAt: input.completedAt, finalStorageKey: input.finalStorageKey, sha256: input.sha256 },
+        data: { finalizedAt: input.completedAt },
       });
     return finalized.count === 1 ? { id: input.intentId, finalStorageKey: input.finalStorageKey } : null;
   },
 
   async queueTempObjectDeletion(storageKey) {
-    await prisma.auditLog.create({ data: { action: "INQUIRY_TEMP_DELETE_QUEUED", entityType: "InquiryUploadIntent", metadata: { storageKey } } });
+    await queueStorageDeletionJob({ storageKey, kind: "INQUIRY_TEMP", sourceType: "InquiryUploadIntent", notBefore: new Date() });
+  },
+
+  async queueFinalObjectDeletion(storageKey) {
+    await queueStorageDeletionJob({ storageKey, kind: "INQUIRY_FINAL", sourceType: "InquiryUploadIntent", notBefore: new Date() });
   },
 };
 

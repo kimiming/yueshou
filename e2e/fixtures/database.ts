@@ -1,4 +1,5 @@
 import { createE2eReleaseConfigIfRequested } from "../../lib/e2e/release-config";
+import { readE2eMutationFixture } from "../../lib/e2e/mutation-fixture";
 
 /**
  * Browser journeys deliberately use an operator-provisioned, disposable
@@ -67,12 +68,23 @@ export const e2eAdmin = {
 /** Mutation journeys use the complete fail-closed release boundary. */
 const releaseConfig = createE2eReleaseConfigIfRequested(process.env);
 
-export const hasE2eMutationFixture = releaseConfig !== null;
+function loadMutationFixture() {
+  if (!releaseConfig) return null;
+  try {
+    return readE2eMutationFixture(releaseConfig.fixtureFile);
+  } catch {
+    return null;
+  }
+}
+
+const resolvedMutationFixture = loadMutationFixture();
+
+export const hasE2eMutationFixture = releaseConfig !== null && resolvedMutationFixture !== null;
 export const e2eMutationSkipReason = hasE2eMutationFixture
   ? ""
   : "Mutation journeys run only through pnpm test:e2e:release with its complete validated resettable fixture.";
 
-export const e2eMutationFixture = releaseConfig?.mutationFixture ?? {
+export const e2eMutationFixture = resolvedMutationFixture ?? {
   logoMediaId: undefined,
   heroMediaId: undefined,
   homePageId: undefined,

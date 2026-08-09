@@ -53,7 +53,7 @@ export function getInquiryAttachmentExtension(filenameOrKey: string): string {
 }
 
 export const inquiryAttachmentKeySchema = z.string().regex(
-  /^inquiry\/\d{4}\/(?:0[1-9]|1[0-2])\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:pdf|docx|xlsx|csv|txt)$/i,
+  /^inquiry\/(?:tmp\/)?\d{4}\/(?:0[1-9]|1[0-2])\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:pdf|docx|xlsx|csv|txt)$/i,
   "Invalid private inquiry attachment key",
 );
 
@@ -65,5 +65,5 @@ export function createInquiryAttachmentKey(
   const upload = inquiryAttachmentSchema.parse(input);
   const year = now.getUTCFullYear();
   const month = String(now.getUTCMonth() + 1).padStart(2, "0");
-  return `inquiry/${year}/${month}/${uuid()}.${getInquiryAttachmentExtension(upload.name)}`;
+  return `inquiry/tmp/${year}/${month}/${uuid()}.${getInquiryAttachmentExtension(upload.name)}`;
 }

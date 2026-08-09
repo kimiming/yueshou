@@ -5,6 +5,7 @@ import {
   applyAuthRateLimits,
   createCredentialAuthorizer,
   normalizeEmail,
+  recordAuthenticationAudit,
   resolveAuthenticationIp,
   type AuthRateLimitAdapter,
 } from "@/lib/auth/config";
@@ -43,6 +44,70 @@ describe("credential authorization", () => {
       authorize({ email: "  Editor@EXAMPLE.test ", password: "password" }, { ip: "203.0.113.8" }),
     ).resolves.toMatchObject({ id: "editor-1", role: "EDITOR" });
     expect(findActiveUserByEmail).toHaveBeenCalledWith("editor@example.test");
+  });
+
+  it("audits successful, failed, and throttled credential outcomes without passing passwords", async () => {
+    const auditLogin = vi.fn(async (event: { outcome: "SUCCESS" | "FAILED" | "THROTTLED"; actorId?: string; email: string; ip: string; occurredAt: Date }) => { void event; });
+    const user = {
+      id: "admin-1",
+      email: "admin@example.test",
+      name: "Admin",
+      passwordHash: "real-hash",
+      role: "ADMIN" as const,
+      updatedAt: new Date("2026-08-08T10:00:00.000Z"),
+    };
+    const authorizeSuccess = createCredentialAuthorizer({
+      auditLogin,
+      consumeRateLimit: vi.fn(async () => true),
+      findActiveUserByEmail: vi.fn(async () => user),
+      verify: vi.fn(async () => true),
+    });
+    const authorizeFailure = createCredentialAuthorizer({
+      auditLogin,
+      consumeRateLimit: vi.fn(async () => true),
+      findActiveUserByEmail: vi.fn(async () => null),
+      verify: vi.fn(async () => false),
+    });
+    const authorizeThrottled = createCredentialAuthorizer({
+      auditLogin,
+      consumeRateLimit: vi.fn(async () => false),
+      findActiveUserByEmail: vi.fn(async () => user),
+      verify: vi.fn(async () => true),
+    });
+
+    await authorizeSuccess({ email: " Admin@Example.test ", password: "success-secret" }, { ip: "203.0.113.8" });
+    await authorizeFailure({ email: "missing@example.test", password: "failure-secret" }, { ip: "203.0.113.8" });
+    await authorizeThrottled({ email: "admin@example.test", password: "throttled-secret" }, { ip: "203.0.113.8" });
+
+    expect(auditLogin.mock.calls.map(([event]) => event)).toEqual([
+      expect.objectContaining({ outcome: "SUCCESS", actorId: "admin-1", email: "admin@example.test", ip: "203.0.113.8" }),
+      expect.objectContaining({ outcome: "FAILED", email: "missing@example.test", ip: "203.0.113.8" }),
+      expect.objectContaining({ outcome: "THROTTLED", email: "admin@example.test", ip: "203.0.113.8" }),
+    ]);
+    expect(JSON.stringify(auditLogin.mock.calls)).not.toContain("success-secret");
+    expect(JSON.stringify(auditLogin.mock.calls)).not.toContain("failure-secret");
+    expect(JSON.stringify(auditLogin.mock.calls)).not.toContain("throttled-secret");
+  });
+
+  it("stores only keyed identity digests in authentication audit metadata", async () => {
+    const create = vi.fn(async (input: { data: { actorId: string | null; action: string; entityType: string; entityId?: string; metadata: Record<string, string> } }) => { void input; return { id: "audit-1" }; });
+    await recordAuthenticationAudit({ auditLog: { create } }, {
+      outcome: "FAILED",
+      email: "admin@example.test",
+      ip: "203.0.113.8",
+      occurredAt: new Date("2026-08-08T10:00:00.000Z"),
+      secret: "12345678901234567890123456789012",
+    });
+
+    const persisted = JSON.stringify(create.mock.calls[0]?.[0]);
+    expect(persisted).not.toContain("admin@example.test");
+    expect(persisted).not.toContain("203.0.113.8");
+    expect(create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      actorId: null,
+      action: "AUTH_LOGIN_FAILED",
+      entityType: "Authentication",
+      metadata: expect.objectContaining({ emailDigest: expect.any(String), ipDigest: expect.any(String) }),
+    }) });
   });
 
   it("uses one password verification on both unknown-user and wrong-password paths", async () => {
@@ -122,7 +187,7 @@ describe("credential authorization", () => {
 });
 
 describe("persistent authentication rate limiting", () => {
-  it("canonicalizes identity and consumes pair, email, and trusted-IP buckets", async () => {
+  it("canonicalizes identity and consumes trusted-IP, email, and pair buckets in that order", async () => {
     const adapter: AuthRateLimitAdapter = { consume: vi.fn(async () => true) };
     const now = new Date("2026-08-08T10:00:00.000Z");
 
@@ -135,10 +200,27 @@ describe("persistent authentication rate limiting", () => {
 
     expect(adapter.consume).toHaveBeenCalledTimes(3);
     expect(vi.mocked(adapter.consume).mock.calls.map(([input]) => input)).toEqual([
-      expect.objectContaining({ limit: 5, windowSeconds: 900, now }),
-      expect.objectContaining({ limit: 20, windowSeconds: 3600, now }),
       expect.objectContaining({ limit: 50, windowSeconds: 3600, now }),
+      expect.objectContaining({ limit: 20, windowSeconds: 3600, now }),
+      expect.objectContaining({ limit: 5, windowSeconds: 900, now }),
     ]);
+  });
+
+  it("short-circuits broader denied buckets before consuming narrower identities", async () => {
+    const consume = vi.fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    await expect(applyAuthRateLimits({ consume }, {
+      email: "admin@example.test",
+      ip: "203.0.113.8",
+      now: new Date("2026-08-08T10:00:00.000Z"),
+      secret: "12345678901234567890123456789012",
+    })).resolves.toBe(false);
+
+    expect(consume).toHaveBeenCalledTimes(2);
+    expect(consume.mock.calls.map(([input]) => input.limit)).toEqual([50, 20]);
   });
 
   it.each([
@@ -177,9 +259,9 @@ describe("persistent authentication rate limiting", () => {
       secret,
     })).resolves.toBe(true);
     expect(vi.mocked(adapter.consume).mock.calls.map(([input]) => input.key)).toEqual([
-      digest(`auth:pair:${expectedIp}\nadmin@example.test`),
-      digest("auth:email:admin@example.test"),
       digest(`auth:ip:${expectedIp}`),
+      digest("auth:email:admin@example.test"),
+      digest(`auth:pair:${expectedIp}\nadmin@example.test`),
     ]);
     expect(vi.mocked(adapter.consume).mock.calls.map(([input]) => input.key).join(" ")).not.toContain(expectedIp);
   });

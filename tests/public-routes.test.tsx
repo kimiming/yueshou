@@ -1,7 +1,8 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RichContent } from "@/components/marketing/rich-content";
+import { ArticleCard } from "@/components/marketing/article-card";
 import { ProductCard } from "@/components/marketing/product-card";
 import type { ArticleViewModel, PageViewModel, ProductViewModel, ServiceViewModel } from "@/features/content/view-models";
 
@@ -9,6 +10,7 @@ const contentMocks = vi.hoisted(() => ({
   getApprovedLegalPageBySlug: vi.fn(),
   getPageBySlug: vi.fn(),
   getPublishedArticle: vi.fn(),
+  getPublishedArticles: vi.fn(),
   getPublishedProduct: vi.fn(),
   getPublishedProducts: vi.fn(),
   getProductCatalog: vi.fn(),
@@ -16,7 +18,13 @@ const contentMocks = vi.hoisted(() => ({
   getPublishedServices: vi.fn(),
 }));
 
+const searchMocks = vi.hoisted(() => ({
+  normalizeSearchQuery: vi.fn((input: string) => input.trim()),
+  searchPublishedContent: vi.fn(),
+}));
+
 vi.mock("@/features/content/service", () => contentMocks);
+vi.mock("@/features/content/search", () => searchMocks);
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
     throw new Error("NEXT_NOT_FOUND");
@@ -161,6 +169,8 @@ describe("public content routes", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Title for services");
     expect(container.querySelectorAll("h1")).toHaveLength(1);
     const serviceArticle = screen.getByRole("article");
+    expect(serviceArticle).toHaveAttribute("lang", "en");
+    expect(within(serviceArticle).getByRole("status")).toHaveTextContent("Die englische Version wird angezeigt");
     expect(serviceArticle).toHaveTextContent("English fallback service copy");
     expect(serviceArticle.innerHTML).not.toContain("&lt;p&gt;");
     expect(screen.getByRole("link", { name: "Custom peptide synthesis" })).toHaveAttribute(
@@ -169,6 +179,99 @@ describe("public content routes", () => {
     );
     expect(contentMocks.getPageBySlug).toHaveBeenCalledWith("de", "services");
     expect(contentMocks.getPublishedServices).toHaveBeenCalledWith("de");
+  });
+
+  it("marks English fallback service content and explains the fallback in the requested language", async () => {
+    contentMocks.getPublishedService.mockResolvedValue(service);
+    const { default: ServicePage } = await import("@/app/[locale]/(marketing)/services/[slug]/page");
+
+    render(await ServicePage({ params: Promise.resolve({ locale: "de", slug: service.slug }) }));
+
+    expect(screen.getByRole("article")).toHaveAttribute("lang", "en");
+    expect(screen.getByRole("status")).toHaveTextContent("Die englische Version wird angezeigt");
+  });
+
+  it("marks English fallback legal content and explains the fallback", async () => {
+    contentMocks.getApprovedLegalPageBySlug.mockResolvedValue({ ...page("privacy"), locale: "de", translationLocale: "en", usedFallback: true });
+    const { default: LegalPage } = await import("@/app/[locale]/(marketing)/legal/[slug]/page");
+
+    render(await LegalPage({ params: Promise.resolve({ locale: "de", slug: "privacy" }) }));
+
+    expect(screen.getByRole("article")).toHaveAttribute("lang", "en");
+    expect(screen.getByRole("status")).toHaveTextContent("Die englische Version wird angezeigt");
+  });
+
+  it("marks English fallback product, article, and generic-page content", async () => {
+    contentMocks.getPublishedProduct.mockResolvedValue({ ...product, locale: "de", translationLocale: "en", usedFallback: true });
+    contentMocks.getPublishedArticle.mockResolvedValue({ ...article, locale: "de", translationLocale: "en", usedFallback: true });
+    contentMocks.getPageBySlug.mockResolvedValue({ ...page("quality"), locale: "de", translationLocale: "en", usedFallback: true });
+    const [{ default: ProductPage }, { default: ArticlePage }, { default: GenericPage }] = await Promise.all([
+      import("@/app/[locale]/(marketing)/products/[slug]/page"),
+      import("@/app/[locale]/(marketing)/news/[slug]/page"),
+      import("@/app/[locale]/(marketing)/[slug]/page"),
+    ]);
+
+    const views = await Promise.all([
+      ProductPage({ params: Promise.resolve({ locale: "de", slug: product.slug }) }),
+      ArticlePage({ params: Promise.resolve({ locale: "de", slug: article.slug }) }),
+      GenericPage({ params: Promise.resolve({ locale: "de", slug: "quality" }) }),
+    ]);
+
+    for (const view of views) {
+      const rendered = render(view);
+      expect(rendered.getByRole("article")).toHaveAttribute("lang", "en");
+      expect(rendered.getByRole("status")).toHaveTextContent("Die englische Version wird angezeigt");
+      rendered.unmount();
+    }
+  });
+
+  it("marks fallback copy on product and news list pages with the resolved language", async () => {
+    const fallbackPage = { ...page("products"), locale: "de" as const, translationLocale: "en" as const, usedFallback: true };
+    contentMocks.getPageBySlug.mockResolvedValue(fallbackPage);
+    contentMocks.getProductCatalog.mockResolvedValue({
+      products: [], categories: [], query: "", category: null, page: 1, pageSize: 24, pageCount: 1, totalCount: 0,
+    });
+    contentMocks.getPublishedArticles.mockResolvedValue([]);
+    const [{ default: ProductsPage }, { default: NewsPage }] = await Promise.all([
+      import("@/app/[locale]/(marketing)/products/page"),
+      import("@/app/[locale]/(marketing)/news/page"),
+    ]);
+
+    const productView = render(await ProductsPage({
+      params: Promise.resolve({ locale: "de" }), searchParams: Promise.resolve({}),
+    }));
+    const productIntroduction = productView.getByRole("heading", { level: 1 }).closest("header");
+    expect(productIntroduction).not.toBeNull();
+    expect(productIntroduction).toHaveAttribute("lang", "en");
+    expect(within(productIntroduction as HTMLElement).getByRole("status")).toHaveTextContent("Die englische Version wird angezeigt");
+    productView.unmount();
+
+    contentMocks.getPageBySlug.mockResolvedValue({ ...fallbackPage, slug: "news" });
+    const newsView = render(await NewsPage({ params: Promise.resolve({ locale: "de" }) }));
+    expect(newsView.getByRole("heading", { level: 1 }).closest("header")).toHaveAttribute("lang", "en");
+    expect(newsView.getByRole("status")).toHaveTextContent("Die englische Version wird angezeigt");
+  });
+
+  it("marks an English fallback search result and explains it in the requested language", async () => {
+    searchMocks.searchPublishedContent.mockResolvedValue([{
+      id: "service-1",
+      type: "service",
+      title: "Custom synthesis",
+      excerpt: "English fallback result",
+      href: "/de/services/custom-synthesis",
+      relevance: 500,
+      publishedAt: null,
+      translationLocale: "en",
+      usedFallback: true,
+    }]);
+    const { default: SearchPage } = await import("@/app/[locale]/(marketing)/search/page");
+
+    render(await SearchPage({
+      params: Promise.resolve({ locale: "de" }), searchParams: Promise.resolve({ q: "custom" }),
+    }));
+
+    expect(screen.getByRole("article")).toHaveAttribute("lang", "en");
+    expect(within(screen.getByRole("article")).getByRole("status")).toHaveTextContent("Die englische Version wird angezeigt");
   });
 
   it("renders SSR product query and category controls with only filtered localized results", async () => {
@@ -245,19 +348,45 @@ describe("public content routes", () => {
     expect(screen.queryByRole("navigation", { name: "Product pagination" })).not.toBeInTheDocument();
   });
 
-  it("renders sanitized CMS product markup without escaped or executable content", () => {
+  it("renders product card copy as safe plain text without nested headings", () => {
     const unsafeProduct = {
       ...product,
-      body: "<p>Visible <strong>application</strong></p><script>alert('unsafe')</script>",
+      body: "<h2>Visible <strong>application</strong></h2><script>alert('unsafe')</script>",
     };
 
     const { container } = render(<ProductCard product={unsafeProduct} />);
 
-    expect(screen.getByText("application").tagName).toBe("STRONG");
-    expect(container.querySelector("article > p > p")).toBeNull();
-    expect(container.querySelector("script")).toBeNull();
+    expect(screen.getByRole("article")).toHaveAttribute("lang", "en");
+    expect(screen.getByText("Visible application").tagName).toBe("P");
+    expect(container.querySelector("article h2, article h4, script")).toBeNull();
     expect(container.innerHTML).not.toContain("&lt;p&gt;");
     expect(container).not.toHaveTextContent("alert('unsafe')");
+  });
+
+  it("renders article excerpts as safe plain text rather than visible HTML", () => {
+    const { container } = render(<ArticleCard article={{ ...article, excerpt: "<h2>Reviewed <em>update</em></h2><script>unsafe()</script>" }} />);
+
+    expect(screen.getByRole("article")).toHaveAttribute("lang", "en");
+    expect(screen.getByText("Reviewed update").tagName).toBe("P");
+    expect(container.querySelector("article h2, script")).toBeNull();
+    expect(container).not.toHaveTextContent("unsafe()");
+  });
+
+  it("localizes the accessible product-media list name", async () => {
+    const { default: ProductPage } = await import("@/app/[locale]/(marketing)/products/[slug]/page");
+    contentMocks.getPublishedProduct.mockResolvedValue({
+      ...product,
+      locale: "de",
+      media: [{
+        id: "media-1", storageKey: "public/product.jpg", filename: "product.jpg", mimeType: "image/jpeg",
+        width: 640, height: 480, locale: "de", translationLocale: "de", usedFallback: false,
+        title: "Produkt", alt: "Produktprobe",
+      }],
+    });
+
+    render(await ProductPage({ params: Promise.resolve({ locale: "de", slug: product.slug }) }));
+
+    expect(screen.getByRole("list", { name: "Produktmedien" })).toBeInTheDocument();
   });
 
   it("renders a published article detail and rejects an unavailable draft", async () => {

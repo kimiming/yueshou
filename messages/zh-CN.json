@@ -20,6 +20,11 @@
   "inquiryErrors": { "inquiry_error_validation": "上传前请更正标出的字段。", "inquiry_error_attachment_count": "最多选择五个文件。", "inquiry_error_attachment_bytes": "附件总大小不得超过 75 MB。", "inquiry_upload_session_invalid": "安全上传会话已过期，请重试。", "inquiry_attachment_upload_failed": "附件上传失败，请重试。" },
   "marketing": {
     "accessibility": {
+      "fallbackNotice": "此内容尚无所选语言版本，现显示英文版本。",
+      "email": "电子邮件",
+      "phone": "电话",
+      "socialLinks": "社交链接",
+      "productMedia": "产品媒体",
       "home": "YueShou 首页",
       "mobileNavigation": "移动导航",
       "scientificWorkflow": "科研工作流程",

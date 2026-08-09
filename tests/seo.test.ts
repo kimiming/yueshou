@@ -67,6 +67,18 @@ describe("SEO metadata", () => {
     );
   });
 
+  it("keeps the requested canonical while identifying fallback content language", () => {
+    const metadata = buildMetadata({
+      locale: "de",
+      contentLocale: "en",
+      path: "/services/custom-synthesis",
+      title: "Custom synthesis",
+    });
+
+    expect(metadata.alternates?.canonical).toBe("https://www.yueshou.example/base-path/de/services/custom-synthesis");
+    expect(metadata.openGraph).toMatchObject({ locale: "en_US" });
+  });
+
   it("publishes the approved YueShou social card for Open Graph and X", () => {
     const metadata = buildMetadata({
       locale: "en",
@@ -325,6 +337,19 @@ describe("App Router SEO integration", () => {
       title: "YueShou Peptide Synthesis",
       description: "Custom peptide research services",
       alternates: { canonical: "https://www.yueshou.example/en" },
+    });
+  });
+
+  it("returns safe home metadata when the CMS lookup is unavailable", async () => {
+    contentServiceMocks.getHomePage.mockRejectedValueOnce(new Error("database unavailable"));
+    const generateMetadata = Reflect.get(HomePageModule, "generateMetadata") as
+      | ((props: { params: Promise<{ locale: string }> }) => Promise<unknown>)
+      | undefined;
+
+    await expect(generateMetadata?.({ params: Promise.resolve({ locale: "de" }) })).resolves.toMatchObject({
+      title: SITE_NAME,
+      description: SITE_DESCRIPTION,
+      alternates: { canonical: "https://www.yueshou.example/de" },
     });
   });
 

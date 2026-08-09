@@ -1,12 +1,13 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MarketingShellContentViewModel, PageViewModel } from "@/features/content/view-models";
 
-const { getHomePage, getMarketingShell, pathname } = vi.hoisted(() => ({
+const { getHomePage, getMarketingShell, pathname, searchParams } = vi.hoisted(() => ({
   getHomePage: vi.fn<(locale: string) => Promise<PageViewModel | null>>(),
   getMarketingShell: vi.fn<(locale: string) => Promise<MarketingShellContentViewModel | null>>(),
   pathname: { value: "/en/about" },
+  searchParams: { value: "" },
 }));
 
 vi.mock("@/features/content/service", () => ({ getHomePage, getMarketingShell }));
@@ -16,6 +17,7 @@ vi.mock("next/headers", () => ({
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   usePathname: () => pathname.value,
+  useSearchParams: () => new URLSearchParams(searchParams.value),
 }));
 
 import HomePage from "@/app/[locale]/(marketing)/page";
@@ -24,6 +26,7 @@ import { generateMetadata as generateLocaleMetadata } from "@/app/[locale]/layou
 import { LanguageSwitcher } from "@/components/marketing/language-switcher";
 import { localizeHref } from "@/components/marketing/link-utils";
 import { MobileNavigation } from "@/components/marketing/mobile-navigation";
+import * as FallbackComponents from "@/components/marketing/content-language-fallback";
 
 const shell: MarketingShellContentViewModel = {
   locale: "en",
@@ -32,6 +35,7 @@ const shell: MarketingShellContentViewModel = {
   summary: "Database-authored company summary.",
   contact: {
     email: "research@example.test",
+    phone: "+49 30 123456",
     addressLines: ["Research campus"],
   },
   navigation: [
@@ -173,11 +177,27 @@ describe("semantic marketing homepage", () => {
     getHomePage.mockReset();
     getMarketingShell.mockReset();
     pathname.value = "/en/about";
+    searchParams.value = "";
+    window.history.replaceState(null, "", "/en/about");
     getHomePage.mockResolvedValue(homePage);
     getMarketingShell.mockResolvedValue(shell);
   });
 
   afterEach(cleanup);
+
+  it("renders a retryable localized marketing error without exposing the underlying exception", () => {
+    const MarketingErrorState = Reflect.get(FallbackComponents, "MarketingErrorState");
+    expect(MarketingErrorState).toBeTypeOf("function");
+    if (typeof MarketingErrorState !== "function") return;
+    const retry = vi.fn();
+
+    render(<MarketingErrorState title="Inhalt nicht verfügbar" retryLabel="Erneut versuchen" onRetry={retry} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Inhalt nicht verfügbar");
+    expect(screen.queryByText(/database|digest|stack/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
 
   it("renders one ordered H1 and excludes disabled modules", async () => {
     render(await HomePage({ params: Promise.resolve({ locale: "en" }) }));
@@ -220,17 +240,24 @@ describe("semantic marketing homepage", () => {
     );
     expect(screen.getByRole("contentinfo")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Deutsch" })).toHaveAttribute("href", "/de/about");
+    expect(screen.getByRole("link", { name: "Email: research@example.test" })).toHaveAttribute("href", "mailto:research@example.test");
+    expect(screen.getByRole("link", { name: "Phone: +49 30 123456" })).toHaveAttribute("href", "tel:+4930123456");
+    expect(screen.getByRole("banner")).toHaveTextContent("Search");
+    expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en/search");
+    expect(screen.getByRole("link", { name: "Request a Quote" })).toHaveAttribute("href", "/en/request-a-quote");
     expect(screen.getByText("Research use only.")).toBeInTheDocument();
   });
 
-  it("preserves the current localized pathname when switching languages", () => {
+  it("preserves the current pathname, query, and hash when switching languages", async () => {
     pathname.value = "/en/about/team";
+    searchParams.value = "q=active&page=2";
+    window.history.replaceState(null, "", "/en/about/team?q=active&page=2#quality");
     render(<LanguageSwitcher locale="en" label="Language" />);
 
-    expect(screen.getByRole("link", { name: "Deutsch" })).toHaveAttribute(
+    await waitFor(() => expect(screen.getByRole("link", { name: "Deutsch" })).toHaveAttribute(
       "href",
-      "/de/about/team",
-    );
+      "/de/about/team?q=active&page=2#quality",
+    ));
   });
 
   it("renders nested CMS navigation in the opened mobile menu", () => {
@@ -239,11 +266,15 @@ describe("semantic marketing homepage", () => {
       menuLabel="Menu"
       closeLabel="Close"
       items={[{ id: "parent", label: "Services", href: "/en/services", enabled: true, sortOrder: 1, children: [{ id: "child", label: "Custom synthesis", href: "/en/services/custom", enabled: true, sortOrder: 1 }] }]}
+      searchAction={{ label: "Search", href: "/en/search" }}
+      quoteAction={{ label: "Request a Quote", href: "/en/request-a-quote" }}
     />);
 
     fireEvent.click(screen.getByRole("button", { name: "Menu" }));
     const navigation = screen.getByRole("navigation", { name: "Mobile navigation" });
     expect(within(navigation).getByRole("link", { name: "Custom synthesis" })).toHaveAttribute("href", "/en/services/custom");
+    expect(within(navigation).getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en/search");
+    expect(within(navigation).getByRole("link", { name: "Request a Quote" })).toHaveAttribute("href", "/en/request-a-quote");
   });
 
   it("closes the mobile menu on Escape and restores focus to its toggle", () => {
@@ -252,6 +283,8 @@ describe("semantic marketing homepage", () => {
       menuLabel="Menu"
       closeLabel="Close"
       items={[{ id: "products", label: "Products", href: "/en/products", enabled: true, sortOrder: 1 }]}
+      searchAction={{ label: "Search", href: "/en/search" }}
+      quoteAction={{ label: "Request a Quote", href: "/en/request-a-quote" }}
     />);
 
     const toggle = screen.getByRole("button", { name: "Menu" });
@@ -314,7 +347,7 @@ describe("semantic marketing homepage", () => {
   });
 
   it("passes localized fixed labels into the client controls", async () => {
-    getMarketingShell.mockResolvedValueOnce({ ...shell, locale: "de" });
+    getMarketingShell.mockResolvedValueOnce({ ...shell, locale: "de", socialLinks: [{ label: "LinkedIn", href: "https://linkedin.example.test" }] });
     render(
       await MarketingLayout({
         children: <main><h1>Inhalt</h1></main>,
@@ -325,6 +358,7 @@ describe("semantic marketing homepage", () => {
     expect(screen.getByRole("button", { name: /Menü/i })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Sprache" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Entdecken" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Soziale Links" })).toBeInTheDocument();
   });
 
   it.each([
@@ -358,7 +392,7 @@ describe("semantic marketing homepage", () => {
       }),
     );
 
-    expect(screen.getByRole("link", { name: labels.home })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: labels.home })).toHaveLength(2);
     expect(screen.getByLabelText(labels.scientificWorkflow)).toBeInTheDocument();
     const carousel = screen.getByRole("region", { name: /Forschungshöhepunkte|科研重点/ });
     expect(carousel).toHaveAttribute("aria-roledescription", labels.carouselRole);
@@ -375,5 +409,19 @@ describe("semantic marketing homepage", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("Content is temporarily unavailable");
     expect(screen.queryByText("Precision at every sequence")).not.toBeInTheDocument();
+  });
+
+  it("marks English fallback homepage content and explains it in the requested language", async () => {
+    getHomePage.mockResolvedValueOnce({
+      ...homePage,
+      locale: "de",
+      translationLocale: "en",
+      usedFallback: true,
+    });
+
+    render(await HomePage({ params: Promise.resolve({ locale: "de" }) }));
+
+    expect(screen.getByRole("main")).toHaveAttribute("lang", "en");
+    expect(screen.getByRole("status")).toHaveTextContent("Die englische Version wird angezeigt");
   });
 });

@@ -35,19 +35,37 @@ legal approval.
    `s3.example.com`). Set `TLS_CERTS_DIR` to an absolute directory containing the
    SAN certificate pair. Never commit this file.
 
-3. Restrict certificate access to the Docker operator, then validate and start:
+   The production validator rejects placeholders, weak/repeating secrets,
+   duplicate auth/inquiry/cron or storage/backup credentials, application use
+   of the MinIO root identity, invalid PostgreSQL identifiers, an invalid
+   bucket, non-positive intervals, non-HTTPS/mismatched site hosts, a shared
+   site/storage hostname, and a non-absolute or root TLS directory. The three
+   application secrets must be distinct 64-character hexadecimal values.
+   MinIO/application/backup secrets must meet the documented length and
+   diversity checks; passing Compose interpolation alone is not sufficient.
+
+3. Restrict certificate access to the Docker operator, then render Compose,
+   build, and run the production validator before starting stateful work:
 
    ```sh
    docker compose --env-file .env.docker config
    docker compose --env-file .env.docker build --pull
+   docker compose --env-file .env.docker run --rm --no-deps validate
    docker compose --env-file .env.docker up -d postgres minio minio-init migrate
    docker compose --env-file .env.docker up -d
    docker compose --env-file .env.docker ps
    ```
 
-   `migrate` and `minio-init` are expected to exit with status 0. `web` waits for
-   them before accepting traffic. Nginx is the only published surface, and it
-   redirects HTTP to HTTPS.
+   The `validate` container must exit 0. `minio-init`, `migrate`, `web`, `cron`,
+   and `backup` also depend on its successful completion, so a committed
+   placeholder cannot reach migration or application startup. `migrate` and
+   `minio-init` are expected to exit 0; `web` waits for them before accepting
+   traffic. Nginx is the only published surface and redirects HTTP to HTTPS.
+
+   Review migration SQL before this step. The legal-revision migration
+   deliberately demotes every historic legal approval to `DRAFT`/`PENDING`,
+   because the previous schema could not bind approval to child content. The
+   policies must be reviewed and approved again at their exact new revision.
 
 4. Perform the one-time, explicit administrator bootstrap described in the main
    deployment instructions, then remove bootstrap variables. Verify a private
@@ -71,18 +89,43 @@ dependency. Do not map MinIO's API or console to a host port. The certificate mu
 present a matching SAN for the S3 gateway hostname as well as the website hostname.
 
 The `cron` service makes only private-network `POST` calls to the internal content
-publication and media deletion routes. Each call uses a short-lived HMAC generated
-from `CRON_SECRET`; it does not expose a cron endpoint through Nginx. The interval
-defaults to five minutes and can be adjusted with `CRON_INTERVAL_SECONDS`. Its
-media-deletion request holds a shared lock; the backup job holds the corresponding
-exclusive lock through its PostgreSQL dump and MinIO mirror. No Docker socket is
-mounted into either service.
+publication, archived-media deletion, and storage-maintenance routes. Each call
+uses a short-lived HMAC generated from `CRON_SECRET`. Nginx explicitly returns
+`404` for every `/api/internal/` request, so these routes are reachable only from
+the private Compose network. The interval defaults to five minutes and can be
+adjusted with `CRON_INTERVAL_SECONDS`. The cron loop holds the shared media
+operations lock while it runs; the backup job holds the corresponding exclusive
+lock through its PostgreSQL dump and MinIO mirror. No Docker socket is mounted
+into either service.
+
+Storage maintenance sweeps at most 100 expired media/inquiry intents, orphaned
+inquiry sessions, and expired login/inquiry rate-limit rows per invocation, then
+processes at most 25 deletion jobs. Deletion claims use five-minute leases,
+reference checks immediately before object removal, exponential retry capped at
+24 hours, eight-attempt dead-lettering, privacy-sanitized errors, and audit events.
+Monitor `StorageDeletionJob`, `MediaDeletionJob`, and the associated audit actions;
+do not clear a dead letter by deleting an object without first establishing why
+the reference-safe worker failed.
+
+### MinIO lifecycle defense
+
+The database-backed worker is the primary cleanup mechanism. MinIO lifecycle is
+only a delayed defense for upload staging. Configure abort of incomplete multipart
+uploads and, if an expiration rule is used, keep its age comfortably longer than
+the 15-minute upload intent plus expected worker recovery. Expiration may target
+only the exact `media/pending/` and `inquiry/tmp/` prefixes. Never target broad
+`media/` or `inquiry/` prefixes, final `media/<year>/<month>/...`, or
+`inquiry/final/...`; a MinIO lifecycle action cannot perform the worker's live
+database reference check. Legacy `inquiry/<year>/<month>/...` staging keys remain
+parser-compatible for upgrades and must be reclaimed through durable jobs, not a
+broad lifecycle rule. Re-audit the rules after any storage-key migration.
 
 Nginx limits request bodies to 20 MB, passes the socket client IP as the single
 trusted `X-Forwarded-For` value, sets HTTPS security headers, and applies immutable
 caching to Next static assets. The Content Security Policy permits the inline
 styles/scripts currently required by Next.js and Ant Design; review it whenever
-third-party content is introduced.
+third-party content is introduced. Confirm an external request to a representative
+`/api/internal/...` path receives the indistinguishable `404` response.
 
 ## Updates and rollback
 
@@ -93,6 +136,7 @@ cache until the release is accepted.
 git fetch --tags
 git checkout <new-approved-tag>
 docker compose --env-file .env.docker build --pull
+docker compose --env-file .env.docker run --rm --no-deps validate
 docker compose --env-file .env.docker up -d postgres minio minio-init migrate
 docker compose --env-file .env.docker up -d --remove-orphans
 docker compose --env-file .env.docker logs --tail=100 web nginx migrate
@@ -161,6 +205,7 @@ passphrase independently from the server—losing it makes the archives unrecove
 docker compose --env-file .env.docker ps
 docker compose --env-file .env.docker logs --tail=100 web nginx cron backup
 docker compose --env-file .env.docker exec postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+docker compose --env-file .env.docker run --rm --no-deps validate
 ```
 
 Do not run `docker compose down -v` in production: it removes persistent data

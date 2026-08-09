@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  EditorAuthorizationError,
   EditorValidationError,
   createAdminEditorService,
   type AdminEditorRepository,
@@ -28,6 +29,43 @@ function repository(overrides: Partial<AdminEditorRepository> = {}): AdminEditor
 }
 
 describe("page section editor", () => {
+  it("allows only administrators to approve the exact current legal revision", async () => {
+    const approveLegalPage = vi.fn(async () => ({
+      id: "page-terms",
+      slug: "terms",
+      version: "2026-08-08T00:00:02.000Z",
+      contentRevision: 7,
+      legalReviewedRevision: 7,
+    }));
+    const repo = repository({ auditsMutations: true, approveLegalPage } as never);
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+
+    await expect(service.approveLegalPage({
+      actor: editor,
+      pageId: "page-terms",
+      version: "2026-08-08T00:00:01.000Z",
+      contentRevision: 7,
+    })).rejects.toBeInstanceOf(EditorAuthorizationError);
+
+    await expect(service.approveLegalPage({
+      actor: admin,
+      pageId: "page-terms",
+      version: "2026-08-08T00:00:01.000Z",
+      contentRevision: 7,
+    })).resolves.toMatchObject({ legalReviewedRevision: 7 });
+
+    expect(approveLegalPage).toHaveBeenCalledOnce();
+    expect(approveLegalPage).toHaveBeenCalledWith(expect.objectContaining({
+      actorId: admin.id,
+      pageId: "page-terms",
+      expectedRevision: 7,
+      audit: expect.objectContaining({
+        action: "LEGAL_PAGE_APPROVED",
+        metadata: expect.objectContaining({ contentRevision: 7 }),
+      }),
+    }));
+  });
+
   it("rejects publishing when an enabled section lacks an English translation", () => {
     expect(() => validatePagePublication({
       translations: [{ locale: "en", title: "About", body: "Research" }],

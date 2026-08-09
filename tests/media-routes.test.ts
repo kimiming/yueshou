@@ -17,12 +17,13 @@ import {
   MediaUploadIntentNotFoundError,
   MediaUploadIntentReplayError,
   completeUpload,
+  type MediaUploadStorage,
   type MediaRepository,
 } from "@/features/media/service";
-import type { ObjectStorage } from "@/lib/storage";
 
 const uploadBody = { name: "lab.webp", type: "image/webp", size: 2_000_000 };
-const objectKey = "media/2026/08/123e4567-e89b-42d3-a456-426614174000.webp";
+const objectKey = "media/pending/2026/08/123e4567-e89b-42d3-a456-426614174000.webp";
+const finalObjectKey = "media/2026/08/123e4567-e89b-42d3-a456-426614174000.webp";
 
 function mutationRequest(path: string, body: unknown, origin = "https://cms.example.test") {
   return new Request(`https://cms.example.test${path}`, {
@@ -87,15 +88,18 @@ describe("media route authorization", () => {
 
   it("maps a real metadata verification failure to a stable 409 response", async () => {
     const actor = { id: "editor-1", role: "EDITOR" as const };
-    const storage: ObjectStorage = {
+    const storage: MediaUploadStorage = {
       presignUpload: vi.fn(),
       headObject: vi.fn(async () => ({ contentType: "image/png", contentLength: 2_000_000, etag: '"etag"' })),
+      readPrivateObject: vi.fn(),
+      putImmutableObject: vi.fn(),
       deleteObject: vi.fn(),
     };
     const repository = {
       findUploadIntent: vi.fn(async () => ({
         id: "intent-1",
         storageKey: objectKey,
+        finalStorageKey: finalObjectKey,
         actorId: actor.id,
         filename: uploadBody.name,
         mimeType: uploadBody.type,
@@ -105,6 +109,7 @@ describe("media route authorization", () => {
         consumedAt: null,
       })),
       consumeUploadIntent: vi.fn(),
+      queueUploadObjectDeletion: vi.fn(async () => undefined),
     } as unknown as MediaRepository;
     const handler = createCompleteUploadHandler({
       authorize: async () => actor,

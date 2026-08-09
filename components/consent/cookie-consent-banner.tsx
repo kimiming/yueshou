@@ -11,12 +11,14 @@ type CookieConsentBannerProps = {
   labels: ConsentLabels;
   initialPreferences: ConsentPreferences | null;
   persistPreferences?: (selection: ConsentSelection) => Promise<void>;
+  onPreferencesChange?: (selection: ConsentSelection) => void;
 };
 
 export function CookieConsentBanner({
   labels,
   initialPreferences,
   persistPreferences = saveConsentPreferences,
+  onPreferencesChange,
 }: CookieConsentBannerProps) {
   const [hasChoice, setHasChoice] = useState(initialPreferences !== null);
   const [analytics, setAnalytics] = useState(initialPreferences?.analytics ?? false);
@@ -46,6 +48,7 @@ export function CookieConsentBanner({
 
   async function persist(enabled: boolean) {
     await persistPreferences({ necessary: true, analytics: enabled });
+    onPreferencesChange?.({ necessary: true, analytics: enabled });
     setAnalytics(enabled);
     setHasChoice(true);
     closeDialog();

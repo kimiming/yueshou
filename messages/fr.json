@@ -20,6 +20,11 @@
   "inquiryErrors": { "inquiry_error_validation": "Corrigez les champs signalés avant le téléversement.", "inquiry_error_attachment_count": "Sélectionnez au maximum cinq fichiers.", "inquiry_error_attachment_bytes": "Les pièces jointes doivent totaliser 75 Mo maximum.", "inquiry_upload_session_invalid": "La session sécurisée a expiré.", "inquiry_attachment_upload_failed": "Le téléversement a échoué." },
   "marketing": {
     "accessibility": {
+      "fallbackNotice": "Ce contenu n’est pas disponible dans la langue sélectionnée. La version anglaise est affichée.",
+      "email": "E-mail",
+      "phone": "Téléphone",
+      "socialLinks": "Liens vers les réseaux sociaux",
+      "productMedia": "Médias du produit",
       "home": "Accueil YueShou",
       "mobileNavigation": "Navigation mobile",
       "scientificWorkflow": "Flux de travail scientifique",
