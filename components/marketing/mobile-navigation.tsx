@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -17,6 +17,17 @@ type MobileNavigationProps = {
 export function MobileNavigation({ label, items, menuLabel, closeLabel }: MobileNavigationProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      toggleRef.current?.focus();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
   const links = (entries: MarketingLinkViewModel[]): ReactNode => (
     <ul>
       {entries
@@ -34,6 +45,7 @@ export function MobileNavigation({ label, items, menuLabel, closeLabel }: Mobile
   return (
     <div className="mobile-navigation">
       <button
+        ref={toggleRef}
         type="button"
         className="mobile-navigation__toggle"
         aria-expanded={open}

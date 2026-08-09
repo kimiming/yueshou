@@ -60,6 +60,19 @@ To execute the real production-build browser journeys, provide a resettable
 PostgreSQL database seeded with representative published content and an
 administrator account, then set these variables in the test shell:
 
+Provision the durable trust marker once as a PostgreSQL owner/superuser before
+the first run (replace the identifier with the exact `_e2e` database name):
+
+```sql
+COMMENT ON DATABASE yueshou_e2e IS 'YUESHOU_E2E_RELEASE';
+```
+
+This database-level comment survives Prisma schema resets. Every setup and
+teardown authenticates it before deletion, then runs `prisma migrate reset
+--force` followed by `pnpm db:seed`. Teardown therefore leaves the same seeded
+baseline ready for the next release run. A missing or different marker aborts
+before any destructive command.
+
 ```text
 E2E_DATABASE_URL=postgresql://.../yueshou_e2e
 E2E_AUTH_SECRET=<test-only secret of at least 32 characters>
@@ -79,6 +92,7 @@ ID, article ID, and article slug:
 
 ```text
 E2E_PUBLIC_MEDIA_ID=<published public MediaAsset cuid>
+E2E_HERO_MEDIA_ID=<different published public MediaAsset cuid for the HERO>
 E2E_HOME_PAGE_ID=<home Page cuid containing a HERO section>
 E2E_ARTICLE_ID=<published Article cuid>
 E2E_ARTICLE_SLUG=<published article slug>
@@ -97,7 +111,8 @@ The Playwright suite covers five-language SSR home rendering, locale switching,
 approved footer policies, search, cookie consent, inquiry validation/submission,
 admin authentication, responsive keyboard navigation, accessibility checks, and
 the opt-in mutation/publication scenario. Browser checks run against
-`pnpm build && pnpm start`, not the development server.
+`pnpm build && pnpm prepare:standalone && pnpm start:standalone`, not the
+development server.
 
 ## Deployment and operations
 

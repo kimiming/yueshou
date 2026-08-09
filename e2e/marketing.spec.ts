@@ -16,8 +16,13 @@ test.describe("marketing release journeys", () => {
       expect(await page.locator("html").getAttribute("lang")).toBe(locale);
       await expect(page.locator("main h1")).toBeVisible();
       await expect(page.locator("[role=alert]")).toHaveCount(0);
-      expect(await response?.text()).toContain("<main");
-      expect(await response?.text()).toContain(slogans[locale]);
+      const html = await response!.text();
+      expect(html).toContain("<main");
+      expect(html).toContain(slogans[locale]);
+      expect(html).toMatch(new RegExp(`<link[^>]+rel="canonical"[^>]+/${locale}`));
+      for (const alternate of locales) expect(html).toMatch(new RegExp(`<link[^>]+hreflang="${alternate}"`));
+      expect(html).toContain('property="og:title"');
+      expect(html).toContain('"@type":"Organization"');
       await expect(page.locator("link[rel=canonical]")).toHaveAttribute("href", new RegExp(`/${locale}`));
       await expect(page.locator("meta[property='og:title']")).toHaveAttribute("content", /.+/);
       await expect(page.locator("script[type='application/ld+json']").first()).toContainText("Organization");
@@ -31,13 +36,32 @@ test.describe("marketing release journeys", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "de");
   });
 
-  test("footer exposes each approved legal policy route", async ({ page }) => {
-    await page.goto("/en");
-    const footer = page.locator("footer");
-    for (const slug of ["terms", "privacy", "ruo-policy", "shipping-compliance", "cookie-policy"]) {
-      const link = footer.locator(`a[href='/en/legal/${slug}']`); await expect(link).toBeVisible();
-      const response = await page.request.get(`/en/legal/${slug}`); expect(response.ok()).toBe(true); expect(await response.text()).toContain("<h1");
+  test("every locale footer reaches each approved legal policy", async ({ page }) => {
+    for (const locale of locales) {
+      await page.goto(`/${locale}`);
+      const footer = page.locator("footer");
+      for (const slug of ["terms", "privacy", "ruo-policy", "shipping-compliance", "cookie-policy"]) {
+        const href = `/${locale}/legal/${slug}`;
+        await expect(footer.locator(`a[href='${href}']`)).toBeVisible();
+        const response = await page.goto(href);
+        expect(response?.ok()).toBe(true);
+        await expect(page.locator("main h1")).not.toHaveText("");
+        await expect(page.locator("main")).not.toContainText("404");
+        await expect(page.locator("main p, main li").first()).not.toHaveText("");
+        await page.goBack();
+      }
     }
+  });
+
+  test("robots and sitemap expose public indexing rules", async ({ request }) => {
+    const robots = await request.get("/robots.txt");
+    expect(robots.ok()).toBe(true);
+    expect(await robots.text()).toContain("Sitemap:");
+    const sitemap = await request.get("/sitemap.xml");
+    expect(sitemap.ok()).toBe(true);
+    const xml = await sitemap.text();
+    expect(xml).toContain("<urlset");
+    expect(xml).toContain("hreflang");
   });
 
   test("search returns a published product result", async ({ page }) => {
@@ -49,6 +73,7 @@ test.describe("marketing release journeys", () => {
 
   test("desktop home page has no automatically detected accessibility violations", async ({ page }) => {
     await page.goto("/en");
+    await expect(page.getByRole("region", { name: "Cookie choices" })).toBeVisible();
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
   });
@@ -58,9 +83,23 @@ test.describe("marketing release journeys", () => {
     await page.goto("/en");
     const menu = page.getByRole("button", { name: "Menu" });
     await menu.focus();
+    await expect(menu).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(menu).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
+    const navigation = page.getByRole("navigation", { name: "Mobile navigation" });
+    await expect(navigation).toBeVisible();
+    await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
+    await page.keyboard.press("Tab");
+    const firstLink = navigation.getByRole("link").first();
+    await expect(firstLink).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(navigation).toHaveCount(0);
+    await expect(menu).toBeFocused();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    const destination = await firstLink.getAttribute("href");
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`${destination?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 });

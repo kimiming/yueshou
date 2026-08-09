@@ -63,7 +63,7 @@ export const e2eAdmin = {
 };
 
 /** Mutation journeys remain opt-in because they alter the disposable seed. */
-const REQUIRED_MUTATION_ENVIRONMENT = ["E2E_PUBLIC_MEDIA_ID", "E2E_HOME_PAGE_ID", "E2E_ARTICLE_ID", "E2E_ARTICLE_SLUG"] as const;
+const REQUIRED_MUTATION_ENVIRONMENT = ["E2E_PUBLIC_MEDIA_ID", "E2E_HERO_MEDIA_ID", "E2E_HOME_PAGE_ID", "E2E_ARTICLE_ID", "E2E_ARTICLE_SLUG"] as const;
 const missingMutationFixture = REQUIRED_MUTATION_ENVIRONMENT.filter((key) => !process.env[key]);
 
 export const hasE2eMutationFixture = hasE2eDatabase && process.env.E2E_MUTATION_TESTS === "1" && missingMutationFixture.length === 0;
@@ -73,6 +73,7 @@ export const e2eMutationSkipReason = hasE2eMutationFixture
 
 export const e2eMutationFixture = {
   publicMediaId: process.env.E2E_PUBLIC_MEDIA_ID,
+  heroMediaId: process.env.E2E_HERO_MEDIA_ID,
   homePageId: process.env.E2E_HOME_PAGE_ID,
   articleId: process.env.E2E_ARTICLE_ID,
   articleSlug: process.env.E2E_ARTICLE_SLUG,

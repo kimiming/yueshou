@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, expect, it, vi } from "vitest";
 
 import { PageEditorForm, PageSectionForm, SiteSettingsForm } from "@/components/admin/editor-forms";
+import { ExistingContentForm } from "@/components/admin/domain-forms";
 import { SortableSections } from "@/components/admin/sortable-sections";
 import { PageSectionOrdering } from "@/components/admin/content-ordering";
 
@@ -41,9 +42,26 @@ it("exposes draft, publish, and archive controls for the brand setting", () => {
   expect(screen.getByRole("button", { name: "Add footer column" })).toBeInTheDocument();
 });
 
+it("announces an authoritative settings save outcome", async () => {
+  render(<SiteSettingsForm initial={{ key: "brand", version: "2026-08-08T00:00:00.000Z", status: "PUBLISHED", value: {}, translations: [{ locale: "en", title: "YueShou", body: "Precision peptides" }] }} save={vi.fn(async () => undefined)} />);
+  fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("Settings saved");
+});
+
 it("rehydrates section reference and statistics configuration", () => {
   render(<PageSectionForm initial={{ id: "section-1", pageId: "page-1", version: "2026-08-08T00:00:00.000Z", position: 0, type: "services", config: { serviceIds: ["service-a", "service-b"] }, isEnabled: true, translations: [{ locale: "en", title: "Services", body: "Copy" }] }} save={vi.fn(async () => undefined)} />);
   expect(screen.getByLabelText("Referenced IDs (comma-separated)")).toHaveValue("service-a, service-b");
+});
+
+it("announces authoritative section and article save outcomes", async () => {
+  render(<PageSectionForm initial={{ id: "section-1", pageId: "page-1", version: "2026-08-08T00:00:00.000Z", position: 0, type: "hero", config: {}, isEnabled: true, translations: [{ locale: "en", title: "Hero", body: "Copy" }] }} save={vi.fn(async () => undefined)} />);
+  fireEvent.click(screen.getByRole("button", { name: "Save section" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("Section saved");
+  cleanup();
+
+  render(<ExistingContentForm kind="article" initial={{ id: "article-1", version: "2026-08-08T00:00:00.000Z", categoryId: "category-1", slug: "release", status: "DRAFT", translations: [{ locale: "en", title: "Release", body: "Copy" }] }} categories={[{ id: "category-1", label: "Research" }]} save={vi.fn(async () => undefined)} />);
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("Article saved as DRAFT");
 });
 
 it("persists ordering enable toggles through the supplied handler", () => {

@@ -246,6 +246,23 @@ describe("semantic marketing homepage", () => {
     expect(within(navigation).getByRole("link", { name: "Custom synthesis" })).toHaveAttribute("href", "/en/services/custom");
   });
 
+  it("closes the mobile menu on Escape and restores focus to its toggle", () => {
+    render(<MobileNavigation
+      label="Mobile navigation"
+      menuLabel="Menu"
+      closeLabel="Close"
+      items={[{ id: "products", label: "Products", href: "/en/products", enabled: true, sortOrder: 1 }]}
+    />);
+
+    const toggle = screen.getByRole("button", { name: "Menu" });
+    fireEvent.click(toggle);
+    within(screen.getByRole("navigation", { name: "Mobile navigation" })).getByRole("link", { name: "Products" }).focus();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("navigation", { name: "Mobile navigation" })).not.toBeInTheDocument();
+    expect(toggle).toHaveFocus();
+  });
+
   it("uses configured branding SEO and favicon in the locale metadata", async () => {
     getMarketingShell.mockResolvedValueOnce({
       ...shell,
