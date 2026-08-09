@@ -33,7 +33,7 @@ pnpm prisma validate
 pnpm db:migrate:deploy
 ```
 
-Do **not** run `prisma migrate dev`, `prisma db push`, or `prisma migrate reset` against production. Do not run migrations in Vercel's regular build command: a failed or concurrent deployment must not race schema changes. Vercel's Build Command is `pnpm build`; it runs `prisma generate` before `next build`.
+Do **not** run `prisma migrate dev`, `prisma db push`, or `prisma migrate reset` against production. Do not run migrations in Vercel's regular build command: a failed or concurrent deployment must not race schema changes. Vercel's Build Command is `pnpm build:production`; it validates the production environment, then runs `prisma generate` before `next build`.
 
 ### First administrator bootstrap
 

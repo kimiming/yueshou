@@ -41,7 +41,7 @@
       "contactTeam": "联系我们的团队"
     },
     "cards": { "explore": "探索", "viewCategory": "查看分类", "researchUpdate": "科研动态", "readMore": "阅读更多" },
-    "public": { "breadcrumbs": "面包屑导航", "catalog": "产品目录", "news": "新闻", "articles": "已发布文章", "search": "搜索", "searchLabel": "搜索产品和内容", "searchAction": "搜索", "results": "搜索结果", "noResults": "未找到已发布的结果。", "contactDetails": "联系方式", "quoteDetails": "询价详情", "gdprNotice": "您的信息将用于回复本次询价。提供个人信息前，请阅读隐私政策。", "privacyPolicy": "隐私政策", "cas": "CAS 号", "sequence": "序列" },
+    "public": { "breadcrumbs": "面包屑导航", "catalog": "产品目录", "news": "新闻", "articles": "已发布文章", "search": "搜索", "searchLabel": "搜索产品和内容", "searchAction": "搜索", "results": "搜索结果", "noResults": "未找到已发布的结果。", "productCategory": "产品分类", "allCategories": "所有分类", "applyFilters": "应用筛选", "clearFilters": "清除筛选", "noProducts": "没有符合这些筛选条件的产品。", "contactDetails": "联系方式", "quoteDetails": "询价详情", "gdprNotice": "您的信息将用于回复本次询价。提供个人信息前，请阅读隐私政策。", "privacyPolicy": "隐私政策", "cas": "CAS 号", "sequence": "序列" },
     "errors": {
       "shellUnavailable": "网站导航暂时不可用",
       "contentUnavailable": "内容暂时不可用",

@@ -208,13 +208,21 @@ export type PublishedProductRecord = {
   media: PublishedMediaRecord[];
 };
 
+export type PublishedProductFilters = {
+  query?: string;
+  category?: string;
+  translationLocales?: DatabaseLocale[];
+};
+
 export interface ContentRepository {
   findPublishedPageBySlug(slug: string): Promise<PublishedPageRecord | null>;
   findApprovedLegalPageBySlug(slug: string): Promise<PublishedPageRecord | null>;
   findPublishedArticleBySlug(slug: string): Promise<PublishedArticleRecord | null>;
   findPublishedProductBySlug(slug: string): Promise<PublishedProductRecord | null>;
   findPublishedServiceBySlug(slug: string): Promise<PublishedServiceRecord | null>;
-  findPublishedProducts(): Promise<PublishedProductRecord[]>;
+  findPublishedServices(): Promise<PublishedServiceRecord[]>;
+  findPublishedProducts(filters?: PublishedProductFilters): Promise<PublishedProductRecord[]>;
+  findPublishedProductCategories(): Promise<PublishedProductCategoryRecord[]>;
   findPublishedMediaByIds(ids: string[]): Promise<PublishedMediaRecord[]>;
   findPublishedServicesByIds(ids: string[]): Promise<PublishedServiceRecord[]>;
   findPublishedHomepageItemsByIds(ids: string[]): Promise<PublishedHomepageItemRecord[]>;
@@ -318,15 +326,55 @@ export function createContentRepository(database: ContentDatabase) {
       });
     },
 
-    findPublishedProducts(): Promise<PublishedProductRecord[]> {
+    findPublishedServices(): Promise<PublishedServiceRecord[]> {
+      return database.service.findMany({
+        where: { status: "PUBLISHED", deletedAt: null },
+        orderBy: [{ position: "asc" }, { id: "asc" }],
+        select: { id: true, slug: true, translations: true },
+      });
+    },
+
+    findPublishedProducts(filters: PublishedProductFilters = {}): Promise<PublishedProductRecord[]> {
       return database.product.findMany({
         where: {
           status: "PUBLISHED",
           deletedAt: null,
-          category: { is: { status: "PUBLISHED", deletedAt: null } },
+          category: {
+            is: {
+              ...(filters.category ? { slug: filters.category } : {}),
+              status: "PUBLISHED",
+              deletedAt: null,
+            },
+          },
+          ...(filters.query ? {
+            OR: [
+              { casNumber: { contains: filters.query, mode: "insensitive" } },
+              { sequence: { contains: filters.query, mode: "insensitive" } },
+              {
+                translations: {
+                  some: {
+                    locale: { in: filters.translationLocales?.length ? filters.translationLocales : ["en"] },
+                    OR: [
+                      { title: { contains: filters.query, mode: "insensitive" } },
+                      { body: { contains: filters.query, mode: "insensitive" } },
+                    ],
+                  },
+                },
+              },
+            ],
+          } : {}),
         },
         orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
+        take: 100,
         include: productInclude,
+      });
+    },
+
+    findPublishedProductCategories(): Promise<PublishedProductCategoryRecord[]> {
+      return database.productCategory.findMany({
+        where: { status: "PUBLISHED", deletedAt: null },
+        orderBy: [{ position: "asc" }, { id: "asc" }],
+        select: { id: true, slug: true, translations: true },
       });
     },
 

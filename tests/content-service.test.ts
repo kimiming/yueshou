@@ -404,4 +404,152 @@ describe("content service", () => {
     });
     expect(JSON.parse(JSON.stringify(result))).toEqual(result);
   });
+
+  it("returns published services in repository order with English fallback", async () => {
+    const repository = {
+      findPublishedServices: vi.fn(async () => [
+        {
+          id: "service-1",
+          slug: "custom-synthesis",
+          translations: [
+            { locale: "en", title: "Custom synthesis", body: "English synthesis copy" },
+            { locale: "de", title: "Kundenspezifische Synthese", body: "Deutscher Inhalt" },
+          ],
+        },
+        {
+          id: "service-2",
+          slug: "peptide-analysis",
+          translations: [
+            { locale: "en", title: "Peptide analysis", body: "English analysis copy" },
+          ],
+        },
+      ]),
+    } as unknown as ContentRepository;
+
+    const result = await createContentService(repository).getPublishedServices("de");
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: "service-1",
+        locale: "de",
+        translationLocale: "de",
+        usedFallback: false,
+        title: "Kundenspezifische Synthese",
+      }),
+      expect.objectContaining({
+        id: "service-2",
+        locale: "de",
+        translationLocale: "en",
+        usedFallback: true,
+        title: "Peptide analysis",
+      }),
+    ]);
+  });
+
+  it("queries only published non-deleted services in stable CMS order", async () => {
+    const findMany = vi.fn(async () => []);
+    const repository = createContentRepository({ service: { findMany } } as unknown as PrismaClient);
+
+    await repository.findPublishedServices();
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { status: "PUBLISHED", deletedAt: null },
+      orderBy: [{ position: "asc" }, { id: "asc" }],
+      select: { id: true, slug: true, translations: true },
+    });
+  });
+
+  it("builds a bounded published product query across localized name, CAS, sequence, and application", async () => {
+    const findMany = vi.fn(async () => []);
+    const repository = createContentRepository({ product: { findMany } } as unknown as PrismaClient);
+
+    await repository.findPublishedProducts({
+      query: "alpha",
+      category: "research",
+      translationLocales: ["de", "en"],
+    });
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: {
+        status: "PUBLISHED",
+        deletedAt: null,
+        category: {
+          is: { slug: "research", status: "PUBLISHED", deletedAt: null },
+        },
+        OR: [
+          { casNumber: { contains: "alpha", mode: "insensitive" } },
+          { sequence: { contains: "alpha", mode: "insensitive" } },
+          {
+            translations: {
+              some: {
+                locale: { in: ["de", "en"] },
+                OR: [
+                  { title: { contains: "alpha", mode: "insensitive" } },
+                  { body: { contains: "alpha", mode: "insensitive" } },
+                ],
+              },
+            },
+          },
+        ],
+      },
+      orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
+      take: 100,
+      include: expect.any(Object),
+    });
+  });
+
+  it("offers only published non-deleted product categories in stable CMS order", async () => {
+    const findMany = vi.fn(async () => []);
+    const repository = createContentRepository({ productCategory: { findMany } } as unknown as PrismaClient);
+
+    await repository.findPublishedProductCategories();
+
+    expect(findMany).toHaveBeenCalledWith({
+      where: { status: "PUBLISHED", deletedAt: null },
+      orderBy: [{ position: "asc" }, { id: "asc" }],
+      select: { id: true, slug: true, translations: true },
+    });
+  });
+
+  it("returns localized product catalog filters and published categories", async () => {
+    const productRecord = {
+      id: "product-1",
+      slug: "alpha-peptide",
+      casNumber: "123-45-6",
+      sequence: "ALPHA",
+      specifications: null,
+      publishedAt: new Date("2026-08-08T00:00:00.000Z"),
+      translations: [{ locale: "en", title: "Alpha peptide", body: "Screening application" }],
+      category: {
+        slug: "research",
+        translations: [{ locale: "en", title: "Research", body: "Research products" }],
+      },
+      media: [],
+    };
+    const repository = {
+      findPublishedProducts: vi.fn(async () => [productRecord]),
+      findPublishedProductCategories: vi.fn(async () => [{
+        id: "category-1",
+        slug: "research",
+        translations: [{ locale: "en", title: "Research", body: "Research products" }],
+      }]),
+    } as unknown as ContentRepository;
+
+    const result = await createContentService(repository).getProductCatalog("de", {
+      query: "  alpha  ",
+      category: "research",
+    });
+
+    expect(repository.findPublishedProducts).toHaveBeenCalledWith({
+      query: "alpha",
+      category: "research",
+      translationLocales: ["de", "en"],
+    });
+    expect(result).toMatchObject({
+      query: "alpha",
+      category: "research",
+      products: [{ locale: "de", usedFallback: true, title: "Alpha peptide" }],
+      categories: [{ locale: "de", usedFallback: true, slug: "research", title: "Research" }],
+    });
+  });
 });

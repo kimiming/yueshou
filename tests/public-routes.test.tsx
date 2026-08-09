@@ -2,14 +2,17 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RichContent } from "@/components/marketing/rich-content";
-import type { ArticleViewModel, PageViewModel, ProductViewModel } from "@/features/content/view-models";
+import type { ArticleViewModel, PageViewModel, ProductViewModel, ServiceViewModel } from "@/features/content/view-models";
 
 const contentMocks = vi.hoisted(() => ({
   getApprovedLegalPageBySlug: vi.fn(),
   getPageBySlug: vi.fn(),
   getPublishedArticle: vi.fn(),
   getPublishedProduct: vi.fn(),
+  getPublishedProducts: vi.fn(),
+  getProductCatalog: vi.fn(),
   getPublishedService: vi.fn(),
+  getPublishedServices: vi.fn(),
 }));
 
 vi.mock("@/features/content/service", () => contentMocks);
@@ -73,6 +76,16 @@ const article: ArticleViewModel = {
   coverMedia: null,
 };
 
+const service: ServiceViewModel = {
+  id: "service-1",
+  slug: "custom-synthesis",
+  locale: "de",
+  translationLocale: "en",
+  usedFallback: true,
+  title: "Custom peptide synthesis",
+  body: "<p>English fallback service copy</p>",
+};
+
 describe("public content routes", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -132,6 +145,84 @@ describe("public content routes", () => {
     await expect(
       ProductPage({ params: Promise.resolve({ locale: "en", slug: "draft-product" }) }),
     ).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("renders the reserved services route as a semantic localized published-service list", async () => {
+    contentMocks.getPageBySlug.mockResolvedValue(page("services"));
+    contentMocks.getPublishedServices.mockResolvedValue([service]);
+    const { default: ServicesPage } = await import(
+      "@/app/[locale]/(marketing)/services/page"
+    );
+
+    const view = await ServicesPage({ params: Promise.resolve({ locale: "de" }) });
+    const { container } = render(view);
+
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Title for services");
+    expect(container.querySelectorAll("h1")).toHaveLength(1);
+    const serviceArticle = screen.getByRole("article");
+    expect(serviceArticle).toHaveTextContent("English fallback service copy");
+    expect(serviceArticle.innerHTML).not.toContain("&lt;p&gt;");
+    expect(screen.getByRole("link", { name: "Custom peptide synthesis" })).toHaveAttribute(
+      "href",
+      "/de/services/custom-synthesis",
+    );
+    expect(contentMocks.getPageBySlug).toHaveBeenCalledWith("de", "services");
+    expect(contentMocks.getPublishedServices).toHaveBeenCalledWith("de");
+  });
+
+  it("renders SSR product query and category controls with only filtered localized results", async () => {
+    const localizedProduct = { ...product, locale: "de" as const };
+    contentMocks.getPageBySlug.mockResolvedValue(page("products"));
+    contentMocks.getProductCatalog.mockResolvedValue({
+      products: [localizedProduct],
+      categories: [product.category],
+      query: "published",
+      category: "research",
+    });
+    const { default: ProductsPage } = await import(
+      "@/app/[locale]/(marketing)/products/page"
+    );
+
+    const view = await ProductsPage({
+      params: Promise.resolve({ locale: "de" }),
+      searchParams: Promise.resolve({ q: "  published  ", category: "research" }),
+    });
+    const { container } = render(view);
+
+    expect(container.querySelectorAll("h1")).toHaveLength(1);
+    expect(screen.getByRole("searchbox", { name: "Produkte und Inhalte durchsuchen" })).toHaveValue("published");
+    expect(screen.getByRole("combobox", { name: "Produktkategorie" })).toHaveValue("research");
+    expect(screen.getByRole("article")).toHaveTextContent("Published product");
+    expect(screen.getByRole("link", { name: "Published product" })).toHaveAttribute(
+      "href",
+      "/de/products/published-product",
+    );
+    expect(contentMocks.getProductCatalog).toHaveBeenCalledWith("de", {
+      query: "  published  ",
+      category: "research",
+    });
+  });
+
+  it("renders an accessible empty state for a product filter with no matches", async () => {
+    contentMocks.getPageBySlug.mockResolvedValue(page("products"));
+    contentMocks.getProductCatalog.mockResolvedValue({
+      products: [],
+      categories: [product.category],
+      query: "missing",
+      category: null,
+    });
+    const { default: ProductsPage } = await import(
+      "@/app/[locale]/(marketing)/products/page"
+    );
+
+    const view = await ProductsPage({
+      params: Promise.resolve({ locale: "en" }),
+      searchParams: Promise.resolve({ q: "missing" }),
+    });
+    render(view);
+
+    expect(screen.getByRole("status")).toHaveTextContent("No products match these filters.");
+    expect(screen.queryByRole("article")).not.toBeInTheDocument();
   });
 
   it("renders a published article detail and rejects an unavailable draft", async () => {

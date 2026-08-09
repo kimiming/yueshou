@@ -34,6 +34,7 @@ import {
   type Locale,
 } from "@/lib/i18n/config";
 import { resolveTranslation } from "@/lib/i18n/resolve-translation";
+import { escapeLikePattern, normalizeSearchQuery } from "@/features/content/search";
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
 
@@ -454,10 +455,40 @@ function serviceFromRepository(repository: ContentRepository) {
       const record = await repository.findPublishedServiceBySlug(slug);
       return record ? mapService(record, locale) : null;
     },
+    async getPublishedServices(localeInput: string) {
+      const locale = validateLookup(localeInput, "services");
+      const records = await repository.findPublishedServices();
+      return records.map((record) => mapService(record, locale));
+    },
     async getPublishedProducts(localeInput: string) {
       const locale = validateLookup(localeInput, "products");
       const records = await repository.findPublishedProducts();
       return records.map((record) => mapProduct(record, locale));
+    },
+    async getProductCatalog(
+      localeInput: string,
+      filters: { query?: string; category?: string } = {},
+    ) {
+      const locale = validateLookup(localeInput, "products");
+      const query = normalizeSearchQuery(filters.query ?? "");
+      const category = filters.category && isPublicContentSlug(filters.category)
+        ? filters.category
+        : null;
+      const translationLocales = [...new Set([toDatabaseLocale(locale), "en" as const])];
+      const [products, categories] = await Promise.all([
+        repository.findPublishedProducts({
+          ...(query ? { query: escapeLikePattern(query) } : {}),
+          ...(category ? { category } : {}),
+          translationLocales,
+        }),
+        repository.findPublishedProductCategories(),
+      ]);
+      return {
+        query,
+        category,
+        products: products.map((record) => mapProduct(record, locale)),
+        categories: categories.map((record) => mapCategory(record, locale)),
+      };
     },
     async getPublishedArticles(localeInput: string) {
       const locale = validateLookup(localeInput, "news");
@@ -495,6 +526,8 @@ export const getApprovedLegalPageBySlug = contentService.getApprovedLegalPageByS
 export const getPublishedArticle = contentService.getPublishedArticle;
 export const getPublishedProduct = contentService.getPublishedProduct;
 export const getPublishedService = contentService.getPublishedService;
+export const getPublishedServices = contentService.getPublishedServices;
 export const getPublishedProducts = contentService.getPublishedProducts;
+export const getProductCatalog = contentService.getProductCatalog;
 export const getPublishedArticles = contentService.getPublishedArticles;
 export const getSitemapContent = contentService.getSitemapContent;
