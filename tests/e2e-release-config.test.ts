@@ -10,7 +10,8 @@ const valid = {
   E2E_STORAGE_ENDPOINT: "http://127.0.0.1:9000", E2E_STORAGE_BUCKET: "yueshou-e2e",
   E2E_STORAGE_ACCESS_KEY_ID: "access", E2E_STORAGE_SECRET_ACCESS_KEY: "secret",
   E2E_ADMIN_EMAIL: "admin@example.test", E2E_ADMIN_PASSWORD: "A-test-password-123!",
-  E2E_PUBLIC_MEDIA_ID: "ck123456789012345678901234", E2E_HOME_PAGE_ID: "ck123456789012345678901235",
+  E2E_LOGO_MEDIA_ID: "ck123456789012345678901234",
+  E2E_HOME_PAGE_ID: "ck123456789012345678901235",
   E2E_HERO_MEDIA_ID: "ck123456789012345678901237",
   E2E_ARTICLE_ID: "ck123456789012345678901236", E2E_ARTICLE_SLUG: "e2e-article",
 };
@@ -19,7 +20,30 @@ describe("E2E release configuration", () => {
   it("fails closed when the explicit release flag or mutation fixture is absent", () => {
     expect(() => createE2eReleaseConfig({ ...valid, E2E_REQUIRED: undefined })).toThrow(/E2E_REQUIRED=1/);
     expect(() => createE2eReleaseConfig({ ...valid, E2E_MUTATION_TESTS: undefined })).toThrow(/E2E_MUTATION_TESTS=1/);
+    expect(() => createE2eReleaseConfig({ ...valid, E2E_LOGO_MEDIA_ID: undefined })).toThrow(/E2E_LOGO_MEDIA_ID/);
     expect(() => createE2eReleaseConfig({ ...valid, E2E_HERO_MEDIA_ID: undefined })).toThrow(/E2E_HERO_MEDIA_ID/);
+  });
+
+  it("requires separate published media fixtures for the logo and HERO", () => {
+    expect(() => createE2eReleaseConfig({
+      ...valid,
+      E2E_HERO_MEDIA_ID: valid.E2E_LOGO_MEDIA_ID,
+    })).toThrow(/E2E_HERO_MEDIA_ID.*E2E_LOGO_MEDIA_ID/);
+  });
+
+  it("keeps ordinary test:e2e read-only even when every mutation variable is present", async () => {
+    try {
+      for (const [key, value] of Object.entries(valid)) vi.stubEnv(key, value);
+      vi.stubEnv("E2E_REQUIRED", "");
+      vi.resetModules();
+
+      const fixture = await import("@/e2e/fixtures/database");
+
+      expect(fixture.hasE2eMutationFixture).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 
   it("rejects production-looking hosts and database names", () => {
@@ -47,8 +71,10 @@ describe("E2E database lifecycle", () => {
     await runE2eDatabaseLifecycle(lifecycle, "setup");
     await runE2eDatabaseLifecycle(lifecycle, "teardown");
     await runE2eDatabaseLifecycle(lifecycle, "setup");
+    await runE2eDatabaseLifecycle(lifecycle, "teardown");
 
     expect(events).toEqual([
+      "authenticate", "reset", "seed",
       "authenticate", "reset", "seed",
       "authenticate", "reset", "seed",
       "authenticate", "reset", "seed",

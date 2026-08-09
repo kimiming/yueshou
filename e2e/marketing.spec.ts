@@ -4,6 +4,14 @@ import { expect, test } from "./fixtures/browser";
 import { e2eSkipReason, hasE2eDatabase } from "./fixtures/database";
 
 const locales = ["en", "zh-CN", "de", "fr", "es"] as const;
+function linkAttribute(tag: string, name: string) {
+  return tag.match(new RegExp(`\\s${name}="([^"]+)"`, "i"))?.[1];
+}
+
+function expectedHomeUrl(locale: (typeof locales)[number]) {
+  return `${(process.env.E2E_SITE_URL || "http://localhost:3000").replace(/\/+$/, "")}/${locale}`;
+}
+
 const slogans = { en: "Precision Peptide", "zh-CN": "肽", de: "Peptid", fr: "peptidique", es: "péptidos" } as const;
 
 test.describe("marketing release journeys", () => {
@@ -20,7 +28,17 @@ test.describe("marketing release journeys", () => {
       expect(html).toContain("<main");
       expect(html).toContain(slogans[locale]);
       expect(html).toMatch(new RegExp(`<link[^>]+rel="canonical"[^>]+/${locale}`));
-      for (const alternate of locales) expect(html).toMatch(new RegExp(`<link[^>]+hreflang="${alternate}"`));
+      const alternateTags = html.match(/<link\b[^>]*\shreflang="[^"]+"[^>]*>/gi) ?? [];
+      const actualAlternates = alternateTags.map((tag) => ({
+        hreflang: linkAttribute(tag, "hreflang"),
+        href: linkAttribute(tag, "href"),
+      }));
+      const expectedAlternates = [
+        ...locales.map((alternate) => ({ hreflang: alternate, href: expectedHomeUrl(alternate) })),
+        { hreflang: "x-default", href: expectedHomeUrl("en") },
+      ];
+      expect(actualAlternates).toHaveLength(expectedAlternates.length);
+      expect(actualAlternates).toEqual(expect.arrayContaining(expectedAlternates));
       expect(html).toContain('property="og:title"');
       expect(html).toContain('"@type":"Organization"');
       await expect(page.locator("link[rel=canonical]")).toHaveAttribute("href", new RegExp(`/${locale}`));
@@ -64,11 +82,15 @@ test.describe("marketing release journeys", () => {
     expect(xml).toContain("hreflang");
   });
 
-  test("search returns a published product result", async ({ page }) => {
+  test("search returns only published product result links", async ({ page }) => {
     const term = process.env.E2E_SEARCH_TERM || "peptide";
     await page.goto(`/en/search?q=${encodeURIComponent(term)}`);
     await expect(page.getByRole("heading", { name: "Search results" })).toBeVisible();
-    await expect(page.locator(".search-results a[href^='/en/products/']").first()).toBeVisible();
+    const resultLinks = page.locator(".search-results a");
+    await expect(resultLinks.first()).toBeVisible();
+    for (const href of await resultLinks.evaluateAll((links) => links.map((link) => link.getAttribute("href")))) {
+      expect(href).toMatch(/^\/en\/products\//);
+    }
   });
 
   test("desktop home page has no automatically detected accessibility violations", async ({ page }) => {
@@ -81,22 +103,36 @@ test.describe("marketing release journeys", () => {
   test("mobile menu opens, supports keyboard navigation, and avoids horizontal overflow", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/en");
-    const menu = page.getByRole("button", { name: "Menu" });
-    await menu.focus();
-    await expect(menu).toBeFocused();
+    const toggle = page.locator(".mobile-navigation__toggle");
+    await expect(toggle).toHaveAccessibleName("Menu");
+    await toggle.focus();
+    await expect(toggle).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(menu).toHaveAttribute("aria-expanded", "true");
-    const navigation = page.getByRole("navigation", { name: "Mobile navigation" });
+    await expect(toggle).toHaveAccessibleName("Close");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(toggle).toBeFocused();
+    let navigation = page.getByRole("navigation", { name: "Mobile navigation" });
     await expect(navigation).toBeVisible();
-    await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(navigation).toHaveCount(0);
+    await expect(toggle).toHaveAccessibleName("Menu");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(toggle).toBeFocused();
+
+    await page.keyboard.press("Enter");
+    navigation = page.getByRole("navigation", { name: "Mobile navigation" });
     await page.keyboard.press("Tab");
-    const firstLink = navigation.getByRole("link").first();
+    let firstLink = navigation.getByRole("link").first();
     await expect(firstLink).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(navigation).toHaveCount(0);
-    await expect(menu).toBeFocused();
+    await expect(toggle).toBeFocused();
+
     await page.keyboard.press("Enter");
+    navigation = page.getByRole("navigation", { name: "Mobile navigation" });
     await page.keyboard.press("Tab");
+    firstLink = navigation.getByRole("link").first();
+    await expect(firstLink).toBeFocused();
     const destination = await firstLink.getAttribute("href");
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(new RegExp(`${destination?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));

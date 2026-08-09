@@ -1,6 +1,21 @@
+import type { Browser, Page } from "@playwright/test";
+
 import { expect, test } from "./fixtures/browser";
 import { signInAsConfiguredAdmin } from "./fixtures/auth";
 import { e2eMutationFixture, e2eMutationSkipReason, e2eSkipReason, hasE2eDatabase, hasE2eMutationFixture } from "./fixtures/database";
+
+async function withFreshAnonymousPage<T>(
+  browser: Browser,
+  baseURL: string | undefined,
+  visit: (page: Page) => Promise<T>,
+) {
+  const context = await browser.newContext(baseURL ? { baseURL } : {});
+  try {
+    return await visit(await context.newPage());
+  } finally {
+    await context.close();
+  }
+}
 
 test.describe("admin publication release journeys", () => {
   test.skip(!hasE2eDatabase, e2eSkipReason);
@@ -19,7 +34,7 @@ test.describe("admin publication release journeys", () => {
     await expect(page.getByLabel("Email")).toBeVisible();
   });
 
-  test("resettable fixture publishes branding, banner media and a translated article", async ({ page }) => {
+  test("resettable fixture publishes branding, banner media and a translated article", async ({ page, browser, baseURL }) => {
     test.skip(!hasE2eMutationFixture, e2eMutationSkipReason);
     const run = `${Date.now()}-${process.pid}`;
     const slogan = `E2E release slogan ${run}`;
@@ -28,17 +43,19 @@ test.describe("admin publication release journeys", () => {
     const address = `E2E laboratory ${run}`;
     const localizedTitle = `E2E German release ${run}`;
 
-    await page.goto("/en");
-    const before = {
-      slogan: await page.locator(".site-header__utility").innerText(),
-      logo: await page.locator("header .brand-lockup__image").getAttribute("src"),
-      hero: await page.locator("[data-section='hero'] .hero-section__media").getAttribute("src"),
-      contact: await page.locator("footer address").innerText(),
-    };
+    const before = await withFreshAnonymousPage(browser, baseURL, async (publicPage) => {
+      await publicPage.goto("/en");
+      return {
+        slogan: await publicPage.locator(".site-header__utility").innerText(),
+        logo: await publicPage.locator("header .brand-lockup__image").getAttribute("src"),
+        hero: await publicPage.locator("[data-section='hero'] .hero-section__media").getAttribute("src"),
+        contact: await publicPage.locator("footer address").innerText(),
+      };
+    });
 
     await signInAsConfiguredAdmin(page);
     await page.goto("/admin/settings");
-    await page.getByLabel("Logo media ID").fill(e2eMutationFixture.publicMediaId!);
+    await page.getByLabel("Logo media ID").fill(e2eMutationFixture.logoMediaId!);
     await page.getByLabel("Slogan").fill(slogan);
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Phone").fill(phone);
@@ -60,7 +77,9 @@ test.describe("admin publication release journeys", () => {
     await page.getByRole("option", { name: "DRAFT" }).click();
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByRole("status")).toHaveText("Article saved as DRAFT");
-    expect((await page.request.get(`/de/news/${e2eMutationFixture.articleSlug}`)).status()).toBe(404);
+    const draftStatus = await withFreshAnonymousPage(browser, baseURL, async (publicPage) =>
+      (await publicPage.request.get(`/de/news/${e2eMutationFixture.articleSlug}`)).status());
+    expect(draftStatus).toBe(404);
 
     await page.reload();
     await page.getByLabel("Status").click();
@@ -68,19 +87,21 @@ test.describe("admin publication release journeys", () => {
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByRole("status")).toHaveText("Article saved as PUBLISHED");
 
-    await page.goto(`/de/news/${e2eMutationFixture.articleSlug}`);
-    await expect(page.locator("article h1")).toHaveText(localizedTitle);
+    await withFreshAnonymousPage(browser, baseURL, async (publicPage) => {
+      await publicPage.goto(`/de/news/${e2eMutationFixture.articleSlug}`);
+      await expect(publicPage.locator("article h1")).toHaveText(localizedTitle);
 
-    await page.goto("/en");
-    await expect(page.locator(".site-header__utility")).toContainText(slogan);
-    await expect(page.locator("header .brand-lockup__image")).toHaveAttribute("src", new RegExp(e2eMutationFixture.publicMediaId!));
-    await expect(page.locator("[data-section='hero'] .hero-section__media")).toHaveAttribute("src", new RegExp(e2eMutationFixture.heroMediaId!));
-    await expect(page.locator("footer address")).toContainText(email);
-    await expect(page.locator("footer address")).toContainText(phone);
-    await expect(page.locator("footer address")).toContainText(address);
-    expect(await page.locator(".site-header__utility").innerText()).not.toBe(before.slogan);
-    expect(await page.locator("header .brand-lockup__image").getAttribute("src")).not.toBe(before.logo);
-    expect(await page.locator("[data-section='hero'] .hero-section__media").getAttribute("src")).not.toBe(before.hero);
-    expect(await page.locator("footer address").innerText()).not.toBe(before.contact);
+      await publicPage.goto("/en");
+      await expect(publicPage.locator(".site-header__utility")).toContainText(slogan);
+      await expect(publicPage.locator("header .brand-lockup__image")).toHaveAttribute("src", new RegExp(e2eMutationFixture.logoMediaId!));
+      await expect(publicPage.locator("[data-section='hero'] .hero-section__media")).toHaveAttribute("src", new RegExp(e2eMutationFixture.heroMediaId!));
+      await expect(publicPage.locator("footer address")).toContainText(email);
+      await expect(publicPage.locator("footer address")).toContainText(phone);
+      await expect(publicPage.locator("footer address")).toContainText(address);
+      expect(await publicPage.locator(".site-header__utility").innerText()).not.toBe(before.slogan);
+      expect(await publicPage.locator("header .brand-lockup__image").getAttribute("src")).not.toBe(before.logo);
+      expect(await publicPage.locator("[data-section='hero'] .hero-section__media").getAttribute("src")).not.toBe(before.hero);
+      expect(await publicPage.locator("footer address").innerText()).not.toBe(before.contact);
+    });
   });
 });

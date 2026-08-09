@@ -1,3 +1,5 @@
+import { createE2eReleaseConfigIfRequested } from "../../lib/e2e/release-config";
+
 /**
  * Browser journeys deliberately use an operator-provisioned, disposable
  * database.  They never fall back to a developer's DATABASE_URL or mock the
@@ -62,19 +64,18 @@ export const e2eAdmin = {
   password: process.env.E2E_ADMIN_PASSWORD,
 };
 
-/** Mutation journeys remain opt-in because they alter the disposable seed. */
-const REQUIRED_MUTATION_ENVIRONMENT = ["E2E_PUBLIC_MEDIA_ID", "E2E_HERO_MEDIA_ID", "E2E_HOME_PAGE_ID", "E2E_ARTICLE_ID", "E2E_ARTICLE_SLUG"] as const;
-const missingMutationFixture = REQUIRED_MUTATION_ENVIRONMENT.filter((key) => !process.env[key]);
+/** Mutation journeys use the complete fail-closed release boundary. */
+const releaseConfig = createE2eReleaseConfigIfRequested(process.env);
 
-export const hasE2eMutationFixture = hasE2eDatabase && process.env.E2E_MUTATION_TESTS === "1" && missingMutationFixture.length === 0;
+export const hasE2eMutationFixture = releaseConfig !== null;
 export const e2eMutationSkipReason = hasE2eMutationFixture
   ? ""
-  : `Set E2E_MUTATION_TESTS=1 only for a resettable seeded database and provide: ${missingMutationFixture.join(", ") || "a complete E2E database fixture"}.`;
+  : "Mutation journeys run only through pnpm test:e2e:release with its complete validated resettable fixture.";
 
-export const e2eMutationFixture = {
-  publicMediaId: process.env.E2E_PUBLIC_MEDIA_ID,
-  heroMediaId: process.env.E2E_HERO_MEDIA_ID,
-  homePageId: process.env.E2E_HOME_PAGE_ID,
-  articleId: process.env.E2E_ARTICLE_ID,
-  articleSlug: process.env.E2E_ARTICLE_SLUG,
+export const e2eMutationFixture = releaseConfig?.mutationFixture ?? {
+  logoMediaId: undefined,
+  heroMediaId: undefined,
+  homePageId: undefined,
+  articleId: undefined,
+  articleSlug: undefined,
 };

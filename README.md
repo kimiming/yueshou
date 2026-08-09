@@ -87,11 +87,11 @@ E2E_ADMIN_PASSWORD=<test-only administrator password>
 
 Optional values are `E2E_STORAGE_REGION`, `E2E_SITE_URL`, and
 `E2E_SEARCH_TERM`. Set `E2E_MUTATION_TESTS=1` only after the fixture is reset
-between runs. It also requires an existing published public media ID, home page
-ID, article ID, and article slug:
+between runs. It also requires separate published Logo and HERO media assets,
+a home page ID, an article ID, and an article slug:
 
 ```text
-E2E_PUBLIC_MEDIA_ID=<published public MediaAsset cuid>
+E2E_LOGO_MEDIA_ID=<published public MediaAsset cuid for the Logo>
 E2E_HERO_MEDIA_ID=<different published public MediaAsset cuid for the HERO>
 E2E_HOME_PAGE_ID=<home Page cuid containing a HERO section>
 E2E_ARTICLE_ID=<published Article cuid>
