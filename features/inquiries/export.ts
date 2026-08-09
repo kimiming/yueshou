@@ -1,0 +1,10 @@
+import type { InquiryStatus } from "@prisma/client";
+import { inquiryFilterSchema, type InquiryFilters } from "./filters";
+
+export type InquiryExportRow = { id: string; companyName: string; contactName: string; email: string; country: string | null; message: string; status: InquiryStatus; createdAt: Date };
+export type InquiryExportFilters = InquiryFilters;
+export type InquiryExportRepository = { streamRows(filters: InquiryExportFilters): AsyncIterable<InquiryExportRow>; auditExport?(input: { actorId: string; filters: InquiryExportFilters }): Promise<void> };
+export const inquiryExportFiltersSchema = inquiryFilterSchema;
+
+export function escapeCsvCell(value: string): string { const formulaSafe = /^[=+\-@]/.test(value) ? `'${value}` : value; return /[",\r\n]/.test(formulaSafe) ? `"${formulaSafe.replaceAll('"', '""')}"` : formulaSafe; }
+export async function exportInquiriesCsv(filters: InquiryExportFilters, actor: { id: string; role: "ADMIN" | "EDITOR" }, repository?: InquiryExportRepository): Promise<ReadableStream<Uint8Array>> { if (!actor?.id || !repository) throw new Error("Authorized inquiry export repository is required"); const parsed = inquiryExportFiltersSchema.parse(filters); await repository.auditExport?.({ actorId: actor.id, filters: parsed }); const encoder = new TextEncoder(); const rows = repository.streamRows(parsed); const iterator = rows[Symbol.asyncIterator](); let sentHeader = false; return new ReadableStream({ async pull(controller) { if (!sentHeader) { sentHeader = true; controller.enqueue(encoder.encode("ID,Company,Contact,Email,Country,Message,Status,Created at\r\n")); return; } const next = await iterator.next(); if (next.done) { controller.close(); return; } const row = next.value; controller.enqueue(encoder.encode([row.id, row.companyName, row.contactName, row.email, row.country ?? "", row.message, row.status, row.createdAt.toISOString()].map(escapeCsvCell).join(",") + "\r\n")); }, async cancel() { await iterator.return?.(); } }); }

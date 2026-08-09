@@ -1,0 +1,42 @@
+import { z } from "zod";
+import { Prisma, UserRole } from "@prisma/client";
+
+const confirmation = "I_UNDERSTAND_BOOTSTRAP_ADMIN";
+const placeholder = /(replace|example|change[-_ ]?me|placeholder|correct-horse|password123|admin123)/i;
+
+const bootstrapSchema = z.object({
+  INITIAL_ADMIN_EMAIL: z.string().trim().email(),
+  INITIAL_ADMIN_PASSWORD: z.string().min(12)
+    .regex(/[a-z]/, "must contain a lowercase character")
+    .regex(/[A-Z]/, "must contain an uppercase character")
+    .regex(/\d/, "must contain a digit")
+    .regex(/[^A-Za-z0-9]/, "must contain a symbol")
+    .refine((value) => !placeholder.test(value), "must not be a placeholder or commonly compromised password"),
+  BOOTSTRAP_ADMIN_CONFIRM: z.literal(confirmation),
+});
+
+export function parseBootstrapAdmin(input: Record<string, string | undefined>) {
+  const values = [input.INITIAL_ADMIN_EMAIL, input.INITIAL_ADMIN_PASSWORD, input.BOOTSTRAP_ADMIN_CONFIRM];
+  if (values.every((value) => !value)) return null;
+  const parsed = bootstrapSchema.parse(input);
+  return { email: parsed.INITIAL_ADMIN_EMAIL.trim().toLowerCase(), password: parsed.INITIAL_ADMIN_PASSWORD };
+}
+
+export async function createBootstrapAdmin(
+  transaction: Pick<Prisma.TransactionClient, "$executeRaw" | "user">,
+  input: { email: string; passwordHash: string },
+) {
+  // This transaction-scoped lock serializes bootstrap attempts even for
+  // different email addresses; the role alone has no database uniqueness key.
+  await transaction.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(85103429)`);
+  const existingAdmin = await transaction.user.findFirst({ where: { role: UserRole.ADMIN }, select: { id: true } });
+  if (existingAdmin) throw new Error("bootstrap_admin_exists");
+  const existingEmail = await transaction.user.findUnique({ where: { email: input.email }, select: { id: true } });
+  if (existingEmail) throw new Error("bootstrap_admin_exists");
+  try {
+    await transaction.user.create({ data: { email: input.email, passwordHash: input.passwordHash, role: UserRole.ADMIN } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new Error("bootstrap_admin_exists");
+    throw error;
+  }
+}

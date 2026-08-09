@@ -1,0 +1,265 @@
+name: yueshou
+
+x-logging: &default-logging
+  driver: local
+  options: { max-size: "10m", max-file: "3" }
+
+x-resources: &default-resources
+  resources:
+    limits: { cpus: "1.00", memory: 1G }
+    reservations: { memory: 256M }
+
+services:
+  validate:
+    build:
+      context: .
+      target: validator
+      args:
+        NEXT_PUBLIC_SITE_URL: "${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env.docker}"
+    environment:
+      NODE_ENV: production
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env.docker}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env.docker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env.docker}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env.docker}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:?Set STORAGE_ACCESS_KEY_ID in .env.docker}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:?Set STORAGE_SECRET_ACCESS_KEY in .env.docker}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:?Set STORAGE_BUCKET in .env.docker}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.docker}
+      INQUIRY_HASH_SECRET: ${INQUIRY_HASH_SECRET:?Set INQUIRY_HASH_SECRET in .env.docker}
+      CRON_SECRET: ${CRON_SECRET:?Set CRON_SECRET in .env.docker}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env.docker}
+      SERVER_NAME: ${SERVER_NAME:?Set SERVER_NAME in .env.docker}
+      STORAGE_HOST: ${STORAGE_HOST:?Set STORAGE_HOST in .env.docker}
+      TLS_CERTS_DIR: ${TLS_CERTS_DIR:?Set TLS_CERTS_DIR to an absolute certificate directory}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${BACKUP_ENCRYPTION_PASSPHRASE:?Set BACKUP_ENCRYPTION_PASSPHRASE in .env.docker}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      CRON_INTERVAL_SECONDS: ${CRON_INTERVAL_SECONDS:-300}
+    command: ["pnpm", "env:check:docker"]
+    networks: [private]
+    restart: "no"
+    logging: *default-logging
+    deploy: *default-resources
+    security_opt: [no-new-privileges:true]
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env.docker}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env.docker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.docker}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks: [private]
+    restart: unless-stopped
+    logging: *default-logging
+    deploy: *default-resources
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    security_opt: [no-new-privileges:true]
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env.docker}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env.docker}
+    command: server /data --console-address ":9001"
+    volumes: [minio_data:/data]
+    networks: [private]
+    restart: unless-stopped
+    logging: *default-logging
+    deploy: *default-resources
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    security_opt: [no-new-privileges:true]
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env.docker}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env.docker}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:?Set STORAGE_BUCKET in .env.docker}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:?Set STORAGE_ACCESS_KEY_ID in .env.docker}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:?Set STORAGE_SECRET_ACCESS_KEY in .env.docker}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env.docker}
+    depends_on:
+      validate: { condition: service_completed_successfully }
+      minio: { condition: service_healthy }
+    networks: [private]
+    restart: "no"
+    logging: *default-logging
+    deploy: *default-resources
+    entrypoint: ["/bin/sh", "-ec"]
+    command: |
+      mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+      mc mb --ignore-existing "local/$$STORAGE_BUCKET"
+      mc anonymous set none "local/$$STORAGE_BUCKET"
+      cat >/tmp/app-policy.json <<JSON
+      {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::$$STORAGE_BUCKET/*"]},{"Effect":"Allow","Action":["s3:ListBucket"],"Resource":["arn:aws:s3:::$$STORAGE_BUCKET"]}]}
+      JSON
+      mc admin policy create local yueshou-app /tmp/app-policy.json || mc admin policy update local yueshou-app /tmp/app-policy.json
+      mc admin user add local "$$STORAGE_ACCESS_KEY_ID" "$$STORAGE_SECRET_ACCESS_KEY" || true
+      mc admin policy attach local yueshou-app --user "$$STORAGE_ACCESS_KEY_ID"
+      cat >/tmp/cors.json <<JSON
+      [{"AllowedOrigins":["$$NEXT_PUBLIC_SITE_URL"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["content-type","content-length","x-amz-*"],"ExposeHeaders":["etag"],"MaxAgeSeconds":300}]
+      JSON
+      mc cors set "local/$$STORAGE_BUCKET" /tmp/cors.json
+
+  migrate:
+    build:
+      context: .
+      target: migrator
+      args:
+        NEXT_PUBLIC_SITE_URL: "${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env.docker}"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DIRECT_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    command: ["pnpm", "db:migrate:deploy"]
+    depends_on:
+      validate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+    networks: [private]
+    restart: "no"
+    logging: *default-logging
+    deploy: *default-resources
+    security_opt: [no-new-privileges:true]
+
+  web:
+    build:
+      context: .
+      target: runtime
+      args:
+        NEXT_PUBLIC_SITE_URL: "${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env.docker}"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env.docker}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.docker}
+      INQUIRY_HASH_SECRET: ${INQUIRY_HASH_SECRET:?Set INQUIRY_HASH_SECRET in .env.docker}
+      CRON_SECRET: ${CRON_SECRET:?Set CRON_SECRET in .env.docker}
+      INQUIRY_PROXY_MODE: nginx
+      STORAGE_BACKEND: minio
+      STORAGE_ENDPOINT: https://${STORAGE_HOST:?Set STORAGE_HOST in .env.docker}
+      STORAGE_REGION: us-east-1
+      STORAGE_BUCKET: ${STORAGE_BUCKET:?Set STORAGE_BUCKET in .env.docker}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:?Set STORAGE_ACCESS_KEY_ID in .env.docker}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:?Set STORAGE_SECRET_ACCESS_KEY in .env.docker}
+    depends_on:
+      validate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+      migrate: { condition: service_completed_successfully }
+    networks: [private]
+    restart: unless-stopped
+    logging: *default-logging
+    deploy: *default-resources
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/en').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    security_opt: [no-new-privileges:true]
+
+  ops-init:
+    image: alpine:3.21
+    user: "0:0"
+    volumes: [operations_lock:/operations-lock, backup_data:/backups]
+    command: |
+      /bin/sh -ec 'mkdir -p /operations-lock /backups/.work && touch /operations-lock/media-deletion.lock && chown -R 1001:1001 /operations-lock /backups && chmod 0770 /operations-lock /backups /backups/.work && chmod 0660 /operations-lock/media-deletion.lock'
+    networks: [private]
+    restart: "no"
+    logging: *default-logging
+    deploy: *default-resources
+    security_opt: [no-new-privileges:true]
+
+  cron:
+    build:
+      context: .
+      target: runtime
+      args:
+        NEXT_PUBLIC_SITE_URL: "${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env.docker}"
+    environment:
+      INTERNAL_APP_URL: http://web:3000
+      CRON_SECRET: ${CRON_SECRET:?Set CRON_SECRET in .env.docker}
+      CRON_INTERVAL_SECONDS: ${CRON_INTERVAL_SECONDS:-300}
+    command: ["sh", "/app/deploy/ops/cron-runner.sh"]
+    depends_on:
+      validate: { condition: service_completed_successfully }
+      web: { condition: service_healthy }
+      ops-init: { condition: service_completed_successfully }
+    volumes: [operations_lock:/operations-lock]
+    networks: [private]
+    user: "1001:1001"
+    restart: unless-stopped
+    logging: *default-logging
+    deploy: *default-resources
+    security_opt: [no-new-privileges:true]
+
+  backup:
+    build: { context: ., target: backup }
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_BUCKET: ${STORAGE_BUCKET:?Set STORAGE_BUCKET in .env.docker}
+      STORAGE_ACCESS_KEY_ID: ${STORAGE_ACCESS_KEY_ID:?Set STORAGE_ACCESS_KEY_ID in .env.docker}
+      STORAGE_SECRET_ACCESS_KEY: ${STORAGE_SECRET_ACCESS_KEY:?Set STORAGE_SECRET_ACCESS_KEY in .env.docker}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${BACKUP_ENCRYPTION_PASSPHRASE:?Set BACKUP_ENCRYPTION_PASSPHRASE in .env.docker}
+      BACKUP_ROOT: /backups
+      BACKUP_RETENTION_DAYS: 30
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    entrypoint: ["/bin/sh", "-ec"]
+    command: |
+      while true; do /backup/backup.sh; sleep "$$BACKUP_INTERVAL_SECONDS"; done
+    depends_on:
+      validate: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+      ops-init: { condition: service_completed_successfully }
+    volumes: [backup_data:/backups, operations_lock:/operations-lock]
+    networks: [private]
+    user: "1001:1001"
+    restart: unless-stopped
+    logging: *default-logging
+    deploy: *default-resources
+    security_opt: [no-new-privileges:true]
+
+  nginx:
+    image: nginx:1.27-alpine
+    environment:
+      SERVER_NAME: ${SERVER_NAME:?Set SERVER_NAME in .env.docker}
+      STORAGE_HOST: ${STORAGE_HOST:?Set STORAGE_HOST in .env.docker}
+      NGINX_ENVSUBST_FILTER: "SERVER_NAME|STORAGE_HOST"
+    depends_on: { web: { condition: service_healthy }, minio: { condition: service_healthy } }
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/templates/site.conf.template:/etc/nginx/templates/site.conf.template:ro
+      - ${TLS_CERTS_DIR:?Set TLS_CERTS_DIR to an absolute certificate directory}:/etc/nginx/certs:ro
+    networks:
+      private:
+        aliases:
+          - "${STORAGE_HOST:?Set STORAGE_HOST in .env.docker}"
+    restart: unless-stopped
+    logging: *default-logging
+    deploy: *default-resources
+    security_opt: [no-new-privileges:true]
+
+networks:
+  private: { internal: true }
+
+volumes:
+  postgres_data:
+  minio_data:
+  backup_data:
+  operations_lock:

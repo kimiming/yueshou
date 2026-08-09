@@ -1,0 +1,16 @@
+.git
+.worktrees
+.superpowers
+.next
+node_modules
+coverage
+playwright-report
+test-results
+.env
+.env.*
+!.env.example
+!.env.docker.example
+*.md
+docs
+e2e
+tests

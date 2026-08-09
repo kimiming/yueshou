@@ -1,0 +1,56 @@
+{
+  "site": {
+    "name": "YueShou",
+    "slogan": "Synthèse peptidique de précision pour la recherche scientifique mondiale"
+  },
+  "navigation": {
+    "home": "Accueil",
+    "about": "À propos",
+    "services": "Services",
+    "products": "Produits",
+    "quality": "Qualité",
+    "contact": "Contact"
+  },
+  "actions": {
+    "requestQuote": "Demander un devis",
+    "learnMore": "En savoir plus"
+  },
+  "consent": { "title": "Choix des cookies", "description": "Les cookies nécessaires assurent le fonctionnement du site. Les analyses sont facultatives et ne s’exécutent qu’avec votre accord.", "necessary": "Nécessaires", "necessaryDescription": "Requis pour la sécurité et les fonctions essentielles du site.", "analytics": "Analyses", "analyticsDescription": "Nous aide à comprendre l’utilisation du site.", "rejectAll": "Tout refuser", "acceptAll": "Tout accepter", "manage": "Paramètres des cookies", "save": "Enregistrer les préférences", "close": "Fermer les paramètres des cookies" },
+  "inquiry": { "company": "Entreprise ou institution", "contact": "Nom du contact", "email": "E-mail institutionnel", "country": "Pays", "details": "Détails du projet", "consent": "J’accepte l’utilisation de mes informations pour traiter cette demande.", "submit": "Envoyer la demande", "submitting": "Envoi…", "success": "Merci. Votre demande a bien été reçue.", "required": "Tous les champs sont obligatoires.", "attachments": "Pièces jointes", "attachmentHelp": "Facultatif : PDF, DOCX, XLSX, CSV ou TXT ; 15 Mo maximum chacun.", "uploading": "Sécurisation des pièces jointes…", "errors": { "inquiry_error_required": "Ce champ est obligatoire.", "inquiry_error_email": "Saisissez une adresse e-mail valide.", "inquiry_error_attachment": "La pièce jointe n’a pas pu être sécurisée.", "inquiry_attachment_signature": "Le contenu ne correspond pas au type de fichier.", "inquiry_upload_intent_expired": "Le téléversement a expiré. Réessayez.", "inquiry_upload_intent_consumed": "Cette pièce jointe est déjà finalisée.", "inquiry_error_rate_limited": "Trop de demandes. Réessayez plus tard.", "inquiry_error_service": "Votre demande n’a pas pu être envoyée." } },
+  "inquiryErrors": { "inquiry_error_validation": "Corrigez les champs signalés avant le téléversement.", "inquiry_error_attachment_count": "Sélectionnez au maximum cinq fichiers.", "inquiry_error_attachment_bytes": "Les pièces jointes doivent totaliser 75 Mo maximum.", "inquiry_upload_session_invalid": "La session sécurisée a expiré.", "inquiry_attachment_upload_failed": "Le téléversement a échoué." },
+  "marketing": {
+    "accessibility": {
+      "fallbackNotice": "Ce contenu n’est pas disponible dans la langue sélectionnée. La version anglaise est affichée.",
+      "email": "E-mail",
+      "phone": "Téléphone",
+      "socialLinks": "Liens vers les réseaux sociaux",
+      "productMedia": "Médias du produit",
+      "home": "Accueil YueShou",
+      "mobileNavigation": "Navigation mobile",
+      "scientificWorkflow": "Flux de travail scientifique",
+      "carousel": "carrousel",
+      "showSlide": "Afficher la diapositive {number} : {title}"
+    },
+    "navigation": { "primary": "Navigation principale", "footer": "Navigation de pied de page", "language": "Langue" },
+    "mobile": { "menu": "Menu", "close": "Fermer" },
+    "hero": {
+      "workflow": "Flux de travail peptidique",
+      "steps": ["Planifier", "Synthétiser", "Analyser", "Examiner"],
+      "carousel": "Temps forts de la recherche",
+      "choose": "Choisir un temps fort"
+    },
+    "footer": {
+      "explore": "Explorer",
+      "contact": "Contact",
+      "researchUseOnly": "Réservé à la recherche.",
+      "contactTeam": "Contacter notre équipe"
+    },
+    "cards": { "explore": "Explorer", "viewCategory": "Voir la catégorie", "researchUpdate": "Actualité de recherche", "readMore": "Lire la suite" },
+    "public": { "breadcrumbs": "Fil d’Ariane", "catalog": "Catalogue de produits", "news": "Actualités", "articles": "Articles publiés", "search": "Recherche", "searchLabel": "Rechercher des produits et du contenu", "searchAction": "Rechercher", "results": "Résultats de recherche", "noResults": "Aucun résultat publié trouvé.", "productCategory": "Catégorie de produit", "allCategories": "Toutes les catégories", "applyFilters": "Appliquer les filtres", "clearFilters": "Effacer les filtres", "noProducts": "Aucun produit ne correspond à ces filtres.", "productPagination": "Pagination des produits", "previousPage": "Page précédente", "nextPage": "Page suivante", "contactDetails": "Coordonnées", "quoteDetails": "Détails de la demande de devis", "gdprNotice": "Vos informations seront utilisées pour répondre à cette demande de devis. Consultez la politique de confidentialité avant de fournir des données personnelles.", "privacyPolicy": "Politique de confidentialité", "cas": "Numéro CAS", "sequence": "Séquence" },
+    "errors": {
+      "shellUnavailable": "La navigation du site est temporairement indisponible",
+      "contentUnavailable": "Le contenu est temporairement indisponible",
+      "retry": "Veuillez réessayer plus tard."
+    }
+  }
+}

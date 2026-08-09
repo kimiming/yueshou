@@ -1,0 +1,7 @@
+import { notFound } from "next/navigation";
+import { ExistingContentForm } from "@/components/admin/domain-forms";
+import { requireUser } from "@/lib/auth/permissions";
+import { prisma } from "@/lib/db/prisma";
+import { saveArticleAction } from "../actions";
+
+export default async function ArticleEditPage({ params }: { params: Promise<{ id: string }> }) { await requireUser(); const { id } = await params; const [article, categories, tags] = await Promise.all([prisma.article.findFirst({ where: { id, deletedAt: null }, include: { translations: true, tags: true } }), prisma.articleCategory.findMany({ where: { deletedAt: null }, include: { translations: { where: { locale: "en" }, take: 1 } } }), prisma.tag.findMany({ where: { deletedAt: null } })]); if (!article) notFound(); return <main><ExistingContentForm kind="article" initial={{ id: article.id, version: article.updatedAt.toISOString(), categoryId: article.categoryId, slug: article.slug, coverMediaId: article.coverMediaId, tagIds: article.tags.map((item) => item.id), status: article.status, scheduledAt: article.scheduledAt?.toISOString() ?? null, translations: article.translations.map((item) => ({ locale: item.locale === "zh_CN" ? "zh-CN" : item.locale, title: item.title, body: item.body, excerpt: item.excerpt ?? undefined })) }} categories={categories.map((item) => ({ id: item.id, label: item.translations[0]?.title ?? item.slug }))} tags={tags} save={saveArticleAction} /></main>; }

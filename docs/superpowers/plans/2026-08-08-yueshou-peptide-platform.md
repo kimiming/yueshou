@@ -87,13 +87,17 @@ docker-compose.yml
 - Produces: `env` validated runtime configuration from `lib/env.ts`.
 - Produces: `npm run test`, `npm run test:e2e`, `npm run build`, `npm run lint`.
 
-- [ ] **Step 1: Initialize the approved website scaffold**
+- [ ] **Step 1: Initialize the approved official Next.js scaffold**
 
-Run the Sites initializer once from the project root, preserve the generated package manager and lockfile, then remove only the starter preview UI after the real application shell exists:
+Create an official Next.js App Router project in a temporary sibling directory, then move only the generated application files into this worktree so the existing `docs/` and Git history remain intact. Use TypeScript, ESLint, Tailwind disabled, `src/` disabled, App Router enabled, and the `@/*` import alias:
 
 ```powershell
-& 'C:\Program Files\Git\bin\bash.exe' 'C:/Users/Administrator/.codex/plugins/cache/openai-bundled/sites/0.1.31/scripts/init-site.sh' "$PWD"
+pnpm dlx create-next-app@latest ../yueshou-next-bootstrap --ts --eslint --no-tailwind --app --no-src-dir --import-alias "@/*" --use-pnpm
+Get-ChildItem -Force ../yueshou-next-bootstrap | Move-Item -Destination .
+Remove-Item -LiteralPath ../yueshou-next-bootstrap -Force
 ```
+
+This official Next.js scaffold governs over the incompatible vinext/Sites starter because the approved product requires Next.js SSR, Vercel deployment, and a standalone Docker runtime.
 
 - [ ] **Step 2: Install the application and test dependencies**
 

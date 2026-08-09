@@ -1,0 +1,56 @@
+{
+  "site": {
+    "name": "YueShou",
+    "slogan": "Síntesis precisa de péptidos para la investigación científica mundial"
+  },
+  "navigation": {
+    "home": "Inicio",
+    "about": "Acerca de",
+    "services": "Servicios",
+    "products": "Productos",
+    "quality": "Calidad",
+    "contact": "Contacto"
+  },
+  "actions": {
+    "requestQuote": "Solicitar un presupuesto",
+    "learnMore": "Más información"
+  },
+  "consent": { "title": "Opciones de cookies", "description": "Las cookies necesarias mantienen el sitio en funcionamiento. Las analíticas son opcionales y solo se ejecutan si da su consentimiento.", "necessary": "Necesarias", "necessaryDescription": "Requeridas para la seguridad y las funciones básicas del sitio.", "analytics": "Analíticas", "analyticsDescription": "Nos ayuda a entender el uso del sitio.", "rejectAll": "Rechazar todo", "acceptAll": "Aceptar todo", "manage": "Configuración de cookies", "save": "Guardar preferencias", "close": "Cerrar configuración de cookies" },
+  "inquiry": { "company": "Empresa o institución", "contact": "Nombre de contacto", "email": "Correo institucional", "country": "País", "details": "Detalles del proyecto", "consent": "Consiento el uso de mi información para procesar esta consulta.", "submit": "Enviar consulta", "submitting": "Enviando…", "success": "Gracias. Hemos recibido su consulta.", "required": "Todos los campos son obligatorios.", "attachments": "Archivos adjuntos", "attachmentHelp": "Opcional: PDF, DOCX, XLSX, CSV o TXT; máximo 15 MB cada uno.", "uploading": "Protegiendo archivos…", "errors": { "inquiry_error_required": "Este campo es obligatorio.", "inquiry_error_email": "Introduzca un correo válido.", "inquiry_error_attachment": "No se pudo proteger el archivo.", "inquiry_attachment_signature": "El contenido no coincide con el tipo de archivo.", "inquiry_upload_intent_expired": "La carga caducó. Inténtelo de nuevo.", "inquiry_upload_intent_consumed": "Este archivo ya se finalizó.", "inquiry_error_rate_limited": "Demasiadas solicitudes. Inténtelo más tarde.", "inquiry_error_service": "No se pudo enviar su consulta." } },
+  "inquiryErrors": { "inquiry_error_validation": "Corrija los campos indicados antes de cargar.", "inquiry_error_attachment_count": "Seleccione como máximo cinco archivos.", "inquiry_error_attachment_bytes": "Los archivos deben sumar 75 MB o menos.", "inquiry_upload_session_invalid": "La sesión segura ha caducado.", "inquiry_attachment_upload_failed": "No se pudo cargar el archivo." },
+  "marketing": {
+    "accessibility": {
+      "fallbackNotice": "Este contenido no está disponible en el idioma seleccionado. Se muestra la versión en inglés.",
+      "email": "Correo electrónico",
+      "phone": "Teléfono",
+      "socialLinks": "Enlaces sociales",
+      "productMedia": "Medios del producto",
+      "home": "Inicio de YueShou",
+      "mobileNavigation": "Navegación móvil",
+      "scientificWorkflow": "Flujo de trabajo científico",
+      "carousel": "carrusel",
+      "showSlide": "Mostrar diapositiva {number}: {title}"
+    },
+    "navigation": { "primary": "Navegación principal", "footer": "Navegación del pie", "language": "Idioma" },
+    "mobile": { "menu": "Menú", "close": "Cerrar" },
+    "hero": {
+      "workflow": "Flujo de trabajo de péptidos",
+      "steps": ["Planificar", "Sintetizar", "Analizar", "Revisar"],
+      "carousel": "Aspectos destacados de investigación",
+      "choose": "Elegir un aspecto destacado"
+    },
+    "footer": {
+      "explore": "Explorar",
+      "contact": "Contacto",
+      "researchUseOnly": "Solo para investigación.",
+      "contactTeam": "Contactar con nuestro equipo"
+    },
+    "cards": { "explore": "Explorar", "viewCategory": "Ver categoría", "researchUpdate": "Actualización de investigación", "readMore": "Leer más" },
+    "public": { "breadcrumbs": "Migas de pan", "catalog": "Catálogo de productos", "news": "Noticias", "articles": "Artículos publicados", "search": "Buscar", "searchLabel": "Buscar productos y contenido", "searchAction": "Buscar", "results": "Resultados de búsqueda", "noResults": "No se encontraron resultados publicados.", "productCategory": "Categoría de producto", "allCategories": "Todas las categorías", "applyFilters": "Aplicar filtros", "clearFilters": "Borrar filtros", "noProducts": "Ningún producto coincide con estos filtros.", "productPagination": "Paginación de productos", "previousPage": "Página anterior", "nextPage": "Página siguiente", "contactDetails": "Datos de contacto", "quoteDetails": "Detalles de la solicitud de presupuesto", "gdprNotice": "Su información se utilizará para responder a esta solicitud de presupuesto. Revise la Política de privacidad antes de facilitar datos personales.", "privacyPolicy": "Política de privacidad", "cas": "Número CAS", "sequence": "Secuencia" },
+    "errors": {
+      "shellUnavailable": "La navegación del sitio no está disponible temporalmente",
+      "contentUnavailable": "El contenido no está disponible temporalmente",
+      "retry": "Inténtelo de nuevo más tarde."
+    }
+  }
+}

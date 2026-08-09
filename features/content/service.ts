@@ -1,0 +1,608 @@
+import {
+  contentRepository,
+  type ContentRepository,
+  type PublishedArticleRecord,
+  type PublishedHomepageItemRecord,
+  type PublishedMediaRecord,
+  type PublishedPageRecord,
+  type PublishedProductCategoryRecord,
+  type PublishedProductRecord,
+  type PublishedServiceRecord,
+} from "@/features/content/repository";
+import {
+  homepageItemValueSchema,
+  marketingShellValueSchema,
+  pageSectionSchema,
+} from "@/features/content/schemas";
+import type {
+  ArticleViewModel,
+  CategoryViewModel,
+  HomepageSectionItemViewModel,
+  MarketingShellContentViewModel,
+  MediaViewModel,
+  PageViewModel,
+  ProductViewModel,
+  ServiceViewModel,
+} from "@/features/content/view-models";
+import type { PageSectionType } from "@/features/content/types";
+import { isLegalPageSlug, isPublicContentSlug } from "@/features/content/public-slug";
+import {
+  fromDatabaseLocale,
+  isLocale,
+  toDatabaseLocale,
+  type DatabaseLocale,
+  type Locale,
+} from "@/lib/i18n/config";
+import { resolveTranslation } from "@/lib/i18n/resolve-translation";
+import { escapeLikePattern, normalizeSearchQuery } from "@/features/content/search";
+import { unstable_cache } from "next/cache";
+import { cache } from "react";
+
+const PRODUCT_PAGE_SIZE = 24;
+
+function normalizeRequestedPage(value: string | number | undefined) {
+  const page = typeof value === "number" ? value : Number(value ?? 1);
+  return Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
+function validateLookup(locale: string, slug: string): Locale {
+  if (!isLocale(locale)) {
+    throw new Error(`Invalid locale: ${locale}`);
+  }
+
+  if (!isPublicContentSlug(slug)) {
+    throw new Error(`Invalid slug: ${slug}`);
+  }
+
+  return locale;
+}
+
+function translationLocale(locale: string): Locale {
+  return fromDatabaseLocale(locale as DatabaseLocale);
+}
+
+function localized<T extends { locale: string; title: string; body: string }>(
+  translations: readonly T[],
+  locale: Locale,
+) {
+  const resolved = resolveTranslation(translations, toDatabaseLocale(locale));
+
+  return {
+    value: resolved.value,
+    locale,
+    translationLocale: translationLocale(resolved.value.locale),
+    usedFallback: resolved.usedFallback,
+    title: resolved.value.title,
+    body: resolved.value.body,
+  };
+}
+
+type ResolvedHomepageSection = {
+  config: unknown;
+  items: HomepageSectionItemViewModel[];
+  media: MediaViewModel | null;
+};
+
+function persistedSectionType(section: PublishedPageRecord["sections"][number]): PageSectionType {
+  return section.type.toLowerCase().replaceAll("_", "-") as PageSectionType;
+}
+
+function mapPage(
+  record: PublishedPageRecord,
+  locale: Locale,
+  resolvedSections: ReadonlyMap<string, ResolvedHomepageSection> = new Map(),
+): PageViewModel {
+  const page = localized(record.translations, locale);
+
+  return {
+    id: record.id,
+    slug: record.slug,
+    locale,
+    translationLocale: page.translationLocale,
+    usedFallback: page.usedFallback,
+    title: page.title,
+    body: page.body,
+    seoTitle: page.value.seoTitle,
+    seoDescription: page.value.seoDescription,
+    publishedAt: record.publishedAt?.toISOString() ?? null,
+    sections: record.sections.map((section) => {
+      const translation = localized(section.translations, locale);
+      const resolved = resolvedSections.get(section.id);
+      return {
+        id: section.id,
+        type: persistedSectionType(section),
+        position: section.position,
+        sortOrder: section.position,
+        enabled: true,
+        config: resolved?.config ?? section.config,
+        items: resolved?.items ?? [],
+        media: resolved?.media ?? null,
+        locale,
+        translationLocale: translation.translationLocale,
+        usedFallback: translation.usedFallback,
+        title: translation.title,
+        body: translation.body,
+      };
+    }),
+  };
+}
+
+type TranslatedCategory = {
+  slug: string;
+  translations: ReadonlyArray<{ locale: string; title: string; body: string }>;
+};
+
+function mapCategory(category: TranslatedCategory, locale: Locale): CategoryViewModel {
+  const translation = localized(category.translations, locale);
+  return {
+    slug: category.slug,
+    locale,
+    translationLocale: translation.translationLocale,
+    usedFallback: translation.usedFallback,
+    title: translation.title,
+    body: translation.body,
+  };
+}
+
+type MediaRecord = PublishedMediaRecord;
+
+function mapMedia(record: MediaRecord, locale: Locale): MediaViewModel {
+  const translation = localized(record.translations, locale);
+  return {
+    id: record.id,
+    storageKey: record.storageKey,
+    filename: record.filename,
+    mimeType: record.mimeType,
+    width: record.width,
+    height: record.height,
+    locale,
+    translationLocale: translation.translationLocale,
+    usedFallback: translation.usedFallback,
+    title: translation.title,
+    alt: translation.value.alt,
+  };
+}
+
+function isPublicMedia(record: MediaRecord) {
+  return record.visibility === "PUBLIC" && record.status === "PUBLISHED" && record.deletedAt === null;
+}
+
+function mapArticle(record: PublishedArticleRecord, locale: Locale): ArticleViewModel {
+  const translation = localized(record.translations, locale);
+  return {
+    id: record.id,
+    slug: record.slug,
+    locale,
+    translationLocale: translation.translationLocale,
+    usedFallback: translation.usedFallback,
+    title: translation.title,
+    body: translation.body,
+    excerpt: translation.value.excerpt,
+    publishedAt: record.publishedAt.toISOString(),
+    category: mapCategory(record.category, locale),
+    tags: record.tags.map((tag) => ({ slug: tag.slug, name: tag.name })),
+    coverMedia:
+      record.coverMedia && isPublicMedia(record.coverMedia)
+        ? mapMedia(record.coverMedia, locale)
+        : null,
+  };
+}
+
+function mapProduct(record: PublishedProductRecord, locale: Locale): ProductViewModel {
+  const translation = localized(record.translations, locale);
+  return {
+    id: record.id,
+    slug: record.slug,
+    locale,
+    translationLocale: translation.translationLocale,
+    usedFallback: translation.usedFallback,
+    title: translation.title,
+    body: translation.body,
+    casNumber: record.casNumber,
+    sequence: record.sequence,
+    specifications: record.specifications,
+    publishedAt: record.publishedAt?.toISOString() ?? null,
+    category: mapCategory(record.category, locale),
+    media: record.media.map((item) => mapMedia(item, locale)),
+  };
+}
+
+function mapService(record: PublishedServiceRecord, locale: Locale): ServiceViewModel {
+  const translation = localized(record.translations, locale);
+  return {
+    id: record.id,
+    slug: record.slug,
+    locale,
+    translationLocale: translation.translationLocale,
+    usedFallback: translation.usedFallback,
+    title: translation.title,
+    body: translation.body,
+  };
+}
+
+function mapLocalizedItem(
+  record: { id: string; translations: ReadonlyArray<{ locale: string; title: string; body: string }> },
+  locale: Locale,
+  href?: string,
+): HomepageSectionItemViewModel {
+  const translation = localized(record.translations, locale);
+  return {
+    id: record.id,
+    locale,
+    translationLocale: translation.translationLocale,
+    usedFallback: translation.usedFallback,
+    title: translation.title,
+    body: translation.body,
+    ...(href ? { href } : {}),
+  };
+}
+
+function orderReferences<T extends { id: string }>(ids: readonly string[], records: readonly T[]) {
+  const byId = new Map(records.map((record) => [record.id, record]));
+  return ids.flatMap((id) => {
+    const record = byId.get(id);
+    return record ? [record] : [];
+  });
+}
+
+function unique(values: readonly (string | undefined)[]) {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+function mapHomepageSettingItem(record: PublishedHomepageItemRecord, locale: Locale) {
+  const parsedValue = homepageItemValueSchema.safeParse(record.value);
+  return mapLocalizedItem(record, locale, parsedValue.success ? parsedValue.data.href : undefined);
+}
+
+function mapServiceItem(record: PublishedServiceRecord, locale: Locale) {
+  return mapLocalizedItem(record, locale, `/services/${record.slug}`);
+}
+
+function mapProductCategoryItem(record: PublishedProductCategoryRecord, locale: Locale) {
+  return mapLocalizedItem(record, locale, `/products?category=${encodeURIComponent(record.slug)}`);
+}
+
+function mapArticleItem(record: PublishedArticleRecord, locale: Locale) {
+  const article = mapArticle(record, locale);
+  return {
+    id: article.id,
+    locale,
+    translationLocale: article.translationLocale,
+    usedFallback: article.usedFallback,
+    title: article.title,
+    body: article.excerpt ?? article.body,
+    href: `/news/${article.slug}`,
+  } satisfies HomepageSectionItemViewModel;
+}
+
+async function hydrateHomePage(
+  repository: ContentRepository,
+  record: PublishedPageRecord,
+  locale: Locale,
+) {
+  const parsedSections = record.sections.map((section) => {
+    const parsed = pageSectionSchema.safeParse({
+      type: persistedSectionType(section),
+      config: section.config,
+    });
+    if (!parsed.success) {
+      throw new Error(`Invalid published homepage section config: ${section.id}`);
+    }
+    return { section, parsed: parsed.data };
+  });
+
+  const mediaIds = unique(parsedSections.flatMap(({ parsed }) =>
+    parsed.type === "hero" || parsed.type === "about" || parsed.type === "quality"
+      ? [parsed.config.imageId]
+      : [],
+  ));
+  const serviceIds = unique(parsedSections.flatMap(({ parsed }) =>
+    parsed.type === "services" ? parsed.config.serviceIds ?? [] : [],
+  ));
+  const itemIds = unique(parsedSections.flatMap(({ parsed }) =>
+    parsed.type === "capabilities" || parsed.type === "quality" || parsed.type === "global-reach"
+      ? parsed.config.itemIds ?? []
+      : [],
+  ));
+  const categoryIds = unique(parsedSections.flatMap(({ parsed }) =>
+    parsed.type === "product-categories" ? parsed.config.categoryIds ?? [] : [],
+  ));
+  const newsCount = parsedSections.reduce(
+    (count, { parsed }) => parsed.type === "news" ? Math.max(count, parsed.config.count) : count,
+    0,
+  );
+
+  const [media, services, homepageItems, categories, articles] = await Promise.all([
+    repository.findPublishedMediaByIds(mediaIds),
+    repository.findPublishedServicesByIds(serviceIds),
+    repository.findPublishedHomepageItemsByIds(itemIds),
+    repository.findPublishedProductCategoriesByIds(categoryIds),
+    newsCount > 0 ? repository.findLatestPublishedArticles(newsCount) : Promise.resolve([]),
+  ]);
+  const mediaById = new Map(media.map((item) => [item.id, item]));
+  const resolved = new Map<string, ResolvedHomepageSection>();
+
+  for (const { section, parsed } of parsedSections) {
+    let items: HomepageSectionItemViewModel[] = [];
+    let imageId: string | undefined;
+
+    switch (parsed.type) {
+      case "hero":
+      case "about":
+        imageId = parsed.config.imageId;
+        break;
+      case "services":
+        items = orderReferences(parsed.config.serviceIds ?? [], services)
+          .map((item) => mapServiceItem(item, locale));
+        break;
+      case "capabilities":
+      case "global-reach":
+        items = orderReferences(parsed.config.itemIds ?? [], homepageItems)
+          .map((item) => mapHomepageSettingItem(item, locale));
+        break;
+      case "quality":
+        imageId = parsed.config.imageId;
+        items = orderReferences(parsed.config.itemIds ?? [], homepageItems)
+          .map((item) => mapHomepageSettingItem(item, locale));
+        break;
+      case "product-categories":
+        items = orderReferences(parsed.config.categoryIds ?? [], categories)
+          .map((item) => mapProductCategoryItem(item, locale));
+        break;
+      case "stats":
+        items = (parsed.config.items ?? []).map((item, index) => ({
+          id: `${section.id}-stat-${index}`,
+          locale,
+          translationLocale: locale,
+          usedFallback: false,
+          title: item.label,
+          body: "",
+          value: item.value,
+        }));
+        break;
+      case "news":
+        items = articles.slice(0, parsed.config.count).map((item) => mapArticleItem(item, locale));
+        break;
+      case "cta":
+        break;
+    }
+
+    const mediaRecord = imageId ? mediaById.get(imageId) : undefined;
+    resolved.set(section.id, {
+      config: parsed.config,
+      items,
+      media: mediaRecord ? mapMedia(mediaRecord, locale) : null,
+    });
+  }
+
+  return mapPage(record, locale, resolved);
+}
+
+function serviceFromRepository(repository: ContentRepository) {
+  const getPageBySlug = async (localeInput: string, slug: string) => {
+    const locale = validateLookup(localeInput, slug);
+    const record = await repository.findPublishedPageBySlug(slug);
+    return record ? mapPage(record, locale) : null;
+  };
+
+  const getApprovedLegalPageBySlug = async (localeInput: string, slug: string) => {
+    const locale = validateLookup(localeInput, slug);
+    if (!isLegalPageSlug(slug)) throw new Error(`Invalid legal page slug: ${slug}`);
+    const record = await repository.findApprovedLegalPageBySlug(slug);
+    return record ? mapPage(record, locale) : null;
+  };
+
+  return {
+    async getHomePage(localeInput: string) {
+      const locale = validateLookup(localeInput, "home");
+      const record = await repository.findPublishedPageBySlug("home");
+      return record ? hydrateHomePage(repository, record, locale) : null;
+    },
+    getPageBySlug,
+    getApprovedLegalPageBySlug,
+    async getMarketingShell(localeInput: string): Promise<MarketingShellContentViewModel | null> {
+      const locale = validateLookup(localeInput, "home");
+      const [setting, navigationRecords] = await Promise.all([
+        repository.findPublishedSiteSettingByKey("brand"),
+        repository.findPublishedNavigationItems(),
+      ]);
+      if (!setting) return null;
+
+      const settingTranslation = localized(setting.translations, locale);
+      const contact = marketingShellValueSchema.parse(setting.value ?? {});
+      const brandingMediaIds = unique([contact.logoMediaId, contact.faviconMediaId]);
+      const brandingMedia = brandingMediaIds.length ? await repository.findPublishedMediaByIds(brandingMediaIds) : [];
+      const mediaById = new Map(brandingMedia.map((item) => [item.id, item]));
+      const flatNavigation = navigationRecords
+        .map((item) => {
+          const translation = resolveTranslation(item.translations, toDatabaseLocale(locale));
+          return {
+            id: item.id,
+            label: translation.value.title,
+            href: item.href,
+            sortOrder: item.position,
+            parentId: item.parentId ?? null,
+            enabled: true as const,
+          };
+        })
+        .toSorted((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
+      const childrenByParent = new Map<string | null, typeof flatNavigation>();
+      for (const item of flatNavigation) childrenByParent.set(item.parentId, [...(childrenByParent.get(item.parentId) ?? []), item]);
+      const toTree = (parentId: string | null): typeof flatNavigation => (childrenByParent.get(parentId) ?? []).map((item) => ({ ...item, children: toTree(item.id) }));
+      const navigation = toTree(null);
+
+      return {
+        locale,
+        translationLocale: settingTranslation.translationLocale,
+        usedFallback: settingTranslation.usedFallback,
+        summary: settingTranslation.body,
+        brandName: contact.companyName ?? settingTranslation.title,
+        slogan: contact.slogan ?? settingTranslation.body,
+        logo: contact.logoMediaId && mediaById.get(contact.logoMediaId) ? mapMedia(mediaById.get(contact.logoMediaId)!, locale) : null,
+        favicon: contact.faviconMediaId && mediaById.get(contact.faviconMediaId) ? mapMedia(mediaById.get(contact.faviconMediaId)!, locale) : null,
+        socialLinks: contact.socialLinks,
+        defaultSeo: contact.defaultSeo,
+        footerColumns: contact.footerColumns,
+        contact,
+        navigation,
+      };
+    },
+    async getPublishedArticle(localeInput: string, slug: string) {
+      const locale = validateLookup(localeInput, slug);
+      const record = await repository.findPublishedArticleBySlug(slug);
+      return record ? mapArticle(record, locale) : null;
+    },
+    async getPublishedProduct(localeInput: string, slug: string) {
+      const locale = validateLookup(localeInput, slug);
+      const record = await repository.findPublishedProductBySlug(slug);
+      return record ? mapProduct(record, locale) : null;
+    },
+    async getPublishedService(localeInput: string, slug: string) {
+      const locale = validateLookup(localeInput, slug);
+      const record = await repository.findPublishedServiceBySlug(slug);
+      return record ? mapService(record, locale) : null;
+    },
+    async getPublishedServices(localeInput: string) {
+      const locale = validateLookup(localeInput, "services");
+      const records = await repository.findPublishedServices();
+      return records.map((record) => mapService(record, locale));
+    },
+    async getPublishedProducts(localeInput: string) {
+      const locale = validateLookup(localeInput, "products");
+      const records = await repository.findPublishedProducts();
+      return records.map((record) => mapProduct(record, locale));
+    },
+    async getProductCatalog(
+      localeInput: string,
+      filters: { query?: string; category?: string; page?: string | number } = {},
+    ) {
+      const locale = validateLookup(localeInput, "products");
+      const query = normalizeSearchQuery(filters.query ?? "");
+      const category = filters.category && isPublicContentSlug(filters.category)
+        ? filters.category
+        : null;
+      const translationLocales = [...new Set([toDatabaseLocale(locale), "en" as const])];
+      const productFilters = {
+        ...(query ? { query: escapeLikePattern(query) } : {}),
+        ...(category ? { category } : {}),
+        translationLocales,
+      };
+      const [totalCount, categories] = await Promise.all([
+        repository.countPublishedProducts(productFilters),
+        repository.findPublishedProductCategories(),
+      ]);
+      const pageCount = Math.max(1, Math.ceil(totalCount / PRODUCT_PAGE_SIZE));
+      const page = Math.min(normalizeRequestedPage(filters.page), pageCount);
+      const products = await repository.findPublishedProducts({
+        ...productFilters,
+        offset: (page - 1) * PRODUCT_PAGE_SIZE,
+        limit: PRODUCT_PAGE_SIZE,
+      });
+      return {
+        query,
+        category,
+        page,
+        pageSize: PRODUCT_PAGE_SIZE,
+        pageCount,
+        totalCount,
+        products: products.map((record) => mapProduct(record, locale)),
+        categories: categories.map((record) => mapCategory(record, locale)),
+      };
+    },
+    async getPublishedArticles(localeInput: string) {
+      const locale = validateLookup(localeInput, "news");
+      const records = await repository.findLatestPublishedArticles(30);
+      return records.map((record) => mapArticle(record, locale));
+    },
+    async getSitemapContent() {
+      const records = await repository.findSitemapContent();
+      return records.map((record) => ({
+        ...record,
+        deletedAt: record.deletedAt?.toISOString() ?? null,
+        publishedAt: record.publishedAt?.toISOString() ?? null,
+        updatedAt: record.updatedAt.toISOString(),
+        legalReviewedAt: record.legalReviewedAt?.toISOString() ?? null,
+      }));
+    },
+  };
+}
+
+export function createContentService(repository: ContentRepository) {
+  return serviceFromRepository(repository);
+}
+
+const contentService = createContentService(contentRepository);
+
+function cachedContent<T>(keyParts: string[], tags: string[], load: () => Promise<T>) {
+  return unstable_cache(load, keyParts, { tags })();
+}
+
+export const getHomePage = cache((locale: string) => cachedContent(
+  ["content", "page", "home", locale],
+  ["page:home", "service:list", "product-category:list", "article:list", "homepage-item:list", "media:global"],
+  () => contentService.getHomePage(locale),
+));
+const getCachedMarketingShell = unstable_cache(
+  async (locale: string) => contentService.getMarketingShell(locale),
+  ["marketing-shell"],
+  { tags: ["site:global", "media:global"] },
+);
+export const getMarketingShell = cache(getCachedMarketingShell);
+export const getPageBySlug = cache((locale: string, slug: string) => cachedContent(
+  ["content", "page", slug, locale],
+  [`page:${slug}`, "page:list"],
+  () => contentService.getPageBySlug(locale, slug),
+));
+export const getApprovedLegalPageBySlug = cache((locale: string, slug: string) => cachedContent(
+  ["content", "legal", slug, locale],
+  [`page:${slug}`, "page:list"],
+  () => contentService.getApprovedLegalPageBySlug(locale, slug),
+));
+export const getPublishedArticle = cache((locale: string, slug: string) => cachedContent(
+  ["content", "article", slug, locale],
+  [`article:${slug}`, "article:list", "media:global"],
+  () => contentService.getPublishedArticle(locale, slug),
+));
+export const getPublishedProduct = cache((locale: string, slug: string) => cachedContent(
+  ["content", "product", slug, locale],
+  [`product:${slug}`, "product:list", "media:global"],
+  () => contentService.getPublishedProduct(locale, slug),
+));
+export const getPublishedService = cache((locale: string, slug: string) => cachedContent(
+  ["content", "service", slug, locale],
+  [`service:${slug}`, "service:list"],
+  () => contentService.getPublishedService(locale, slug),
+));
+export const getPublishedServices = cache((locale: string) => cachedContent(
+  ["content", "service-list", locale],
+  ["service:list"],
+  () => contentService.getPublishedServices(locale),
+));
+export const getPublishedProducts = cache((locale: string) => cachedContent(
+  ["content", "product-list", locale],
+  ["product:list", "media:global"],
+  () => contentService.getPublishedProducts(locale),
+));
+export const getProductCatalog = cache((
+  locale: string,
+  filters: { query?: string; category?: string; page?: string | number } = {},
+) => {
+  const query = normalizeSearchQuery(filters.query ?? "").toLocaleLowerCase("en");
+  const category = filters.category && isPublicContentSlug(filters.category) ? filters.category : "";
+  const page = String(normalizeRequestedPage(filters.page));
+  return cachedContent(
+    ["content", "product-catalog", locale, query, category, page],
+    ["product:list", "product-category:list", "media:global"],
+    () => contentService.getProductCatalog(locale, filters),
+  );
+});
+export const getPublishedArticles = cache((locale: string) => cachedContent(
+  ["content", "article-list", locale],
+  ["article:list", "media:global"],
+  () => contentService.getPublishedArticles(locale),
+));
+export const getSitemapContent = cache(() => cachedContent(
+  ["content", "sitemap"],
+  ["sitemap:content"],
+  () => contentService.getSitemapContent(),
+));
