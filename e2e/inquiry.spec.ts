@@ -1,8 +1,8 @@
 import { expect, test } from "./fixtures/browser";
-import { e2eSkipReason, hasE2eDatabase } from "./fixtures/database";
+import { e2eMutationSkipReason, hasE2eMutationFixture } from "./fixtures/database";
 
 test.describe("research inquiry", () => {
-  test.skip(!hasE2eDatabase, e2eSkipReason);
+  test.skip(!hasE2eMutationFixture, e2eMutationSkipReason);
 
   test("invalid submission reports the required fields without contacting external storage", async ({ page }) => {
     await page.goto("/en/request-a-quote");

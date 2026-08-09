@@ -71,6 +71,7 @@ describe("admin route guards", () => {
     expect(guestRedirect).not.toHaveBeenCalled();
 
     expect(renderToStaticMarkup(await GuestPage())).not.toContain("ant-card");
+    expect(renderToStaticMarkup(await GuestPage())).toContain("admin-login__surface");
 
     cleanup();
     const redirect = vi.fn(() => { throw new Error("redirected"); });

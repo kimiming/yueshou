@@ -1086,6 +1086,8 @@ a {
   width: min(100%, 430px);
   box-shadow: 0 24px 70px rgb(0 0 0 / 28%);
 }
+.admin-login__surface { padding: 28px; color: #10243e; background: #fff; border-radius: 8px; }
+.admin-login__surface > p { margin: 8px 0 22px; color: #587087; }
 
 .admin-login__card [role="alert"] {
   margin-bottom: 20px;
