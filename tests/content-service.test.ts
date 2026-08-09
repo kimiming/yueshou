@@ -459,7 +459,7 @@ describe("content service", () => {
     });
   });
 
-  it("builds a bounded published product query across localized name, CAS, sequence, and application", async () => {
+  it("builds a deterministic published product page query across localized name, CAS, sequence, and application", async () => {
     const findMany = vi.fn(async () => []);
     const repository = createContentRepository({ product: { findMany } } as unknown as PrismaClient);
 
@@ -467,6 +467,8 @@ describe("content service", () => {
       query: "alpha",
       category: "research",
       translationLocales: ["de", "en"],
+      offset: 24,
+      limit: 24,
     });
 
     expect(findMany).toHaveBeenCalledWith({
@@ -493,8 +495,45 @@ describe("content service", () => {
         ],
       },
       orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
-      take: 100,
+      skip: 24,
+      take: 24,
       include: expect.any(Object),
+    });
+  });
+
+  it("counts the same published filtered product set without a page ceiling", async () => {
+    const count = vi.fn(async () => 49);
+    const repository = createContentRepository({ product: { count } } as unknown as PrismaClient);
+
+    await expect(repository.countPublishedProducts({
+      query: "alpha",
+      category: "research",
+      translationLocales: ["de", "en"],
+    })).resolves.toBe(49);
+
+    expect(count).toHaveBeenCalledWith({
+      where: {
+        status: "PUBLISHED",
+        deletedAt: null,
+        category: {
+          is: { slug: "research", status: "PUBLISHED", deletedAt: null },
+        },
+        OR: [
+          { casNumber: { contains: "alpha", mode: "insensitive" } },
+          { sequence: { contains: "alpha", mode: "insensitive" } },
+          {
+            translations: {
+              some: {
+                locale: { in: ["de", "en"] },
+                OR: [
+                  { title: { contains: "alpha", mode: "insensitive" } },
+                  { body: { contains: "alpha", mode: "insensitive" } },
+                ],
+              },
+            },
+          },
+        ],
+      },
     });
   });
 
@@ -511,7 +550,7 @@ describe("content service", () => {
     });
   });
 
-  it("returns localized product catalog filters and published categories", async () => {
+  it("returns a complete second product page with localized filters and totals", async () => {
     const productRecord = {
       id: "product-1",
       slug: "alpha-peptide",
@@ -528,6 +567,7 @@ describe("content service", () => {
     };
     const repository = {
       findPublishedProducts: vi.fn(async () => [productRecord]),
+      countPublishedProducts: vi.fn(async () => 25),
       findPublishedProductCategories: vi.fn(async () => [{
         id: "category-1",
         slug: "research",
@@ -538,18 +578,47 @@ describe("content service", () => {
     const result = await createContentService(repository).getProductCatalog("de", {
       query: "  alpha  ",
       category: "research",
+      page: "2",
     });
 
     expect(repository.findPublishedProducts).toHaveBeenCalledWith({
       query: "alpha",
       category: "research",
       translationLocales: ["de", "en"],
+      offset: 24,
+      limit: 24,
     });
     expect(result).toMatchObject({
       query: "alpha",
       category: "research",
+      page: 2,
+      pageSize: 24,
+      pageCount: 2,
+      totalCount: 25,
       products: [{ locale: "de", usedFallback: true, title: "Alpha peptide" }],
       categories: [{ locale: "de", usedFallback: true, slug: "research", title: "Research" }],
     });
+  });
+
+  it.each([
+    ["not-a-page", 1, 0],
+    ["-4", 1, 0],
+    ["999", 3, 48],
+  ])("normalizes product catalog page %s to %i", async (requestedPage, expectedPage, expectedOffset) => {
+    const repository = {
+      countPublishedProducts: vi.fn(async () => 50),
+      findPublishedProducts: vi.fn(async () => []),
+      findPublishedProductCategories: vi.fn(async () => []),
+    } as unknown as ContentRepository;
+
+    const result = await createContentService(repository).getProductCatalog("en", {
+      page: requestedPage,
+    });
+
+    expect(result.page).toBe(expectedPage);
+    expect(repository.findPublishedProducts).toHaveBeenCalledWith(expect.objectContaining({
+      offset: expectedOffset,
+      limit: 24,
+    }));
   });
 });

@@ -212,6 +212,8 @@ export type PublishedProductFilters = {
   query?: string;
   category?: string;
   translationLocales?: DatabaseLocale[];
+  offset?: number;
+  limit?: number;
 };
 
 export interface ContentRepository {
@@ -222,6 +224,7 @@ export interface ContentRepository {
   findPublishedServiceBySlug(slug: string): Promise<PublishedServiceRecord | null>;
   findPublishedServices(): Promise<PublishedServiceRecord[]>;
   findPublishedProducts(filters?: PublishedProductFilters): Promise<PublishedProductRecord[]>;
+  countPublishedProducts(filters?: PublishedProductFilters): Promise<number>;
   findPublishedProductCategories(): Promise<PublishedProductCategoryRecord[]>;
   findPublishedMediaByIds(ids: string[]): Promise<PublishedMediaRecord[]>;
   findPublishedServicesByIds(ids: string[]): Promise<PublishedServiceRecord[]>;
@@ -246,6 +249,37 @@ export class LegalReviewRequiredError extends Error {
     super(`Page ${pageId} requires an approved legal review with a review timestamp before publication`);
     this.name = "LegalReviewRequiredError";
   }
+}
+
+function publishedProductWhere(filters: PublishedProductFilters): Prisma.ProductWhereInput {
+  return {
+    status: "PUBLISHED",
+    deletedAt: null,
+    category: {
+      is: {
+        ...(filters.category ? { slug: filters.category } : {}),
+        status: "PUBLISHED",
+        deletedAt: null,
+      },
+    },
+    ...(filters.query ? {
+      OR: [
+        { casNumber: { contains: filters.query, mode: "insensitive" } },
+        { sequence: { contains: filters.query, mode: "insensitive" } },
+        {
+          translations: {
+            some: {
+              locale: { in: filters.translationLocales?.length ? filters.translationLocales : ["en"] },
+              OR: [
+                { title: { contains: filters.query, mode: "insensitive" } },
+                { body: { contains: filters.query, mode: "insensitive" } },
+              ],
+            },
+          },
+        },
+      ],
+    } : {}),
+  };
 }
 
 function requirePublicationDate<T extends { publishedAt: Date | null }>(
@@ -336,38 +370,16 @@ export function createContentRepository(database: ContentDatabase) {
 
     findPublishedProducts(filters: PublishedProductFilters = {}): Promise<PublishedProductRecord[]> {
       return database.product.findMany({
-        where: {
-          status: "PUBLISHED",
-          deletedAt: null,
-          category: {
-            is: {
-              ...(filters.category ? { slug: filters.category } : {}),
-              status: "PUBLISHED",
-              deletedAt: null,
-            },
-          },
-          ...(filters.query ? {
-            OR: [
-              { casNumber: { contains: filters.query, mode: "insensitive" } },
-              { sequence: { contains: filters.query, mode: "insensitive" } },
-              {
-                translations: {
-                  some: {
-                    locale: { in: filters.translationLocales?.length ? filters.translationLocales : ["en"] },
-                    OR: [
-                      { title: { contains: filters.query, mode: "insensitive" } },
-                      { body: { contains: filters.query, mode: "insensitive" } },
-                    ],
-                  },
-                },
-              },
-            ],
-          } : {}),
-        },
+        where: publishedProductWhere(filters),
         orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
-        take: 100,
+        ...(filters.offset === undefined ? {} : { skip: filters.offset }),
+        ...(filters.limit === undefined ? {} : { take: filters.limit }),
         include: productInclude,
       });
+    },
+
+    countPublishedProducts(filters: PublishedProductFilters = {}): Promise<number> {
+      return database.product.count({ where: publishedProductWhere(filters) });
     },
 
     findPublishedProductCategories(): Promise<PublishedProductCategoryRecord[]> {

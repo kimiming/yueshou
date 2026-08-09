@@ -13,7 +13,11 @@ export const dynamic = "force-dynamic";
 
 type ProductsPageProps = {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ q?: string | string[]; category?: string | string[] }>;
+  searchParams: Promise<{
+    q?: string | string[];
+    category?: string | string[];
+    page?: string | string[];
+  }>;
 };
 
 function first(value: string | string[] | undefined) {
@@ -41,10 +45,19 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
     getProductCatalog(locale, {
       query: first(filters.q),
       category: first(filters.category),
+      page: first(filters.page),
     }),
     getDictionary(locale),
   ]);
   if (!page) notFound();
+
+  const pageHref = (pageNumber: number) => {
+    const query = new URLSearchParams();
+    if (catalog.query) query.set("q", catalog.query);
+    if (catalog.category) query.set("category", catalog.category);
+    query.set("page", String(pageNumber));
+    return `/${locale}/products?${query.toString()}`;
+  };
 
   return (
     <main id="main-content" className="marketing-container">
@@ -84,6 +97,17 @@ export default async function ProductsPage({ params, searchParams }: ProductsPag
         ) : (
           <p role="status">{dictionary.marketing.public.noProducts}</p>
         )}
+        {catalog.pageCount > 1 ? (
+          <nav aria-label={dictionary.marketing.public.productPagination}>
+            {catalog.page > 1 ? (
+              <Link href={pageHref(catalog.page - 1)}>{dictionary.marketing.public.previousPage}</Link>
+            ) : null}
+            <span aria-current="page">{catalog.page} / {catalog.pageCount}</span>
+            {catalog.page < catalog.pageCount ? (
+              <Link href={pageHref(catalog.page + 1)}>{dictionary.marketing.public.nextPage}</Link>
+            ) : null}
+          </nav>
+        ) : null}
       </section>
     </main>
   );

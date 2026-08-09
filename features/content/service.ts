@@ -38,6 +38,13 @@ import { escapeLikePattern, normalizeSearchQuery } from "@/features/content/sear
 import { unstable_cache } from "next/cache";
 import { cache } from "react";
 
+const PRODUCT_PAGE_SIZE = 24;
+
+function normalizeRequestedPage(value: string | number | undefined) {
+  const page = typeof value === "number" ? value : Number(value ?? 1);
+  return Number.isSafeInteger(page) && page > 0 ? page : 1;
+}
+
 function validateLookup(locale: string, slug: string): Locale {
   if (!isLocale(locale)) {
     throw new Error(`Invalid locale: ${locale}`);
@@ -467,7 +474,7 @@ function serviceFromRepository(repository: ContentRepository) {
     },
     async getProductCatalog(
       localeInput: string,
-      filters: { query?: string; category?: string } = {},
+      filters: { query?: string; category?: string; page?: string | number } = {},
     ) {
       const locale = validateLookup(localeInput, "products");
       const query = normalizeSearchQuery(filters.query ?? "");
@@ -475,17 +482,29 @@ function serviceFromRepository(repository: ContentRepository) {
         ? filters.category
         : null;
       const translationLocales = [...new Set([toDatabaseLocale(locale), "en" as const])];
-      const [products, categories] = await Promise.all([
-        repository.findPublishedProducts({
-          ...(query ? { query: escapeLikePattern(query) } : {}),
-          ...(category ? { category } : {}),
-          translationLocales,
-        }),
+      const productFilters = {
+        ...(query ? { query: escapeLikePattern(query) } : {}),
+        ...(category ? { category } : {}),
+        translationLocales,
+      };
+      const [totalCount, categories] = await Promise.all([
+        repository.countPublishedProducts(productFilters),
         repository.findPublishedProductCategories(),
       ]);
+      const pageCount = Math.max(1, Math.ceil(totalCount / PRODUCT_PAGE_SIZE));
+      const page = Math.min(normalizeRequestedPage(filters.page), pageCount);
+      const products = await repository.findPublishedProducts({
+        ...productFilters,
+        offset: (page - 1) * PRODUCT_PAGE_SIZE,
+        limit: PRODUCT_PAGE_SIZE,
+      });
       return {
         query,
         category,
+        page,
+        pageSize: PRODUCT_PAGE_SIZE,
+        pageCount,
+        totalCount,
         products: products.map((record) => mapProduct(record, locale)),
         categories: categories.map((record) => mapCategory(record, locale)),
       };

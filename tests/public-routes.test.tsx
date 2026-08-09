@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RichContent } from "@/components/marketing/rich-content";
+import { ProductCard } from "@/components/marketing/product-card";
 import type { ArticleViewModel, PageViewModel, ProductViewModel, ServiceViewModel } from "@/features/content/view-models";
 
 const contentMocks = vi.hoisted(() => ({
@@ -178,6 +179,10 @@ describe("public content routes", () => {
       categories: [product.category],
       query: "published",
       category: "research",
+      page: 2,
+      pageSize: 24,
+      pageCount: 3,
+      totalCount: 50,
     });
     const { default: ProductsPage } = await import(
       "@/app/[locale]/(marketing)/products/page"
@@ -185,7 +190,7 @@ describe("public content routes", () => {
 
     const view = await ProductsPage({
       params: Promise.resolve({ locale: "de" }),
-      searchParams: Promise.resolve({ q: "  published  ", category: "research" }),
+      searchParams: Promise.resolve({ q: "  published  ", category: "research", page: "2" }),
     });
     const { container } = render(view);
 
@@ -197,9 +202,19 @@ describe("public content routes", () => {
       "href",
       "/de/products/published-product",
     );
+    expect(screen.getByRole("link", { name: "Vorherige Seite" })).toHaveAttribute(
+      "href",
+      "/de/products?q=published&category=research&page=1",
+    );
+    expect(screen.getByRole("link", { name: "Nächste Seite" })).toHaveAttribute(
+      "href",
+      "/de/products?q=published&category=research&page=3",
+    );
+    expect(screen.getByText("2 / 3")).toHaveAttribute("aria-current", "page");
     expect(contentMocks.getProductCatalog).toHaveBeenCalledWith("de", {
       query: "  published  ",
       category: "research",
+      page: "2",
     });
   });
 
@@ -210,6 +225,10 @@ describe("public content routes", () => {
       categories: [product.category],
       query: "missing",
       category: null,
+      page: 1,
+      pageSize: 24,
+      pageCount: 1,
+      totalCount: 0,
     });
     const { default: ProductsPage } = await import(
       "@/app/[locale]/(marketing)/products/page"
@@ -223,6 +242,22 @@ describe("public content routes", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("No products match these filters.");
     expect(screen.queryByRole("article")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Product pagination" })).not.toBeInTheDocument();
+  });
+
+  it("renders sanitized CMS product markup without escaped or executable content", () => {
+    const unsafeProduct = {
+      ...product,
+      body: "<p>Visible <strong>application</strong></p><script>alert('unsafe')</script>",
+    };
+
+    const { container } = render(<ProductCard product={unsafeProduct} />);
+
+    expect(screen.getByText("application").tagName).toBe("STRONG");
+    expect(container.querySelector("article > p > p")).toBeNull();
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.innerHTML).not.toContain("&lt;p&gt;");
+    expect(container).not.toHaveTextContent("alert('unsafe')");
   });
 
   it("renders a published article detail and rejects an unavailable draft", async () => {
