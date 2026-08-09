@@ -18,6 +18,7 @@ export type PageSectionViewModel = LocalizedViewModel & {
   config: unknown;
   items: HomepageSectionItemViewModel[];
   media: MediaViewModel | null;
+  mediaGallery: MediaViewModel[];
 };
 
 export type HomepageSectionItemViewModel = LocalizedViewModel & {

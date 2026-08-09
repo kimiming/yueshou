@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { Button, Card, Input, List, Space, Typography } from "antd";
+import { AdminPageTitle, Button, Card, Input, Space } from "@/components/admin/antd-server-bridge";
 import Link from "next/link";
 
 import { ProductForm } from "@/components/admin/domain-forms";
@@ -57,7 +57,7 @@ export default async function ProductsPage({ searchParams }: {
   }));
 
   return <main>
-    <Typography.Title level={1}>Products</Typography.Title>
+    <AdminPageTitle level={1}>Products</AdminPageTitle>
     <ProductForm categories={categoryItems} save={saveProductAction} />
     <TaxonomyManager kind="category" title="Product categories" items={categoryItems} save={saveProductCategoryAction} archive={archiveProductCategoryAction} />
     <Card title="Product catalogue">
@@ -66,10 +66,10 @@ export default async function ProductsPage({ searchParams }: {
         <select name="status" defaultValue={status ?? ""} aria-label="Product status"><option value="">All statuses</option>{["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => <option key={value} value={value}>{value}</option>)}</select>
         <Button htmlType="submit">Filter</Button>
       </Space></form>
-      <List dataSource={products} renderItem={(item) => <List.Item><List.Item.Meta
-        title={<Link href={`/admin/products/${item.id}`}>{item.translations[0]?.title ?? item.slug}</Link>}
-        description={`${item.category.translations[0]?.title ?? item.category.slug} · ${item.status}${item.scheduledAt ? ` · scheduled ${item.scheduledAt.toISOString()}` : ""}`}
-      /></List.Item>} />
+      <div className="admin-record-list">{products.map((item) => <div key={item.id} className="admin-record-list__item">
+        <Link href={`/admin/products/${item.id}`}>{item.translations[0]?.title ?? item.slug}</Link>
+        <p>{item.category.translations[0]?.title ?? item.category.slug} · {item.status}{item.scheduledAt ? ` · scheduled ${item.scheduledAt.toISOString()}` : ""}</p>
+      </div>)}</div>
       <AdminPagination pathname="/admin/products" currentPage={page} totalItems={total} pageSize={PAGE_SIZE} query={{ q, status }} />
     </Card>
   </main>;

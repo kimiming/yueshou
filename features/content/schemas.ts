@@ -76,7 +76,10 @@ const pageSectionConfigSchemas = {
     secondaryCta: ctaSchema.optional(),
   }),
   services: z.object({ serviceIds: z.array(z.string().cuid()).max(12).optional() }),
-  about: z.object({ imageId: z.string().cuid().optional() }),
+  about: z.object({
+    imageId: z.string().cuid().optional(),
+    imageIds: z.array(z.string().cuid()).max(3).optional(),
+  }),
   capabilities: z.object({ itemIds: referenceIdsSchema }),
   quality: z.object({
     imageId: z.string().cuid().optional(),

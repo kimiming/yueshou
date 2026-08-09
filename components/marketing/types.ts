@@ -86,6 +86,7 @@ export type MarketingSectionViewModel = {
   body: string;
   items: MarketingSectionItemViewModel[];
   media?: MarketingMediaViewModel;
+  mediaGallery?: MarketingMediaViewModel[];
   primaryCta?: MarketingCtaViewModel;
   secondaryCta?: MarketingCtaViewModel;
 };

@@ -26,9 +26,9 @@ export function AdminPagination({
     return `${pathname}?${params.toString()}`;
   };
 
-  return <nav aria-label="Pagination" style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 16 }}>
-    {page > 1 ? <Link aria-label="Previous page" href={hrefFor(page - 1)}>Previous</Link> : <span aria-hidden="true">Previous</span>}
-    <span>Page {page} of {totalPages}</span>
-    {page < totalPages ? <Link aria-label="Next page" href={hrefFor(page + 1)}>Next</Link> : <span aria-hidden="true">Next</span>}
+  return <nav aria-label="分页" style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 16 }}>
+    {page > 1 ? <Link aria-label="上一页" href={hrefFor(page - 1)}>上一页</Link> : <span aria-hidden="true">上一页</span>}
+    <span>第 {page} 页，共 {totalPages} 页</span>
+    {page < totalPages ? <Link aria-label="下一页" href={hrefFor(page + 1)}>下一页</Link> : <span aria-hidden="true">下一页</span>}
   </nav>;
 }

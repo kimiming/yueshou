@@ -33,7 +33,7 @@ function pageFixture(status: "DRAFT" | "PUBLISHED" = "PUBLISHED") {
         locale: "en",
         title: "About us",
         body: "English body",
-        seoTitle: "About YueShou",
+        seoTitle: "About yueshou",
         seoDescription: "English SEO",
       },
       {
@@ -288,7 +288,7 @@ describe("content service", () => {
       ],
       category: {
         slug: "company-news",
-        translations: [{ locale: "en", title: "Company news", body: "News from YueShou" }],
+        translations: [{ locale: "en", title: "Company news", body: "News from yueshou" }],
       },
       tags: [{ slug: "laboratory", name: "Laboratory" }],
       coverMedia: {
@@ -302,7 +302,7 @@ describe("content service", () => {
         status: "DRAFT",
         deletedAt: null,
         translations: [
-          { locale: "en", title: "Lab", body: "Lab image", alt: "YueShou laboratory" },
+          { locale: "en", title: "Lab", body: "Lab image", alt: "yueshou laboratory" },
         ],
       },
     };

@@ -120,7 +120,7 @@ it("does not expose legal approval when the administrator action is unavailable"
 });
 
 it("exposes draft, publish, and archive controls for the brand setting", () => {
-  render(<SiteSettingsForm initial={{ key: "brand", version: "2026-08-08T00:00:00.000Z", status: "DRAFT", value: {}, translations: [{ locale: "en", title: "YueShou", body: "Precision peptides" }] }} save={vi.fn(async () => undefined)} />);
+  render(<SiteSettingsForm initial={{ key: "brand", version: "2026-08-08T00:00:00.000Z", status: "DRAFT", value: {}, translations: [{ locale: "en", title: "yueshou", body: "Precision peptides" }] }} save={vi.fn(async () => undefined)} />);
 
   expect(screen.getByRole("combobox", { name: "Publication status" })).toBeInTheDocument();
   expect(screen.getByLabelText("SEO keywords")).toBeInTheDocument();
@@ -129,8 +129,8 @@ it("exposes draft, publish, and archive controls for the brand setting", () => {
 
 it("selects brand assets by published filename instead of requiring raw media IDs", () => {
   render(<SiteSettingsForm
-    initial={{ key: "brand", version: "2026-08-08T00:00:00.000Z", status: "DRAFT", value: { logoMediaId: "media-logo" }, translations: [{ locale: "en", title: "YueShou", body: "Precision peptides" }] }}
-    mediaOptions={[{ id: "media-logo", filename: "brand-logo.png", alt: "YueShou logo" }]}
+    initial={{ key: "brand", version: "2026-08-08T00:00:00.000Z", status: "DRAFT", value: { logoMediaId: "media-logo" }, translations: [{ locale: "en", title: "yueshou", body: "Precision peptides" }] }}
+    mediaOptions={[{ id: "media-logo", filename: "brand-logo.png", alt: "yueshou logo" }]}
     save={vi.fn(async () => undefined)}
   />);
 
@@ -140,7 +140,7 @@ it("selects brand assets by published filename instead of requiring raw media ID
 });
 
 it("announces an authoritative settings save outcome", async () => {
-  render(<SiteSettingsForm initial={{ key: "brand", version: "2026-08-08T00:00:00.000Z", status: "PUBLISHED", value: {}, translations: [{ locale: "en", title: "YueShou", body: "Precision peptides" }] }} save={vi.fn(async () => undefined)} />);
+  render(<SiteSettingsForm initial={{ key: "brand", version: "2026-08-08T00:00:00.000Z", status: "PUBLISHED", value: {}, translations: [{ locale: "en", title: "yueshou", body: "Precision peptides" }] }} save={vi.fn(async () => undefined)} />);
   fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
   expect(await screen.findByRole("status")).toHaveTextContent("Settings saved");
 });

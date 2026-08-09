@@ -12,7 +12,7 @@ vi.mock("@/features/content/service", () => ({ getHomePage, getMarketingShell })
 import Home from "@/app/[locale]/(marketing)/page";
 import { generateMetadata } from "@/app/[locale]/layout";
 
-describe("YueShou branding", () => {
+describe("yueshou branding", () => {
   afterEach(cleanup);
 
   it("uses the required Chinese brand name in root metadata", async () => {

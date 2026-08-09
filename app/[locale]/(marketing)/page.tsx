@@ -63,7 +63,7 @@ function renderSection(
 ) {
   switch (model.type) {
     case "hero":
-      return <HeroSection key={model.id} model={model} locale={locale} labels={labels} />;
+      return <HeroSection key={model.id} model={model} locale={locale} />;
     case "services":
       return <ServicesSection key={model.id} model={model} exploreLabel={labels.explore} />;
     case "about":

@@ -87,7 +87,7 @@ describe("CMS media pending-to-final upload", () => {
       storageKey: finalKey,
     });
 
-    expect(objectStorage.readPrivateObject).toHaveBeenCalledWith(pendingKey, 10 * 1024 * 1024 + 1);
+    expect(objectStorage.readPrivateObject).toHaveBeenCalledWith(pendingKey, 25 * 1024 * 1024 + 1);
     expect(objectStorage.putImmutableObject).toHaveBeenCalledWith(expect.objectContaining({
       key: finalKey,
       contentType: "image/png",

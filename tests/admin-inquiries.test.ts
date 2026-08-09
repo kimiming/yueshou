@@ -91,10 +91,10 @@ describe("inquiry administration", () => {
   });
 
   it("shares inclusive date-only filters by using the next UTC day as the exclusive end", () => {
-    const where = inquiryWhere({ q: "YueShou", status: "NEW", start: "2026-08-08", end: "2026-08-08" });
+    const where = inquiryWhere({ q: "yueshou", status: "NEW", start: "2026-08-08", end: "2026-08-08" });
     expect(where.status).toBe("NEW");
     expect(where.createdAt).toEqual({ gte: new Date("2026-08-08T00:00:00.000Z"), lt: new Date("2026-08-09T00:00:00.000Z") });
-    expect(where.OR).toContainEqual({ companyName: { contains: "YueShou", mode: "insensitive" } });
+    expect(where.OR).toContainEqual({ companyName: { contains: "yueshou", mode: "insensitive" } });
   });
 
   it("allows only administrators to manage users", async () => {

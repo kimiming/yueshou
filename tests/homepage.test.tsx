@@ -299,12 +299,12 @@ describe("semantic marketing homepage", () => {
   it("uses configured branding SEO and favicon in the locale metadata", async () => {
     getMarketingShell.mockResolvedValueOnce({
       ...shell,
-      defaultSeo: { title: "YueShou peptide synthesis", description: "Precision peptide services", keywords: ["peptide", "synthesis"] },
-      favicon: { id: "favicon", storageKey: "public/favicon.svg", filename: "favicon.svg", mimeType: "image/svg+xml", width: null, height: null, locale: "en", translationLocale: "en", usedFallback: false, title: "Favicon", alt: "YueShou favicon" },
+      defaultSeo: { title: "yueshou peptide synthesis", description: "Precision peptide services", keywords: ["peptide", "synthesis"] },
+      favicon: { id: "favicon", storageKey: "public/favicon.svg", filename: "favicon.svg", mimeType: "image/svg+xml", width: null, height: null, locale: "en", translationLocale: "en", usedFallback: false, title: "Favicon", alt: "yueshou favicon" },
     });
 
     await expect(generateLocaleMetadata({ params: Promise.resolve({ locale: "en" }) })).resolves.toMatchObject({
-      title: "YueShou peptide synthesis",
+      title: "yueshou peptide synthesis",
       description: "Precision peptide services",
       keywords: ["peptide", "synthesis"],
       icons: { icon: "/api/media/public/favicon" },
@@ -364,7 +364,7 @@ describe("semantic marketing homepage", () => {
   it.each([
     {
       locale: "de" as const,
-      home: "YueShou Startseite",
+      home: "yueshou Startseite",
       menu: "Menü",
       mobileNavigation: "Mobile Navigation",
       scientificWorkflow: "Wissenschaftlicher Arbeitsablauf",
@@ -373,7 +373,7 @@ describe("semantic marketing homepage", () => {
     },
     {
       locale: "zh-CN" as const,
-      home: "YueShou 首页",
+      home: "yueshou 首页",
       menu: "菜单",
       mobileNavigation: "移动导航",
       scientificWorkflow: "科研工作流程",

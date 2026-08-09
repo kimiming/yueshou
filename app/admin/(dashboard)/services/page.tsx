@@ -1,7 +1,8 @@
-import { Card, Input, List, Space, Button, Typography } from "antd";
+import { AdminPageTitle, Button, Card, Input, Space } from "@/components/admin/antd-server-bridge";
 import Link from "next/link";
 
 import { ServiceEditorForm } from "@/components/admin/content-management-forms";
+import { adminValueLabel } from "@/components/admin/admin-labels";
 import { AdminPagination } from "@/components/admin/server-pagination";
 import { requireUser } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
@@ -27,11 +28,11 @@ export default async function ServicesAdminPage({ searchParams }: {
     prisma.service.findMany({ where, include: { translations: { where: { locale: "en" }, take: 1 } }, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
   ]);
   return <main>
-    <Typography.Title level={1}>Services</Typography.Title>
+    <AdminPageTitle level={1}>服务管理</AdminPageTitle>
     <ServiceEditorForm save={saveServiceAction} allowArchive={user.role === "ADMIN"} initial={{ slug: "", position: 0, status: "DRAFT", translations: [] }} />
-    <Card title="Service catalogue" style={{ marginTop: 16 }}>
-      <form><Space wrap><Input name="q" defaultValue={q} aria-label="Search services" placeholder="Search services" /><select name="status" defaultValue={status ?? ""} aria-label="Service status"><option value="">All statuses</option>{["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => <option key={value}>{value}</option>)}</select><Button htmlType="submit">Filter</Button></Space></form>
-      <List dataSource={services} renderItem={(item) => <List.Item><List.Item.Meta title={<Link href={`/admin/services/${item.id}`}>{item.translations[0]?.title ?? item.slug}</Link>} description={`${item.slug} · ${item.status}`} /></List.Item>} />
+    <Card title="服务目录" style={{ marginTop: 16 }}>
+      <form><Space wrap><Input name="q" defaultValue={q} aria-label="搜索服务" placeholder="搜索服务" /><select name="status" defaultValue={status ?? ""} aria-label="服务状态"><option value="">全部状态</option>{["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => <option key={value}>{adminValueLabel(value)}</option>)}</select><Button htmlType="submit">筛选</Button></Space></form>
+      <div className="admin-record-list">{services.map((item) => <div key={item.id} className="admin-record-list__item"><Link href={`/admin/services/${item.id}`}>{item.translations[0]?.title ?? item.slug}</Link><p>{item.slug} · {adminValueLabel(item.status)}</p></div>)}</div>
       <AdminPagination pathname="/admin/services" currentPage={page} totalItems={total} pageSize={PAGE_SIZE} query={{ q, status }} />
     </Card>
   </main>;

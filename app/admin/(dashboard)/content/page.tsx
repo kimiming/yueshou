@@ -1,7 +1,8 @@
-import { Button, Card, Input, List, Space, Typography } from "antd";
+import { AdminPageTitle, Button, Card, Input, Space } from "@/components/admin/antd-server-bridge";
 import Link from "next/link";
 
 import { CreatePageForm } from "@/components/admin/content-management-forms";
+import { adminValueLabel } from "@/components/admin/admin-labels";
 import { AdminPagination } from "@/components/admin/server-pagination";
 import { requireUser } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
@@ -33,19 +34,19 @@ export default async function ContentPage({ searchParams }: {
     }),
   ]);
   return <main>
-    <Typography.Title level={1}>Content</Typography.Title>
-    <Space wrap style={{ marginBottom: 16 }}><Button><Link href="/admin/services">Manage services</Link></Button></Space>
+    <AdminPageTitle level={1}>内容管理</AdminPageTitle>
+    <Space wrap style={{ marginBottom: 16 }}><Button><Link href="/admin/services">管理服务</Link></Button></Space>
     <CreatePageForm create={createPageAction} />
-    <Card title="Pages" style={{ marginTop: 16 }}>
+    <Card title="页面列表" style={{ marginTop: 16 }}>
       <form><Space wrap>
-        <Input name="q" defaultValue={q} aria-label="Search pages" placeholder="Search pages" />
-        <select name="status" defaultValue={status ?? ""} aria-label="Page status"><option value="">All statuses</option>{["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => <option key={value}>{value}</option>)}</select>
-        <Button htmlType="submit">Filter</Button>
+        <Input name="q" defaultValue={q} aria-label="搜索页面" placeholder="搜索页面" />
+        <select name="status" defaultValue={status ?? ""} aria-label="页面状态"><option value="">全部状态</option>{["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => <option key={value}>{adminValueLabel(value)}</option>)}</select>
+        <Button htmlType="submit">筛选</Button>
       </Space></form>
-      <List dataSource={pages} renderItem={(item) => <List.Item><List.Item.Meta
-        title={<Link href={`/admin/pages/${item.id}`}>{item.translations[0]?.title ?? item.slug}</Link>}
-        description={`${item.slug} · ${item.status} · revision ${item.contentRevision}`}
-      /></List.Item>} />
+      <div className="admin-record-list">{pages.map((item) => <div key={item.id} className="admin-record-list__item">
+        <Link href={`/admin/pages/${item.id}`}>{item.translations[0]?.title ?? item.slug}</Link>
+        <p>{item.slug} · {adminValueLabel(item.status)} · 修订版 {item.contentRevision}</p>
+      </div>)}</div>
       <AdminPagination pathname="/admin/content" currentPage={page} totalItems={total} pageSize={PAGE_SIZE} query={{ q, status }} />
     </Card>
   </main>;

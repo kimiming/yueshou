@@ -15,6 +15,7 @@ export type S3StorageBackend = "r2" | "minio";
 export type S3StorageConfig = {
   backend: S3StorageBackend;
   endpoint: string;
+  internalEndpoint?: string;
   region: string;
   bucket: string;
   accessKeyId: string;
@@ -54,7 +55,11 @@ export function createS3Storage(
   config: S3StorageConfig,
   dependencies: { presign?: Presign; client?: S3Sender; now?: () => Date } = {},
 ): ObjectStorage & PrivateFinalizationStorage & PrivateDownloadStorage {
-  const client = dependencies.client ?? new S3Client(createS3ClientConfig(config));
+  const presignClient = dependencies.client ?? new S3Client(createS3ClientConfig(config));
+  const client = dependencies.client ?? new S3Client(createS3ClientConfig({
+    ...config,
+    endpoint: config.internalEndpoint ?? config.endpoint,
+  }));
   const presign = dependencies.presign ?? getSignedUrl;
 
   return {
@@ -67,7 +72,7 @@ export function createS3Storage(
       });
 
       return {
-        url: await presign(client as S3Client, command, {
+        url: await presign(presignClient as S3Client, command, {
           expiresIn: 15 * 60,
           signableHeaders: new Set(["content-type"]),
         }),
@@ -92,7 +97,7 @@ export function createS3Storage(
         Key: input.key,
         ResponseContentDisposition: downloadDisposition(input.filename, input.disposition),
       });
-      const url = await presign(client as S3Client, command, { expiresIn });
+      const url = await presign(presignClient as S3Client, command, { expiresIn });
       const now = dependencies.now?.() ?? new Date();
       return { url, expiresAt: new Date(now.getTime() + expiresIn * 1000) };
     },

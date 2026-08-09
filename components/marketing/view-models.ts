@@ -46,6 +46,10 @@ function mapSection(section: PageViewModel["sections"][number]): MarketingSectio
       src: publicMediaUrl(section.media.id),
       alt: section.media.alt,
     } : undefined,
+    mediaGallery: section.mediaGallery.map((media) => ({
+      src: publicMediaUrl(media.id),
+      alt: media.alt,
+    })),
     primaryCta: readCta(config.primaryCta, section.locale),
     secondaryCta: readCta(config.secondaryCta, section.locale),
   };

@@ -9,7 +9,15 @@ export function AboutSection({ model }: { model: MarketingSectionViewModel }) {
     <SectionFrame model={model} className="marketing-section--about">
       <div className="split-panel">
         <div className="split-panel__visual">
-          {model.media ? (
+          {model.mediaGallery?.length ? (
+            <div className="about-image-gallery">
+              {model.mediaGallery.map((media) => (
+                <div className="about-image-gallery__item" key={media.src}>
+                  <Image src={media.src} alt={media.alt} fill sizes="(max-width: 760px) 33vw, 17vw" />
+                </div>
+              ))}
+            </div>
+          ) : model.media ? (
             <Image src={model.media.src} alt={model.media.alt} fill sizes="(max-width: 760px) 100vw, 50vw" />
           ) : <div className="molecule-field" aria-hidden="true" />}
         </div>

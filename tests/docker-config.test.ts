@@ -119,7 +119,7 @@ describe("self-hosted Docker deployment", () => {
     expect(template).toContain("server_name ${SERVER_NAME};");
     expect(template).toContain("server_name ${STORAGE_HOST};");
     expect(template).toContain("proxy_pass http://yueshou_minio;");
-    expect(template).toContain("client_max_body_size 20m");
+    expect(template).toContain("client_max_body_size 30m");
     expect(template).toContain("Cache-Control \"public, max-age=31536000, immutable\"");
     expect(template).toContain("Strict-Transport-Security");
     expect(template).toContain("X-Content-Type-Options");

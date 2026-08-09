@@ -21,7 +21,16 @@ export function createMediaRouteAuthorization(getUser: () => Promise<Authenticat
 
 function isSameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
-  return Boolean(origin && origin === new URL(request.url).origin);
+  if (!origin) return false;
+
+  const allowedOrigins = new Set([new URL(request.url).origin]);
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  if (forwardedHost && (forwardedProto === "https" || forwardedProto === "http")) {
+    allowedOrigins.add(`${forwardedProto}://${forwardedHost}`);
+  }
+
+  return allowedOrigins.has(origin);
 }
 
 export function createPresignUploadHandler(dependencies: { authorize: MediaRouteAuthorization; createPendingUpload: PresignService }) {
@@ -33,7 +42,16 @@ export function createPresignUploadHandler(dependencies: { authorize: MediaRoute
       const body = uploadSchema.parse(await request.json());
       return Response.json(await dependencies.createPendingUpload(actor, body));
     } catch (error) {
-      if (error instanceof ZodError || error instanceof SyntaxError) return Response.json({ error: "Invalid upload request" }, { status: 400 });
+      if (error instanceof ZodError) {
+        return Response.json({
+          error: {
+            code: "invalid_upload_request",
+            message: "图片格式、扩展名或文件大小不符合要求",
+            fields: error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
+          },
+        }, { status: 400 });
+      }
+      if (error instanceof SyntaxError) return Response.json({ error: { code: "invalid_json", message: "上传请求格式无效" } }, { status: 400 });
       throw error;
     }
   };

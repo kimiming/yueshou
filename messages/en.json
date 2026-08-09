@@ -1,6 +1,6 @@
 {
   "site": {
-    "name": "YueShou",
+    "name": "yueshou",
     "slogan": "Precision Peptide Synthesis for Global Scientific Research"
   },
   "navigation": {
@@ -25,7 +25,7 @@
       "phone": "Phone",
       "socialLinks": "Social links",
       "productMedia": "Product media",
-      "home": "YueShou home",
+      "home": "yueshou home",
       "mobileNavigation": "Mobile navigation",
       "scientificWorkflow": "Scientific workflow",
       "carousel": "carousel",

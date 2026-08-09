@@ -14,12 +14,12 @@ const onePixelPng = Uint8Array.from(Buffer.from(
 
 const pages = [
   ["home", "Peptide synthesis for research", "Precision peptide synthesis for global scientific research."],
-  ["about", "About YueShou", "A research-focused peptide synthesis partner."],
+  ["about", "About yueshou", "A research-focused peptide synthesis partner."],
   ["services", "Services", "Explore peptide synthesis and analytical services."],
   ["products", "Products", "Browse research-use-only peptide products."],
   ["quality", "Quality", "Quality controls support every research project."],
-  ["news", "News", "Research updates from YueShou."],
-  ["contact", "Contact", "Contact the YueShou scientific team."],
+  ["news", "News", "Research updates from yueshou."],
+  ["contact", "Contact", "Contact the yueshou scientific team."],
   ["request-a-quote", "Request a quote", "Share your research requirements."],
 ] as const;
 

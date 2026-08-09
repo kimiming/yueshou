@@ -2,25 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { localizeHref } from "@/components/marketing/link-utils";
-import { HeroCarouselControls } from "@/components/marketing/sections/hero-carousel-controls";
 import type { MarketingSectionViewModel } from "@/components/marketing/types";
 import type { Locale } from "@/lib/i18n/config";
 
 type HeroSectionProps = {
   model: MarketingSectionViewModel;
   locale: Locale;
-  labels: {
-    workflow: string;
-    workflowSteps: string[];
-    scientificWorkflow: string;
-    carousel: string;
-    carouselRole: string;
-    chooseHighlight: string;
-    showSlideTemplate: string;
-  };
 };
 
-export function HeroSection({ model, locale, labels }: HeroSectionProps) {
+export function HeroSection({ model, locale }: HeroSectionProps) {
   if (!model.enabled) {
     return null;
   }
@@ -56,21 +46,6 @@ export function HeroSection({ model, locale, labels }: HeroSectionProps) {
             ) : null}
           </div>
         </div>
-        <aside className="hero-section__science-card" aria-label={labels.scientificWorkflow}>
-          <span className="hero-section__science-label">{labels.workflow}</span>
-          <ol>
-            {labels.workflowSteps.map((step, index) => (
-              <li key={step}><span>{String(index + 1).padStart(2, "0")}</span> {step}</li>
-            ))}
-          </ol>
-          <HeroCarouselControls
-            slides={model.items}
-            carouselLabel={labels.carousel}
-            carouselRole={labels.carouselRole}
-            chooseLabel={labels.chooseHighlight}
-            showSlideTemplate={labels.showSlideTemplate}
-          />
-        </aside>
       </div>
     </section>
   );

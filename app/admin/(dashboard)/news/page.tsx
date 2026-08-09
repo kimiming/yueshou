@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { Button, Card, Input, List, Space, Typography } from "antd";
+import { AdminPageTitle, Button, Card, Input, Space } from "@/components/admin/antd-server-bridge";
 import Link from "next/link";
 
 import { ArticleForm } from "@/components/admin/domain-forms";
@@ -60,7 +60,7 @@ export default async function NewsPage({ searchParams }: {
   const tagItems = tags.map((item) => ({ id: item.id, slug: item.slug, label: item.name, version: item.updatedAt.toISOString() }));
 
   return <main>
-    <Typography.Title level={1}>News</Typography.Title>
+    <AdminPageTitle level={1}>News</AdminPageTitle>
     <ArticleForm categories={categoryItems} tags={tags} save={saveArticleAction} />
     <TaxonomyManager kind="category" title="Article categories" items={categoryItems} save={saveArticleCategoryAction} archive={archiveArticleCategoryAction} />
     <TaxonomyManager kind="tag" title="Tags" items={tagItems} save={saveTagAction} archive={archiveTagAction} />
@@ -70,10 +70,10 @@ export default async function NewsPage({ searchParams }: {
         <select name="status" defaultValue={status ?? ""} aria-label="Article status"><option value="">All statuses</option>{["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => <option key={value} value={value}>{value}</option>)}</select>
         <Button htmlType="submit">Filter</Button>
       </Space></form>
-      <List dataSource={articles} renderItem={(item) => <List.Item><List.Item.Meta
-        title={<Link href={`/admin/news/${item.id}`}>{item.translations[0]?.title ?? item.slug}</Link>}
-        description={`${item.category.translations[0]?.title ?? item.category.slug} · ${item.status}${item.scheduledAt ? ` · scheduled ${item.scheduledAt.toISOString()}` : ""}`}
-      /></List.Item>} />
+      <div className="admin-record-list">{articles.map((item) => <div key={item.id} className="admin-record-list__item">
+        <Link href={`/admin/news/${item.id}`}>{item.translations[0]?.title ?? item.slug}</Link>
+        <p>{item.category.translations[0]?.title ?? item.category.slug} · {item.status}{item.scheduledAt ? ` · scheduled ${item.scheduledAt.toISOString()}` : ""}</p>
+      </div>)}</div>
       <AdminPagination pathname="/admin/news" currentPage={page} totalItems={total} pageSize={PAGE_SIZE} query={{ q, status }} />
     </Card>
   </main>;

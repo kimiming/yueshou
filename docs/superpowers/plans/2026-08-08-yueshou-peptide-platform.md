@@ -216,7 +216,7 @@ export const publishableTranslationSchema = z.array(translationSchema).superRefi
 
 Use explicit translation tables with `@@unique([entityId, locale])`, a `PublishStatus` enum (`DRAFT`, `PUBLISHED`, `ARCHIVED`), soft-delete timestamps for managed content, and relations for `User`, `AuditLog`, `SiteSetting`, `NavigationItem`, `Page`, `PageSection`, `Service`, `ProductCategory`, `Product`, `ArticleCategory`, `Article`, `Tag`, `MediaAsset`, `Inquiry`, `InquiryAttachment`, and `ConsentRecord`.
 
-- [ ] **Step 5: Seed an administrator, default navigation, legal pages, and original YueShou copy**
+- [ ] **Step 5: Seed an administrator, default navigation, legal pages, and original yueshou copy**
 
 The seed reads `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD`, hashes with Argon2id, upserts stable slugs, and inserts only original/general claims. It seeds the required legal slugs `terms`, `privacy`, `ruo-policy`, `shipping-compliance`, and `cookie-policy` in all five locales.
 
@@ -364,7 +364,7 @@ Create `S3Client` with endpoint, region, credentials, and `forcePathStyle` from 
 
 - [ ] **Step 4: Implement presign and completion routes with authorization**
 
-Allow `image/jpeg`, `image/png`, `image/webp`, and `image/avif` up to 10 MB. On completion, verify object metadata before creating `MediaAsset`. Reject unauthenticated and `EDITOR`-forbidden destructive operations.
+Allow `image/jpeg`, `image/png`, `image/webp`, and `image/avif` up to 25 MB. On completion, verify object metadata before creating `MediaAsset`. Reject unauthenticated and `EDITOR`-forbidden destructive operations.
 
 - [ ] **Step 5: Protect referenced assets from physical deletion**
 
@@ -499,7 +499,7 @@ git commit -m "feat: add multilingual public content routes"
 
 - [ ] **Step 1: Write failing hreflang and JSON-LD tests**
 
-Assert five locale alternates plus `x-default`, absolute canonical URLs, Organization schema using YueShou, Article publication dates, and exclusion of drafts/admin routes from sitemap.
+Assert five locale alternates plus `x-default`, absolute canonical URLs, Organization schema using yueshou, Article publication dates, and exclusion of drafts/admin routes from sitemap.
 
 - [ ] **Step 2: Run tests and verify failure**
 
@@ -897,7 +897,7 @@ Confirm no `.env` secrets, generated credentials, private attachments or product
 
 ```powershell
 git add README.md docs
-git commit -m "docs: finalize YueShou platform handoff"
+git commit -m "docs: finalize yueshou platform handoff"
 ```
 
 Skip this commit when no file changed.

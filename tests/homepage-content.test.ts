@@ -260,8 +260,8 @@ describe("homepage content hydration", () => {
           addressLines: ["Research campus"],
         },
         translations: [
-          { locale: "en", title: "YueShou", body: "English company summary" },
-          { locale: "de", title: "YueShou", body: "Deutsche Unternehmensbeschreibung" },
+          { locale: "en", title: "yueshou", body: "English company summary" },
+          { locale: "de", title: "yueshou", body: "Deutsche Unternehmensbeschreibung" },
         ],
       })),
       findPublishedNavigationItems: vi.fn(async () => [
@@ -307,12 +307,12 @@ describe("homepage content hydration", () => {
           logoMediaId: ids.heroMedia,
           faviconMediaId: ids.aboutMedia,
           slogan: "Configured peptide research slogan",
-          companyName: "YueShou Life Sciences",
+          companyName: "yueshou Life Sciences",
           socialLinks: [{ label: "LinkedIn", href: "https://www.linkedin.com/company/yueshou" }],
-          defaultSeo: { title: "YueShou peptides", description: "Custom peptide synthesis", keywords: ["peptide"] },
+          defaultSeo: { title: "yueshou peptides", description: "Custom peptide synthesis", keywords: ["peptide"] },
           footerColumns: [{ heading: "Resources", links: [{ label: "Quality", href: "/quality" }] }],
         },
-        translations: translation("YueShou", "Company summary"),
+        translations: translation("yueshou", "Company summary"),
       })),
       findPublishedNavigationItems: vi.fn(async () => []),
       findPublishedMediaByIds: vi.fn(async () => [media(ids.heroMedia, "Logo"), media(ids.aboutMedia, "Favicon")]),
@@ -322,12 +322,12 @@ describe("homepage content hydration", () => {
 
     expect(repository.findPublishedMediaByIds).toHaveBeenCalledWith([ids.heroMedia, ids.aboutMedia]);
     expect(shell).toMatchObject({
-      brandName: "YueShou Life Sciences",
+      brandName: "yueshou Life Sciences",
       slogan: "Configured peptide research slogan",
       logo: { id: ids.heroMedia, storageKey: `public/${ids.heroMedia}.webp` },
       favicon: { id: ids.aboutMedia, storageKey: `public/${ids.aboutMedia}.webp` },
       socialLinks: [{ label: "LinkedIn", href: "https://www.linkedin.com/company/yueshou" }],
-      defaultSeo: { title: "YueShou peptides", keywords: ["peptide"] },
+      defaultSeo: { title: "yueshou peptides", keywords: ["peptide"] },
       footerColumns: [{ heading: "Resources", links: [{ label: "Quality", href: "/quality" }] }],
     });
   });

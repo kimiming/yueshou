@@ -1,4 +1,4 @@
-import { Card, Typography } from "antd";
+import { AdminPageTitle, Card } from "@/components/admin/antd-server-bridge";
 import { notFound } from "next/navigation";
 
 import { PageEditorForm, PageSectionForm } from "@/components/admin/editor-forms";
@@ -7,6 +7,8 @@ import { requireUser } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
 
 import { approveLegalPageAction, savePageAction, savePageAndSetStatusAction, savePageSectionAction, setPageStatusAction } from "./actions";
+
+const Typography = { Title: AdminPageTitle };
 
 export default async function PageEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireUser();

@@ -1,12 +1,12 @@
 :root {
-  --navy-950: #071b33;
-  --navy-900: #0b2545;
-  --navy-800: #11385f;
-  --blue-700: #1261a6;
-  --blue-600: #1878c7;
+  --navy-950: #1baadb;
+  --navy-900: #1baadb;
+  --navy-800: #1baadb;
+  --blue-700: #1baadb;
+  --blue-600: #1baadb;
   --blue-100: #dceefe;
   --blue-50: #f1f8fe;
-  --teal-600: #078b8c;
+  --teal-600: #1baadb;
   --teal-100: #d9f2ef;
   --ink: #10243e;
   --muted: #587087;
@@ -149,6 +149,13 @@ a {
   letter-spacing: 0.06em;
 }
 
+.brand-lockup__image {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
 .brand-lockup__name {
   color: var(--navy-950);
   font-size: 1.45rem;
@@ -254,9 +261,7 @@ a {
   overflow: hidden;
   isolation: isolate;
   color: white;
-  background:
-    radial-gradient(circle at 78% 35%, rgb(37 178 185 / 27%), transparent 25%),
-    linear-gradient(110deg, var(--navy-950) 0%, #0d3f70 58%, #096f84 120%);
+  background: transparent;
 }
 
 .hero-section::after {
@@ -273,26 +278,17 @@ a {
 .hero-section__media {
   z-index: -3;
   object-fit: cover;
-  opacity: 0.28;
+  opacity: 1;
 }
 
 .hero-section__mesh {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  opacity: 0.22;
-  background-image:
-    linear-gradient(rgb(255 255 255 / 7%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 7%) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: linear-gradient(90deg, black, transparent 85%);
+  display: none;
 }
 
 .hero-section__inner {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  gap: clamp(48px, 7vw, 100px);
   padding-block: 88px;
 }
 
@@ -354,44 +350,6 @@ a {
 
 .hero-section .text-link {
   color: white;
-}
-
-.hero-section__science-card {
-  padding: 34px;
-  background: rgb(4 26 51 / 58%);
-  border: 1px solid rgb(255 255 255 / 17%);
-  border-radius: 6px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(13px);
-}
-
-.hero-section__science-label {
-  color: #9fe4df;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.hero-section__science-card ol {
-  display: grid;
-  gap: 0;
-  margin-top: 23px;
-  list-style: none;
-}
-
-.hero-section__science-card li {
-  min-height: 60px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  border-top: 1px solid rgb(255 255 255 / 13%);
-  font-weight: 700;
-}
-
-.hero-section__science-card li span {
-  color: #8fe2dc;
-  font-size: 0.7rem;
 }
 
 .hero-carousel {
@@ -554,6 +512,26 @@ a {
     radial-gradient(circle at 34% 72%, white 0 6px, transparent 7px),
     linear-gradient(30deg, transparent 48%, rgb(255 255 255 / 18%) 49% 51%, transparent 52%);
   background-size: auto, auto, auto, auto, 88px 88px;
+}
+
+.about-image-gallery {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+.about-image-gallery__item {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.about-image-gallery__item + .about-image-gallery__item {
+  border-left: 3px solid white;
+}
+
+.about-image-gallery__item img {
+  object-fit: cover;
 }
 
 .split-panel__content {
@@ -979,10 +957,6 @@ a {
     font-size: clamp(2.35rem, 12vw, 3.65rem);
   }
 
-  .hero-section__science-card {
-    padding: 25px;
-  }
-
   .card-grid--three,
   .capability-grid,
   .category-grid {
@@ -1097,7 +1071,7 @@ a {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: linear-gradient(145deg, #071b33, #1261a6);
+  background: linear-gradient(145deg, #1baadb, #1baadb);
 }
 
 .admin-login__card {
@@ -1141,6 +1115,34 @@ a {
 
 .admin-shell__content {
   padding: clamp(20px, 4vw, 40px);
+}
+
+.admin-shell__content .ant-space:has(input[id*="_addressLines_"]) {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.admin-shell__content .ant-space:has(input[id*="_addressLines_"]) .ant-form-item {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.admin-shell__content .ant-space:has(input[id*="_addressLines_"]) > .ant-btn {
+  min-width: 72px;
+}
+
+.admin-shell__content .ant-card-body > .ant-space:has(input[id*="_addressLines_"]) + .ant-btn {
+  margin-top: 4px;
+}
+
+@media (max-width: 36rem) {
+  .admin-shell__content .ant-space:has(input[id*="_addressLines_"]) {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 40rem) {

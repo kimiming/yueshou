@@ -70,6 +70,49 @@ const settingInputSchema = z.object({
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).default("DRAFT"),
 });
 
+function compactOptionalText(value: unknown) {
+  return typeof value === "string" && value.trim() === "" ? undefined : value;
+}
+
+function compactBrandValue(value: Record<string, unknown>): Record<string, unknown> {
+  const compacted = { ...value };
+  for (const key of ["logoMediaId", "faviconMediaId", "companyName", "slogan", "email", "phone"] as const) {
+    compacted[key] = compactOptionalText(compacted[key]);
+    if (compacted[key] === undefined) delete compacted[key];
+  }
+  if (Array.isArray(compacted.addressLines)) {
+    compacted.addressLines = compacted.addressLines.filter((line) => typeof line !== "string" || line.trim() !== "");
+  }
+  if (Array.isArray(compacted.socialLinks)) {
+    compacted.socialLinks = compacted.socialLinks.filter((link) => {
+      if (!link || typeof link !== "object") return true;
+      const item = link as Record<string, unknown>;
+      return compactOptionalText(item.label) !== undefined || compactOptionalText(item.href) !== undefined;
+    });
+  }
+  if (compacted.defaultSeo && typeof compacted.defaultSeo === "object" && !Array.isArray(compacted.defaultSeo)) {
+    const seo = { ...(compacted.defaultSeo as Record<string, unknown>) };
+    seo.title = compactOptionalText(seo.title);
+    seo.description = compactOptionalText(seo.description);
+    if (Array.isArray(seo.keywords)) seo.keywords = seo.keywords.filter((keyword) => typeof keyword !== "string" || keyword.trim() !== "");
+    if (seo.title === undefined && seo.description === undefined && (!Array.isArray(seo.keywords) || seo.keywords.length === 0)) delete compacted.defaultSeo;
+    else compacted.defaultSeo = seo;
+  }
+  if (Array.isArray(compacted.footerColumns)) {
+    compacted.footerColumns = compacted.footerColumns.filter((column) => {
+      if (!column || typeof column !== "object") return true;
+      const item = column as Record<string, unknown>;
+      return compactOptionalText(item.heading) !== undefined || (Array.isArray(item.links) && item.links.some((link) => link && typeof link === "object" && Object.values(link).some((part) => compactOptionalText(part) !== undefined)));
+    }).map((column) => {
+      if (!column || typeof column !== "object") return column;
+      const item = { ...(column as Record<string, unknown>) };
+      if (Array.isArray(item.links)) item.links = item.links.filter((link) => link && typeof link === "object" && Object.values(link).some((part) => compactOptionalText(part) !== undefined));
+      return item;
+    });
+  }
+  return compacted;
+}
+
 const navigationInputSchema = z.object({
   id: z.string().min(1).optional(),
   slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
@@ -170,7 +213,7 @@ function parse<T>(schema: z.ZodType<T>, input: unknown): T {
 
 function validateSettingValue(key: string, value: Record<string, unknown>) {
   if (key === "brand") {
-    const result = brandValueSchema.safeParse(value);
+    const result = brandValueSchema.safeParse(compactBrandValue(value));
     if (!result.success) throw new EditorValidationError(result.error.issues.map((issue) => issue.message).join("; "));
     return result.data;
   }

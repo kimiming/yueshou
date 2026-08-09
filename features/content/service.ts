@@ -81,6 +81,7 @@ type ResolvedHomepageSection = {
   config: unknown;
   items: HomepageSectionItemViewModel[];
   media: MediaViewModel | null;
+  mediaGallery: MediaViewModel[];
 };
 
 function persistedSectionType(section: PublishedPageRecord["sections"][number]): PageSectionType {
@@ -117,6 +118,7 @@ function mapPage(
         config: resolved?.config ?? section.config,
         items: resolved?.items ?? [],
         media: resolved?.media ?? null,
+        mediaGallery: resolved?.mediaGallery ?? [],
         locale,
         translationLocale: translation.translationLocale,
         usedFallback: translation.usedFallback,
@@ -291,11 +293,10 @@ async function hydrateHomePage(
     return { section, parsed: parsed.data };
   });
 
-  const mediaIds = unique(parsedSections.flatMap(({ parsed }) =>
-    parsed.type === "hero" || parsed.type === "about" || parsed.type === "quality"
-      ? [parsed.config.imageId]
-      : [],
-  ));
+  const mediaIds = unique(parsedSections.flatMap(({ parsed }) => {
+    if (parsed.type === "about") return [parsed.config.imageId, ...(parsed.config.imageIds ?? [])];
+    return parsed.type === "hero" || parsed.type === "quality" ? [parsed.config.imageId] : [];
+  }));
   const serviceIds = unique(parsedSections.flatMap(({ parsed }) =>
     parsed.type === "services" ? parsed.config.serviceIds ?? [] : [],
   ));
@@ -325,11 +326,15 @@ async function hydrateHomePage(
   for (const { section, parsed } of parsedSections) {
     let items: HomepageSectionItemViewModel[] = [];
     let imageId: string | undefined;
+    let galleryImageIds: string[] = [];
 
     switch (parsed.type) {
       case "hero":
+        imageId = parsed.config.imageId;
+        break;
       case "about":
         imageId = parsed.config.imageId;
+        galleryImageIds = parsed.config.imageIds ?? [];
         break;
       case "services":
         items = orderReferences(parsed.config.serviceIds ?? [], services)
@@ -372,6 +377,10 @@ async function hydrateHomePage(
       config: parsed.config,
       items,
       media: mediaRecord ? mapMedia(mediaRecord, locale) : null,
+      mediaGallery: galleryImageIds
+        .map((id) => mediaById.get(id))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+        .map((item) => mapMedia(item, locale)),
     });
   }
 

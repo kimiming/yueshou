@@ -79,7 +79,7 @@ describe("SEO metadata", () => {
     expect(metadata.openGraph).toMatchObject({ locale: "en_US" });
   });
 
-  it("publishes the approved YueShou social card for Open Graph and X", () => {
+  it("publishes the approved yueshou social card for Open Graph and X", () => {
     const metadata = buildMetadata({
       locale: "en",
       path: "/",
@@ -153,7 +153,7 @@ describe("structured data", () => {
       "@type": "Organization",
       "@id": "https://www.yueshou.example/#organization",
       name: SITE_NAME,
-      alternateName: "YueShou",
+      alternateName: "yueshou",
       url: "https://www.yueshou.example/",
       logo: "https://www.yueshou.example/og.png",
       description: "Precision peptide synthesis",
@@ -170,7 +170,7 @@ describe("structured data", () => {
       "@id": "https://www.yueshou.example/#website",
       url: "https://www.yueshou.example/",
       name: SITE_NAME,
-      alternateName: "YueShou",
+      alternateName: "yueshou",
       description: SITE_DESCRIPTION,
       publisher: { "@id": "https://www.yueshou.example/#organization" },
     });
@@ -321,7 +321,7 @@ describe("App Router SEO integration", () => {
       usedFallback: false,
       title: "Research homepage",
       body: "Home body",
-      seoTitle: "YueShou Peptide Synthesis",
+      seoTitle: "yueshou Peptide Synthesis",
       seoDescription: "Custom peptide research services",
       publishedAt: "2026-08-01T00:00:00.000Z",
       sections: [],
@@ -334,7 +334,7 @@ describe("App Router SEO integration", () => {
     await expect(
       generateMetadata?.({ params: Promise.resolve({ locale: "en" }) }),
     ).resolves.toMatchObject({
-      title: "YueShou Peptide Synthesis",
+      title: "yueshou Peptide Synthesis",
       description: "Custom peptide research services",
       alternates: { canonical: "https://www.yueshou.example/en" },
     });

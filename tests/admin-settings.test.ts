@@ -29,6 +29,31 @@ function repository(overrides: Partial<AdminEditorRepository> = {}): AdminEditor
 }
 
 describe("site settings and navigation editors", () => {
+  it("ignores completely blank optional brand fields submitted by the form", async () => {
+    const repo = repository();
+    const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
+
+    await service.saveSiteSetting({
+      actor: admin,
+      key: "brand",
+      version: null,
+      status: "DRAFT",
+      value: {
+        email: "",
+        phone: "",
+        addressLines: [""],
+        socialLinks: [{ label: undefined, href: undefined }],
+        defaultSeo: { title: undefined, description: undefined, keywords: [] },
+        footerColumns: [{ heading: undefined, links: [{ label: undefined, href: undefined }] }],
+      },
+      translations: [],
+    });
+
+    expect(repo.saveSiteSetting).toHaveBeenCalledWith(expect.objectContaining({
+      value: { addressLines: [], socialLinks: [], footerColumns: [] },
+    }));
+  });
+
   it("rejects a brand setting with a non-HTTPS social link", async () => {
     const repo = repository();
     const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
@@ -37,8 +62,8 @@ describe("site settings and navigation editors", () => {
       actor: admin,
       key: "brand",
       version: null,
-      value: { companyName: "YueShou", socialLinks: [{ label: "LinkedIn", href: "javascript:alert(1)" }] },
-      translations: [{ locale: "en", title: "YueShou", body: "Precision peptides" }],
+      value: { companyName: "yueshou", socialLinks: [{ label: "LinkedIn", href: "javascript:alert(1)" }] },
+      translations: [{ locale: "en", title: "yueshou", body: "Precision peptides" }],
     })).rejects.toBeInstanceOf(EditorValidationError);
     expect(repo.saveSiteSetting).not.toHaveBeenCalled();
   });
@@ -69,7 +94,7 @@ describe("site settings and navigation editors", () => {
       key: "brand",
       version: null,
       value: { email: "research@yueshou.test" },
-      translations: [{ locale: "en", title: "YueShou", body: "Precision peptides" }],
+      translations: [{ locale: "en", title: "yueshou", body: "Precision peptides" }],
     })).rejects.toBeInstanceOf(EditorAuthorizationError);
     expect(repo.saveSiteSetting).not.toHaveBeenCalled();
   });
@@ -101,7 +126,7 @@ describe("site settings and navigation editors", () => {
       key: "brand",
       version: "2026-08-08T00:00:00.000Z",
       value: { email: "research@yueshou.test" },
-      translations: [{ locale: "en", title: "YueShou", body: "Precision peptides" }],
+      translations: [{ locale: "en", title: "yueshou", body: "Precision peptides" }],
     })).rejects.toBeInstanceOf(EditorConflictError);
     expect(repo.createAuditLog).not.toHaveBeenCalled();
   });
@@ -130,7 +155,7 @@ describe("site settings and navigation editors", () => {
       key: "brand",
       version: null,
       value: { logoMediaId: "cm00000000000000000000001" },
-      translations: [{ locale: "en", title: "YueShou", body: "Precision peptides" }],
+      translations: [{ locale: "en", title: "yueshou", body: "Precision peptides" }],
     })).rejects.toBeInstanceOf(EditorValidationError);
     expect(repo.saveSiteSetting).not.toHaveBeenCalled();
   });
@@ -138,7 +163,7 @@ describe("site settings and navigation editors", () => {
   it("records a draft-specific setting audit action", async () => {
     const repo = repository();
     const service = createAdminEditorService({ repository: repo, invalidate: vi.fn() });
-    await service.saveSiteSetting({ actor: admin, key: "brand", version: null, status: "DRAFT", value: { companyName: "YueShou" }, translations: [{ locale: "en", title: "Translated", body: "Summary" }] });
+    await service.saveSiteSetting({ actor: admin, key: "brand", version: null, status: "DRAFT", value: { companyName: "yueshou" }, translations: [{ locale: "en", title: "Translated", body: "Summary" }] });
     expect(repo.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: "SITE_SETTING_DRAFTED", metadata: expect.objectContaining({ status: "DRAFT" }) }));
   });
 });

@@ -67,6 +67,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env.docker}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env.docker}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env.docker}
     command: server /data --console-address ":9001"
     volumes: [minio_data:/data]
     networks: [private]
@@ -108,10 +109,6 @@ services:
       mc admin policy create local yueshou-app /tmp/app-policy.json || mc admin policy update local yueshou-app /tmp/app-policy.json
       mc admin user add local "$$STORAGE_ACCESS_KEY_ID" "$$STORAGE_SECRET_ACCESS_KEY" || true
       mc admin policy attach local yueshou-app --user "$$STORAGE_ACCESS_KEY_ID"
-      cat >/tmp/cors.json <<JSON
-      [{"AllowedOrigins":["$$NEXT_PUBLIC_SITE_URL"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["content-type","content-length","x-amz-*"],"ExposeHeaders":["etag"],"MaxAgeSeconds":300}]
-      JSON
-      mc cors set "local/$$STORAGE_BUCKET" /tmp/cors.json
 
   migrate:
     build:
@@ -141,6 +138,7 @@ services:
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env.docker}
+      NEXTAUTH_URL: ${NEXT_PUBLIC_SITE_URL:?Set NEXT_PUBLIC_SITE_URL in .env.docker}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env.docker}
       INQUIRY_HASH_SECRET: ${INQUIRY_HASH_SECRET:?Set INQUIRY_HASH_SECRET in .env.docker}
@@ -239,7 +237,8 @@ services:
     environment:
       SERVER_NAME: ${SERVER_NAME:?Set SERVER_NAME in .env.docker}
       STORAGE_HOST: ${STORAGE_HOST:?Set STORAGE_HOST in .env.docker}
-      NGINX_ENVSUBST_FILTER: "SERVER_NAME|STORAGE_HOST"
+      STORAGE_BUCKET: ${STORAGE_BUCKET:?Set STORAGE_BUCKET in .env.docker}
+      NGINX_ENVSUBST_FILTER: "SERVER_NAME|STORAGE_HOST|STORAGE_BUCKET"
     depends_on: { web: { condition: service_healthy }, minio: { condition: service_healthy } }
     ports: ["80:80", "443:443"]
     volumes:
@@ -247,9 +246,11 @@ services:
       - ./deploy/nginx/templates/site.conf.template:/etc/nginx/templates/site.conf.template:ro
       - ${TLS_CERTS_DIR:?Set TLS_CERTS_DIR to an absolute certificate directory}:/etc/nginx/certs:ro
     networks:
+      public: {}
       private:
         aliases:
           - "${STORAGE_HOST:?Set STORAGE_HOST in .env.docker}"
+          - "${SERVER_NAME:?Set SERVER_NAME in .env.docker}"
     restart: unless-stopped
     logging: *default-logging
     deploy: *default-resources
@@ -257,6 +258,7 @@ services:
 
 networks:
   private: { internal: true }
+  public: {}
 
 volumes:
   postgres_data:

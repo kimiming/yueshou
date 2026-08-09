@@ -49,16 +49,16 @@ export function LoginForm() {
   }
 
   return (
-    <Form layout="vertical" onFinish={submit} requiredMark={false} aria-label="Staff sign in">
+    <Form layout="vertical" onFinish={submit} requiredMark={false} aria-label="员工登录">
       {error ? <Alert type="error" showIcon message={error} role="alert" /> : null}
-      <Form.Item label="Email" name="email" rules={[{ required: true, type: "email", message: "Enter a valid email address." }]}>
+      <Form.Item label="邮箱" name="email" rules={[{ required: true, type: "email", message: "请输入有效的邮箱地址。" }]}>
         <Input type="email" autoComplete="username" autoFocus />
       </Form.Item>
-      <Form.Item label="Password" name="password" rules={[{ required: true, message: "Enter your password." }]}>
+      <Form.Item label="密码" name="password" rules={[{ required: true, message: "请输入密码。" }]}>
         <Input.Password autoComplete="current-password" />
       </Form.Item>
       <Button type="primary" htmlType="submit" loading={submitting} block>
-        Sign in
+        登录
       </Button>
     </Form>
   );

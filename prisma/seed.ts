@@ -43,11 +43,11 @@ const legalPages = [
     translations: translated(
       { en: "Terms of Service", zh_CN: "服务条款", de: "Nutzungsbedingungen", fr: "Conditions d’utilisation", es: "Términos del servicio" },
       {
-        en: "This draft page describes the terms for using YueShou’s website. It requires legal review before publication.",
-        zh_CN: "此草稿页面说明使用 YueShou 网站的条款。发布前需要法律审核。",
-        de: "Diese Entwurfsseite beschreibt die Bedingungen für die Nutzung der Website von YueShou. Vor der Veröffentlichung ist eine rechtliche Prüfung erforderlich.",
-        fr: "Cette page de travail décrit les conditions d’utilisation du site YueShou. Elle nécessite un examen juridique avant publication.",
-        es: "Esta página de borrador describe las condiciones de uso del sitio web de YueShou. Requiere revisión legal antes de su publicación.",
+        en: "This draft page describes the terms for using yueshou’s website. It requires legal review before publication.",
+        zh_CN: "此草稿页面说明使用 yueshou 网站的条款。发布前需要法律审核。",
+        de: "Diese Entwurfsseite beschreibt die Bedingungen für die Nutzung der Website von yueshou. Vor der Veröffentlichung ist eine rechtliche Prüfung erforderlich.",
+        fr: "Cette page de travail décrit les conditions d’utilisation du site yueshou. Elle nécessite un examen juridique avant publication.",
+        es: "Esta página de borrador describe las condiciones de uso del sitio web de yueshou. Requiere revisión legal antes de su publicación.",
       },
     ),
   },
@@ -56,11 +56,11 @@ const legalPages = [
     translations: translated(
       { en: "Privacy Policy", zh_CN: "隐私政策", de: "Datenschutzerklärung", fr: "Politique de confidentialité", es: "Política de privacidad" },
       {
-        en: "This draft page describes how YueShou intends to handle website inquiries and consent records. It requires legal review before publication.",
-        zh_CN: "此草稿页面说明 YueShou 拟如何处理网站询盘和同意记录。发布前需要法律审核。",
-        de: "Diese Entwurfsseite beschreibt, wie YueShou Website-Anfragen und Einwilligungsnachweise behandeln möchte. Vor der Veröffentlichung ist eine rechtliche Prüfung erforderlich.",
-        fr: "Cette page de travail décrit la manière dont YueShou prévoit de traiter les demandes du site et les preuves de consentement. Elle nécessite un examen juridique avant publication.",
-        es: "Esta página de borrador describe cómo YueShou pretende tratar las consultas del sitio web y los registros de consentimiento. Requiere revisión legal antes de su publicación.",
+        en: "This draft page describes how yueshou intends to handle website inquiries and consent records. It requires legal review before publication.",
+        zh_CN: "此草稿页面说明 yueshou 拟如何处理网站询盘和同意记录。发布前需要法律审核。",
+        de: "Diese Entwurfsseite beschreibt, wie yueshou Website-Anfragen und Einwilligungsnachweise behandeln möchte. Vor der Veröffentlichung ist eine rechtliche Prüfung erforderlich.",
+        fr: "Cette page de travail décrit la manière dont yueshou prévoit de traiter les demandes du site et les preuves de consentement. Elle nécessite un examen juridique avant publication.",
+        es: "Esta página de borrador describe cómo yueshou pretende tratar las consultas del sitio web y los registros de consentimiento. Requiere revisión legal antes de su publicación.",
       },
     ),
   },
@@ -69,11 +69,11 @@ const legalPages = [
     translations: translated(
       { en: "Research Use Only Policy", zh_CN: "仅限科研用途政策", de: "Richtlinie nur für Forschungszwecke", fr: "Politique réservée à la recherche", es: "Política solo para investigación" },
       {
-        en: "YueShou website content is provided for scientific research discussions. Products must not be represented as intended for human diagnostic or therapeutic use.",
-        zh_CN: "YueShou 网站内容用于科学研究交流。产品不得被表述为用于人体诊断或治疗。",
-        de: "Die Inhalte der YueShou-Website dienen wissenschaftlichen Forschungsgesprächen. Produkte dürfen nicht als für diagnostische oder therapeutische Anwendungen am Menschen bestimmt dargestellt werden.",
-        fr: "Le contenu du site YueShou est fourni pour les échanges liés à la recherche scientifique. Les produits ne doivent pas être présentés comme destinés au diagnostic ou au traitement humain.",
-        es: "El contenido del sitio web de YueShou se proporciona para conversaciones sobre investigación científica. Los productos no deben presentarse como destinados al diagnóstico o tratamiento humano.",
+        en: "yueshou website content is provided for scientific research discussions. Products must not be represented as intended for human diagnostic or therapeutic use.",
+        zh_CN: "yueshou 网站内容用于科学研究交流。产品不得被表述为用于人体诊断或治疗。",
+        de: "Die Inhalte der yueshou-Website dienen wissenschaftlichen Forschungsgesprächen. Produkte dürfen nicht als für diagnostische oder therapeutische Anwendungen am Menschen bestimmt dargestellt werden.",
+        fr: "Le contenu du site yueshou est fourni pour les échanges liés à la recherche scientifique. Les produits ne doivent pas être présentés comme destinés au diagnostic ou au traitement humain.",
+        es: "El contenido del sitio web de yueshou se proporciona para conversaciones sobre investigación científica. Los productos no deben presentarse como destinados al diagnóstico o tratamiento humano.",
       },
     ),
   },
@@ -122,9 +122,9 @@ const corePages = [
   {
     slug: "about",
     translations: translated(
-      { en: "About YueShou", zh_CN: "关于悦寿", de: "Über YueShou", fr: "À propos de YueShou", es: "Acerca de YueShou" },
+      { en: "About yueshou", zh_CN: "关于粤首", de: "Über yueshou", fr: "À propos de yueshou", es: "Acerca de yueshou" },
       {
-        en: "Learn about our research-focused peptide workflow and collaboration approach.",
+        en: "Yueshou Bio is a national-level specialized, refined, distinctive, and innovative \"Little Giant\" enterprise focused on peptide research, development, production, and application. The company hosts a national postdoctoral research station and an academician-expert workstation, as well as a provincial enterprise research institute. It is also Guangdong Province's first Peptide Synthesis Engineering Research Center and has been granted 108 related invention patents, making it one of the leading enterprises in large-scale peptide production in China. The company has established a \"one core, two wings, dual-wheel drive\" development strategy, with drug peptides and their technical services as the core, and cosmetic peptides and other peptides as the two supporting wings. This strategy drives growth through both pharmaceutical and non-pharmaceutical peptides, while simultaneously advancing innovation capabilities and expanding market channels and customer base.",
         zh_CN: "了解我们面向科研的多肽工作流程与合作方式。",
         de: "Erfahren Sie mehr über unseren forschungsorientierten Peptid-Workflow und unsere Zusammenarbeit.",
         fr: "Découvrez notre flux de travail peptidique axé sur la recherche et notre approche collaborative.",
@@ -189,11 +189,11 @@ const corePages = [
     translations: translated(
       { en: "Contact", zh_CN: "联系我们", de: "Kontakt", fr: "Contact", es: "Contacto" },
       {
-        en: "Contact YueShou to discuss a scientific research requirement.",
-        zh_CN: "联系悦寿，讨论您的科学研究需求。",
-        de: "Kontaktieren Sie YueShou, um eine wissenschaftliche Forschungsanforderung zu besprechen.",
-        fr: "Contactez YueShou pour discuter d’un besoin de recherche scientifique.",
-        es: "Contacte con YueShou para hablar de una necesidad de investigación científica.",
+        en: "Contact yueshou to discuss a scientific research requirement.",
+        zh_CN: "联系粤首，讨论您的科学研究需求。",
+        de: "Kontaktieren Sie yueshou, um eine wissenschaftliche Forschungsanforderung zu besprechen.",
+        fr: "Contactez yueshou pour discuter d’un besoin de recherche scientifique.",
+        es: "Contacte con yueshou para hablar de una necesidad de investigación científica.",
       },
     ),
   },
@@ -399,7 +399,7 @@ async function main() {
 
   const seededAt = new Date();
   const brandTranslations = translated(
-      { en: "YueShou", zh_CN: "YueShou", de: "YueShou", fr: "YueShou", es: "YueShou" },
+      { en: "yueshou", zh_CN: "yueshou", de: "yueshou", fr: "yueshou", es: "yueshou" },
       {
         en: "Precision Peptide Synthesis for Global Scientific Research",
         zh_CN: "面向全球科学研究的精准多肽合成",

@@ -19,8 +19,8 @@ describe("uploadSchema", () => {
     expect(uploadSchema.safeParse({ name, type, size: 100 }).success).toBe(false);
   });
 
-  it("rejects files larger than 10 MB", () => {
-    expect(uploadSchema.safeParse({ name: "large.png", type: "image/png", size: 10 * 1024 * 1024 + 1 }).success).toBe(false);
+  it("rejects files larger than 25 MB", () => {
+    expect(uploadSchema.safeParse({ name: "large.png", type: "image/png", size: 25 * 1024 * 1024 + 1 }).success).toBe(false);
   });
 
   it("uses a random, date-partitioned key and the validated extension", () => {

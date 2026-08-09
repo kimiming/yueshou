@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { Button, Card, Input, List, Space, Typography } from "antd";
+import { AdminPageTitle, Button, Card, Input, Space } from "@/components/admin/antd-server-bridge";
 
 import { MediaMetadataForm } from "@/components/admin/editor-forms";
 import { MediaPicker } from "@/components/admin/media-picker";
@@ -45,7 +45,7 @@ export default async function MediaPage({ searchParams }: {
   const rows = await Promise.all(assets.map(async (asset) => ({ asset, references: await prismaMediaRepository.countReferences(asset.id) })));
 
   return <main>
-    <Typography.Title level={1}>Media library</Typography.Title>
+    <AdminPageTitle level={1}>Media library</AdminPageTitle>
     <Card>
       <MediaPicker />
       <p>Uploads are sent directly to a short-lived storage URL. Browser code never receives storage credentials.</p>
@@ -54,7 +54,7 @@ export default async function MediaPage({ searchParams }: {
         <select name="status" defaultValue={status ?? ""} aria-label="Media status"><option value="">All statuses</option>{["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => <option key={value} value={value}>{value}</option>)}</select>
         <Button htmlType="submit">Filter</Button>
       </Space></form>
-      <List dataSource={rows} locale={{ emptyText: "No media assets yet." }} renderItem={({ asset, references }) => {
+      <div className="admin-record-list">{rows.length ? rows.map(({ asset, references }) => {
         const metadata = {
           id: asset.id,
           version: asset.updatedAt.toISOString(),
@@ -69,12 +69,12 @@ export default async function MediaPage({ searchParams }: {
         const deletion = asset.deletionJob
           ? `Deletion ${asset.deletionJob.status.toLowerCase()} after ${asset.deletionJob.deleteAfter.toISOString()}`
           : asset.status === "ARCHIVED" ? "Retained because it is still referenced." : "Not queued for deletion.";
-        return <List.Item><Card title={asset.filename} style={{ width: "100%" }}>
+        return <Card key={asset.id} title={asset.filename} style={{ width: "100%" }}>
           <p>{asset.mimeType} · {asset.sizeBytes} bytes · {asset.status} · {referenceCount} active references</p>
           <p>{deletion}</p>
           <MediaMetadataForm initial={metadata} save={saveMediaMetadataAction} publish={publishMediaAction} archive={archiveMediaAction} allowArchive={user.role === "ADMIN"} />
-        </Card></List.Item>;
-      }} />
+        </Card>;
+      }) : <p>No media assets yet.</p>}</div>
       <AdminPagination pathname="/admin/media" currentPage={page} totalItems={total} pageSize={PAGE_SIZE} query={{ q, status }} />
     </Card>
   </main>;

@@ -170,6 +170,22 @@ describe("media route authorization", () => {
     expect(service).not.toHaveBeenCalled();
   });
 
+  it("accepts the public origin forwarded by the trusted reverse proxy", async () => {
+    const service = vi.fn(async () => ({ key: objectKey }));
+    const handler = createPresignUploadHandler({
+      authorize: async () => ({ id: "editor-1", role: "EDITOR" }),
+      createPendingUpload: service,
+    });
+    const request = mutationRequest("/api/media/presign", uploadBody, "https://cms.example.test:8443");
+    request.headers.set("x-forwarded-host", "cms.example.test:8443");
+    request.headers.set("x-forwarded-proto", "https");
+
+    const response = await handler(request);
+
+    expect(response.status).toBe(200);
+    expect(service).toHaveBeenCalledOnce();
+  });
+
   it("turns only a freshly checked staff user into a media actor", async () => {
     const authorize = createMediaRouteAuthorization(async () => ({
       id: "editor-1",

@@ -1,6 +1,6 @@
-# YueShou peptide platform
+# yueshou peptide platform
 
-YueShou is a five-language peptide-research marketing site and CMS. It uses
+yueshou is a five-language peptide-research marketing site and CMS. It uses
 Next.js App Router SSR, Ant Design administration, PostgreSQL, a private
 S3-compatible storage layer, Auth.js credentials, consent management,
 revision-bound legal publication controls, and audit logging.

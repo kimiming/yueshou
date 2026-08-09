@@ -1,4 +1,4 @@
-import { Typography } from "antd";
+import { AdminPageTitle } from "@/components/admin/antd-server-bridge";
 import { notFound } from "next/navigation";
 
 import { ServiceEditorForm } from "@/components/admin/content-management-forms";
@@ -12,7 +12,7 @@ export default async function ServiceEditPage({ params }: { params: Promise<{ id
   const service = await prisma.service.findFirst({ where: { id, deletedAt: null }, include: { translations: true } });
   if (!service) notFound();
   return <main>
-    <Typography.Title level={1}>Service editor: {service.slug}</Typography.Title>
+    <AdminPageTitle level={1}>Service editor: {service.slug}</AdminPageTitle>
     <ServiceEditorForm
       save={saveServiceAction}
       allowArchive={user.role === "ADMIN"}

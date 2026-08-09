@@ -8,7 +8,7 @@ import {
 } from "@/lib/i18n/config";
 
 export const SITE_NAME = "粤首";
-export const SITE_ALTERNATE_NAME = "YueShou";
+export const SITE_ALTERNATE_NAME = "yueshou";
 export const SITE_DESCRIPTION =
   "Precision Peptide Synthesis for Global Scientific Research";
 

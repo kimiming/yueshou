@@ -119,7 +119,7 @@ async function main() {
       deletedAt: null,
       value: {
         logoMediaId: baselineLogo.id,
-        companyName: "YueShou",
+        companyName: "yueshou",
         slogan: "Precision Peptide Synthesis for Global Scientific Research",
         email: "research@example.test",
         phone: "+1-555-0100",

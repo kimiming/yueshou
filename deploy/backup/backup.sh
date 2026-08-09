@@ -23,6 +23,7 @@ umask 077
 cleanup() {
   # The work path is generated here and never points outside the backup volume.
   [[ -n "${work_dir:-}" && "$work_dir" == /backups/.work/* && -d "$work_dir" ]] && rm -rf -- "$work_dir"
+  return 0
 }
 trap cleanup EXIT
 
@@ -32,6 +33,7 @@ exec 9>"$lock_file"
 flock -x 9
 pg_dump "$DATABASE_URL" --format=custom --compress=9 --file "$work_dir/postgres.dump"
 mc alias set backup-minio "$STORAGE_ENDPOINT" "$STORAGE_ACCESS_KEY_ID" "$STORAGE_SECRET_ACCESS_KEY" >/dev/null
+mkdir -p "$work_dir/minio"
 mc mirror --overwrite --preserve "backup-minio/${STORAGE_BUCKET}" "$work_dir/minio"
 printf '%s\n' \
   "created_at=$timestamp" \

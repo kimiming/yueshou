@@ -33,7 +33,7 @@ describe("dictionaries", () => {
   it("loads a static dictionary for the requested locale", async () => {
     await expect(getDictionary("de")).resolves.toMatchObject({
       navigation: { home: "Startseite" },
-      site: { name: "YueShou" },
+      site: { name: "yueshou" },
     });
   });
 
