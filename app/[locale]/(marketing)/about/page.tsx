@@ -31,14 +31,14 @@ export default async function AboutPage({ params }: AboutPageProps) {
   if (!page) notFound();
 
   return (
-    <main id="main-content" className="marketing-container">
+    <main id="main-content" className="marketing-container about-page">
       <Breadcrumbs label={dictionary.marketing.public.breadcrumbs} items={[
         { label: dictionary.navigation.home, href: `/${locale}` },
         { label: page.title },
       ]} />
-      <article>
+      <article className="about-page__article">
         <h1>{page.title}</h1>
-        <RichContent html={page.body} />
+        <RichContent html={page.body} className="about-page__content" />
       </article>
     </main>
   );

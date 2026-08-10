@@ -295,6 +295,7 @@ async function hydrateHomePage(
 
   const mediaIds = unique(parsedSections.flatMap(({ parsed }) => {
     if (parsed.type === "about") return [parsed.config.imageId, ...(parsed.config.imageIds ?? [])];
+    if (parsed.type === "capabilities") return parsed.config.imageIds ?? [];
     return parsed.type === "hero" || parsed.type === "quality" ? [parsed.config.imageId] : [];
   }));
   const serviceIds = unique(parsedSections.flatMap(({ parsed }) =>
@@ -341,6 +342,10 @@ async function hydrateHomePage(
           .map((item) => mapServiceItem(item, locale));
         break;
       case "capabilities":
+        galleryImageIds = parsed.config.imageIds ?? [];
+        items = orderReferences(parsed.config.itemIds ?? [], homepageItems)
+          .map((item) => mapHomepageSettingItem(item, locale));
+        break;
       case "global-reach":
         items = orderReferences(parsed.config.itemIds ?? [], homepageItems)
           .map((item) => mapHomepageSettingItem(item, locale));

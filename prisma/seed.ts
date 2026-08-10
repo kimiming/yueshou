@@ -105,6 +105,14 @@ const legalPages = [
   },
 ] as const;
 
+const aboutCompanyBody = `<p>粤首股份有限公司成立于2015年，主要从事多肽产品的研发、生产、销售及相关服务，是一家具备先进、高效的多肽合成、纯化和规模化生产能力的国家级专精特新“小巨人”企业，设有广东省博士后工作站和院士专家工作站。公司以关注人类健康、美丽为经营宗旨，凭借业内领先的多肽合成和修饰核心技术优势，为下游客户供应多肽化妆品原料和多肽医药产品及提供相关服务。</p>
+<p>经过多年的技术积累和工艺探索，公司已拥有业内领先的多肽药物合成与生产技术平台，掌握了一系列多肽原料药规模化生产的核心技术，包括功能树脂修饰技术、特殊氨基酸片段合成技术、长肽分段合成技术、多环肽定向合成技术、长肽聚集物控制技术、多肽特定基团修饰技术等多肽合成和修饰类自主核心技术。多肽原料药的工艺研发和生产能力是公司主要竞争优势和业务发展的基础，公司挑选在国内外具有较大市场容量及较强市场竞争力的多肽原料药品种进行研发，已搭建了丰富的产品管线，完成了多种多肽原料药的研发布局，产品管线涵盖亮丙瑞林、司美格鲁肽、利拉鲁肽、利那洛肽等知名品种。</p>
+<p>自设立以来，公司先后为华润双鹤、先声药业等知名创新药企提供多肽 CDMO/CRO 服务，多肽原料药/高级医院中间体产品出口至美国、俄罗斯、巴基斯坦和韩国等多个国家和地区。</p>
+<p>根据弗若斯特沙利文统计，2021年公司为国内市场份额最大的多肽化妆品原料生产企业。公司持续进行多肽原料产品的技术创新，并通过工艺改进等方式进一步发挥成本优势，为客户提供具有显著优势的定制化产品。同时，公司在行业深耕多年，对多肽产品具备较深的理解和技术积累，具备了从多肽化妆品原料早期产品开发、研发、实验、粉末生产、原液调配、稳定性检测和功效测评的全链条服务能力，能够在客户早期设计产品时即介入，针对最终产品定位和用途为客户量身定制多肽原料产品，并在产品设计和销售过程中针对客户需求进行升级。</p>
+<p>公司坚持自主创新，持续围绕多肽化妆品原料领域布局在研项目，并积极与珀莱雅、华熙生物、丸美等头部化妆品企业达成战略合作，运用科研专业优势和在多肽原料应用的成功经验，为多肽在化妆品原料领域的发展赋能。</p>
+<h2>联系方式</h2>
+<p><strong>地址：</strong>广州市白云区太和镇广从三路55号3层332室<br><strong>电话：</strong><a href="tel:057583835818">0575-83835818</a><br><strong>网址：</strong><a href="https://www.yueshou-china.com" target="_blank" rel="noopener noreferrer">www.yueshou-china.com</a></p>`;
+
 const corePages = [
   {
     slug: "home",
@@ -124,8 +132,8 @@ const corePages = [
     translations: translated(
       { en: "About yueshou", zh_CN: "关于粤首", de: "Über yueshou", fr: "À propos de yueshou", es: "Acerca de yueshou" },
       {
-        en: "Yueshou Bio is a national-level specialized, refined, distinctive, and innovative \"Little Giant\" enterprise focused on peptide research, development, production, and application. The company hosts a national postdoctoral research station and an academician-expert workstation, as well as a provincial enterprise research institute. It is also Guangdong Province's first Peptide Synthesis Engineering Research Center and has been granted 108 related invention patents, making it one of the leading enterprises in large-scale peptide production in China. The company has established a \"one core, two wings, dual-wheel drive\" development strategy, with drug peptides and their technical services as the core, and cosmetic peptides and other peptides as the two supporting wings. This strategy drives growth through both pharmaceutical and non-pharmaceutical peptides, while simultaneously advancing innovation capabilities and expanding market channels and customer base.",
-        zh_CN: "了解我们面向科研的多肽工作流程与合作方式。",
+        en: aboutCompanyBody,
+        zh_CN: aboutCompanyBody,
         de: "Erfahren Sie mehr über unseren forschungsorientierten Peptid-Workflow und unsere Zusammenarbeit.",
         fr: "Découvrez notre flux de travail peptidique axé sur la recherche et notre approche collaborative.",
         es: "Conozca nuestro flujo de trabajo de péptidos orientado a la investigación y nuestro enfoque colaborativo.",

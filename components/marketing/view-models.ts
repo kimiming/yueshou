@@ -38,7 +38,9 @@ function mapSection(section: PageViewModel["sections"][number]): MarketingSectio
     items: section.items.map((item) => ({
       id: item.id,
       title: item.title,
-      body: item.body ? plainTextExcerpt(item.body) : undefined,
+      body: item.body
+        ? plainTextExcerpt(item.body, section.type === "capabilities" ? 1_000 : 240)
+        : undefined,
       value: item.value,
       href: item.href ? localizeHref(item.href, section.locale) : undefined,
     })),

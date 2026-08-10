@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { ConsentRuntime } from "@/components/consent/analytics-consent-boundary";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
+import { WhatsAppFloat } from "@/components/marketing/whatsapp-float";
 import { SeoJsonLd } from "@/components/marketing/seo-json-ld";
 import {
   BRAND_SLOGAN,
@@ -61,6 +62,7 @@ export default async function MarketingLayout({ children, params }: MarketingLay
       <SiteHeader model={shell} />
       {children}
       <SiteFooter model={shell} />
+      <WhatsAppFloat locale={locale} />
       <ConsentRuntime labels={dictionary.consent} initialPreferences={consentPreferences}>
         <div data-analytics-enabled hidden />
       </ConsentRuntime>

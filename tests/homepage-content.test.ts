@@ -12,6 +12,8 @@ const ids = {
   heroMedia: "cm00000000000000000000001",
   aboutMedia: "cm00000000000000000000002",
   qualityMedia: "cm00000000000000000000003",
+  capabilityMediaOne: "cm00000000000000000000004",
+  capabilityMediaTwo: "cm00000000000000000000005",
   serviceOne: "cm00000000000000000000011",
   serviceTwo: "cm00000000000000000000012",
   itemOne: "cm00000000000000000000021",
@@ -60,6 +62,7 @@ function homeRecord(): PublishedPageRecord {
       section("about", "ABOUT", 3, { imageId: ids.aboutMedia }),
       section("capabilities", "CAPABILITIES", 4, {
         itemIds: [ids.itemTwo, ids.hiddenItem, ids.itemOne],
+        imageIds: [ids.capabilityMediaOne, ids.capabilityMediaTwo],
       }),
       section("quality", "QUALITY", 5, {
         imageId: ids.qualityMedia,
@@ -181,6 +184,8 @@ describe("homepage content hydration", () => {
       findPublishedMediaByIds: vi.fn(async () => [
         media(ids.aboutMedia, "About media"),
         media(ids.heroMedia, "Hero media"),
+        media(ids.capabilityMediaOne, "Capability media one"),
+        media(ids.capabilityMediaTwo, "Capability media two"),
       ]),
       findPublishedServicesByIds: vi.fn(async () => [
         { id: ids.serviceOne, slug: "one", translations: translation("Service one") },
@@ -214,6 +219,10 @@ describe("homepage content hydration", () => {
       { type: "about", media: { id: ids.aboutMedia }, items: [] },
       {
         type: "capabilities",
+        mediaGallery: [
+          { id: ids.capabilityMediaOne },
+          { id: ids.capabilityMediaTwo },
+        ],
         items: [
           { id: ids.itemTwo, title: "Item two", href: "/quality" },
           { id: ids.itemOne, title: "Item one" },
@@ -244,6 +253,8 @@ describe("homepage content hydration", () => {
     expect(repository.findPublishedMediaByIds).toHaveBeenCalledWith([
       ids.heroMedia,
       ids.aboutMedia,
+      ids.capabilityMediaOne,
+      ids.capabilityMediaTwo,
       ids.qualityMedia,
     ]);
     expect(repository.findLatestPublishedArticles).toHaveBeenCalledWith(2);

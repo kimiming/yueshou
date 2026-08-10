@@ -114,8 +114,11 @@ function brandMediaIds(value: Record<string, unknown>) {
 
 function sectionMediaIds(config: unknown) {
   if (!config || typeof config !== "object" || Array.isArray(config)) return [];
-  const imageId = (config as Record<string, unknown>).imageId;
-  return typeof imageId === "string" ? [imageId] : [];
+  const value = config as Record<string, unknown>;
+  const imageIds = Array.isArray(value.imageIds)
+    ? value.imageIds.filter((id): id is string => typeof id === "string")
+    : [];
+  return typeof value.imageId === "string" ? [value.imageId, ...imageIds] : imageIds;
 }
 
 async function assertUsableReferencedMedia(tx: Prisma.TransactionClient, mediaIds: string[]) {

@@ -80,7 +80,10 @@ const pageSectionConfigSchemas = {
     imageId: z.string().cuid().optional(),
     imageIds: z.array(z.string().cuid()).max(3).optional(),
   }),
-  capabilities: z.object({ itemIds: referenceIdsSchema }),
+  capabilities: z.object({
+    itemIds: referenceIdsSchema,
+    imageIds: z.array(z.string().cuid()).max(4).optional(),
+  }),
   quality: z.object({
     imageId: z.string().cuid().optional(),
     itemIds: referenceIdsSchema,

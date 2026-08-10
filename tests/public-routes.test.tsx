@@ -238,7 +238,7 @@ describe("public content routes", () => {
     ]);
 
     const productView = render(await ProductsPage({
-      params: Promise.resolve({ locale: "de" }), searchParams: Promise.resolve({}),
+      params: Promise.resolve({ locale: "de" }),
     }));
     const productIntroduction = productView.getByRole("heading", { level: 1 }).closest("header");
     expect(productIntroduction).not.toBeNull();
@@ -274,78 +274,25 @@ describe("public content routes", () => {
     expect(within(screen.getByRole("article")).getByRole("status")).toHaveTextContent("Die englische Version wird angezeigt");
   });
 
-  it("renders SSR product query and category controls with only filtered localized results", async () => {
-    const localizedProduct = { ...product, locale: "de" as const };
+  it("renders the grouped peptide product table without catalog filters", async () => {
     contentMocks.getPageBySlug.mockResolvedValue(page("products"));
-    contentMocks.getProductCatalog.mockResolvedValue({
-      products: [localizedProduct],
-      categories: [product.category],
-      query: "published",
-      category: "research",
-      page: 2,
-      pageSize: 24,
-      pageCount: 3,
-      totalCount: 50,
-    });
     const { default: ProductsPage } = await import(
       "@/app/[locale]/(marketing)/products/page"
     );
 
     const view = await ProductsPage({
       params: Promise.resolve({ locale: "de" }),
-      searchParams: Promise.resolve({ q: "  published  ", category: "research", page: "2" }),
     });
     const { container } = render(view);
 
     expect(container.querySelectorAll("h1")).toHaveLength(1);
-    expect(screen.getByRole("searchbox", { name: "Produkte und Inhalte durchsuchen" })).toHaveValue("published");
-    expect(screen.getByRole("combobox", { name: "Produktkategorie" })).toHaveValue("research");
-    expect(screen.getByRole("article")).toHaveTextContent("Published product");
-    expect(screen.getByRole("link", { name: "Published product" })).toHaveAttribute(
-      "href",
-      "/de/products/published-product",
-    );
-    expect(screen.getByRole("link", { name: "Vorherige Seite" })).toHaveAttribute(
-      "href",
-      "/de/products?q=published&category=research&page=1",
-    );
-    expect(screen.getByRole("link", { name: "Nächste Seite" })).toHaveAttribute(
-      "href",
-      "/de/products?q=published&category=research&page=3",
-    );
-    expect(screen.getByText("2 / 3")).toHaveAttribute("aria-current", "page");
-    expect(contentMocks.getProductCatalog).toHaveBeenCalledWith("de", {
-      query: "  published  ",
-      category: "research",
-      page: "2",
-    });
-  });
-
-  it("renders an accessible empty state for a product filter with no matches", async () => {
-    contentMocks.getPageBySlug.mockResolvedValue(page("products"));
-    contentMocks.getProductCatalog.mockResolvedValue({
-      products: [],
-      categories: [product.category],
-      query: "missing",
-      category: null,
-      page: 1,
-      pageSize: 24,
-      pageCount: 1,
-      totalCount: 0,
-    });
-    const { default: ProductsPage } = await import(
-      "@/app/[locale]/(marketing)/products/page"
-    );
-
-    const view = await ProductsPage({
-      params: Promise.resolve({ locale: "en" }),
-      searchParams: Promise.resolve({ q: "missing" }),
-    });
-    render(view);
-
-    expect(screen.getByRole("status")).toHaveTextContent("No products match these filters.");
-    expect(screen.queryByRole("article")).not.toBeInTheDocument();
-    expect(screen.queryByRole("navigation", { name: "Product pagination" })).not.toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "美容肽产品列表" })).toBeInTheDocument();
+    expect(screen.getAllByRole("row")).toHaveLength(13);
+    expect(screen.getByRole("rowheader", { name: "抗皱类" })).toHaveAttribute("rowspan", "3");
+    expect(screen.getByText("ZPC®Wrinklend008S")).toBeInTheDocument();
+    expect(screen.getByText("NONAPEPTIDE-1")).toBeInTheDocument();
+    expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(contentMocks.getProductCatalog).not.toHaveBeenCalled();
   });
 
   it("renders product card copy as safe plain text without nested headings", () => {
