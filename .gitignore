@@ -13,3 +13,6 @@ next-env.d.ts
 !.env.example
 !.env.docker.example
 .local-tls/
+# Portable production snapshots contain database content and uploaded files.
+# Keep them outside Git even though the archive itself is encrypted.
+deployment-backups/

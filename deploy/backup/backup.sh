@@ -53,6 +53,10 @@ openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in "$work_dir/backup.tar.gz.en
   -out "$work_dir/verify.tar.gz" -pass env:BACKUP_ENCRYPTION_PASSPHRASE
 tar -tzf "$work_dir/verify.tar.gz" >/dev/null
 rm -f -- "$work_dir/verify.tar.gz"
+# Only the encrypted archive and its integrity metadata may leave the private
+# work directory. Database dumps, object-store files, and metadata can contain
+# customer data and must never remain as plaintext in a completed backup.
+rm -rf -- "$work_dir/postgres.dump" "$work_dir/minio" "$work_dir/metadata.env"
 touch "$work_dir/COMPLETE"
 mv -T "$work_dir" "$final_dir"
 work_dir=""

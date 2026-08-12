@@ -162,6 +162,38 @@ The encrypted Docker `backup_data` volume is **not** an off-host disaster-recove
 strategy: copy verified encrypted archives to an access-controlled external
 destination.
 
+### Move the complete site to another server
+
+Runtime uploads must not be committed to Git. Public CMS images and private
+inquiry attachments live in MinIO, while their ownership and page references
+live in PostgreSQL. Committing only image files would produce a broken site;
+committing the full dataset would also put private customer data and an
+ever-growing binary history in the source repository.
+
+Keep source code and migrations in Git. Export the matching PostgreSQL and MinIO
+snapshot as a separate encrypted transfer package instead:
+
+```sh
+mkdir -p deployment-backups
+deploy/backup/export-portable.sh deployment-backups
+```
+
+The exporter creates a fresh backup, copies only `backup.tar.gz.enc`, its SHA-256
+checksum, and the atomic `COMPLETE` marker, verifies the copied archive, records
+the current Git commit in `transfer.env`, and locks down local permissions. The
+`deployment-backups/` directory is ignored by Git. Copy its timestamp directory
+to access-controlled off-host storage or directly to the new server, and transfer
+the backup passphrase through a different secure channel.
+
+On the new server, check out the `git_commit` recorded in `transfer.env`, prepare
+and validate a new `.env.docker`, DNS, and TLS certificate, then start PostgreSQL,
+MinIO, `minio-init`, and `ops-init`. Copy the timestamp directory into the
+`backup_data` volume at `/backups/<timestamp>` and run the restore command below
+against the new database and bucket. Use the normal deployment commands to start
+the complete stack only after restore succeeds. This preserves uploaded CMS
+images, private attachments, content records, users, and every database reference
+as one consistent deployment unit.
+
 Run a manual backup from PowerShell:
 
 ```powershell

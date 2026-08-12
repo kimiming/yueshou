@@ -74,21 +74,26 @@ describe("self-hosted Docker deployment", () => {
   });
 
   it("uses a complete encrypted backup and a deliberately explicit restore", async () => {
-    const [backup, restore, restorePowerShell] = await Promise.all([
+    const [backup, restore, restorePowerShell, portableExport] = await Promise.all([
       deploymentFile("deploy/backup/backup.sh"),
       deploymentFile("deploy/backup/restore.sh"),
       deploymentFile("deploy/backup/restore.ps1"),
+      deploymentFile("deploy/backup/export-portable.sh"),
     ]);
 
     expect(backup).toContain("COMPLETE");
     expect(backup).toContain("mv -T");
     expect(backup).toContain("sha256sum --check checksums.sha256");
     expect(backup).toContain("-aes-256-cbc");
+    expect(backup).toContain('rm -rf -- "$work_dir/postgres.dump" "$work_dir/minio" "$work_dir/metadata.env"');
     expect(restore).toContain('RESTORE_CONFIRM" == "RESTORE"');
     expect(restore).toContain("COMPLETE");
     expect(restore).toContain("tar -tzf");
     expect(restorePowerShell).toContain("--entrypoint /backup/restore.sh");
     expect(restorePowerShell).toContain("backup $BackupDirectory");
+    expect(portableExport).toContain("sha256sum --check checksums.sha256");
+    expect(portableExport).toContain("git_commit=");
+    expect(portableExport).not.toContain("postgres.dump");
   });
 
   it("initializes operation volumes once and runs cron plus backup as the same non-root identity", async () => {
