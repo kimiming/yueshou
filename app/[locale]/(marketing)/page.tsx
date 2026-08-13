@@ -123,7 +123,7 @@ export default async function HomePage({ params }: HomePageProps) {
   const sections = model.sections
     .filter((section) => section.enabled)
     .toSorted((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
-  const showcaseProducts = toShowcaseProducts(publishedProducts);
+  const showcaseProducts = toShowcaseProducts(publishedProducts, 20);
 
   return (
     <main id="main-content" lang={result.page.translationLocale} data-homepage>

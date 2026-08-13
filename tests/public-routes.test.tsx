@@ -436,7 +436,8 @@ describe("RichContent", () => {
     const html = `
       <h2>Accessible section</h2>
       <ul><li>One</li></ul>
-      <table><thead><tr><th scope="col">Name</th></tr></thead><tbody><tr><td>Value</td></tr></tbody></table>
+      <p><span style="background-color: #fff3a3; color: #0b63ce; position: fixed; background-image: url(javascript:alert(1))">Highlighted</span></p>
+      <table style="text-align: center"><thead><tr><th scope="col">Name</th></tr></thead><tbody><tr><td>Value</td></tr></tbody></table>
       <a href="https://example.test" target="_blank">External</a>
       <a href="javascript:alert(1)" onclick="alert(1)">Unsafe</a>
       <script>alert(1)</script><style>body{display:none}</style><iframe src="https://example.test"></iframe>
@@ -447,6 +448,8 @@ describe("RichContent", () => {
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Accessible section");
     expect(screen.getByRole("list")).toBeInTheDocument();
     expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(screen.getByText("Highlighted")).toHaveAttribute("style", "background-color: #fff3a3; color: #0b63ce");
+    expect(screen.getByRole("table")).toHaveAttribute("style", "text-align: center");
     expect(screen.getByRole("link", { name: "External" })).toHaveAttribute(
       "rel",
       expect.stringMatching(/noopener/),
@@ -455,5 +458,6 @@ describe("RichContent", () => {
     expect(container.querySelector("script, style, iframe")).toBeNull();
     expect(container.innerHTML).not.toContain("onclick");
     expect(container.innerHTML).not.toContain("javascript:");
+    expect(container.innerHTML).not.toContain("position:");
   });
 });

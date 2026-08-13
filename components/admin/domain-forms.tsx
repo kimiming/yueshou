@@ -6,6 +6,7 @@ import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
 import { localDateTimeToIso } from "@/features/admin/schedule";
 import { isoToLocalDateTime } from "@/features/admin/schedule";
 import { MediaPicker } from "./media-picker";
+import { RichTextEditor } from "./rich-text-editor";
 import { inquiryStatusOptions, localeLabels, roleOptions } from "./admin-labels";
 
 type Action = (input: unknown) => Promise<unknown>;
@@ -45,6 +46,12 @@ function ProductCoverField({ form }: { form: ReturnType<typeof Form.useForm>[0] 
   return <Form.Item shouldUpdate noStyle>{() => { const selected = (form.getFieldValue("mediaIds") as string[] | undefined) ?? []; const coverId = form.getFieldValue("coverMediaId") as string | undefined; return <><Form.Item name="coverMediaId" hidden rules={[{ required: selected.length > 0, message: "请选择一张产品封面" }]}><Input /></Form.Item>{selected.length ? <Form.Item label="点击缩略图设为封面"><div className="admin-cover-picker">{selected.map((id) => { const asset = assets.find((item) => item.id === id); return <button type="button" aria-pressed={coverId === id} className={coverId === id ? "is-cover" : ""} onClick={() => form.setFieldValue("coverMediaId", id)} key={id}><img src={`/api/admin/media/${encodeURIComponent(id)}`} alt={asset?.alt || asset?.filename || "产品图片"} /><span>{coverId === id ? "当前封面" : "设为封面"}</span></button>; })}</div></Form.Item> : null}</>; }}</Form.Item>;
 }
 
+function ProductBodyField({ name = ["translations", "en", "body"] }: { name?: (string | number)[] }) {
+  return <Form.Item name={name} label="产品内容" rules={[{ required: true, message: "请输入产品内容" }]}>
+    <RichTextEditor label="产品内容" placeholder="输入产品详情，可设置加粗、高亮、链接、列表和表格" />
+  </Form.Item>;
+}
+
 export function ProductForm({ categories, save }: { categories: Array<{ id: string; label: string }>; save: Action }) {
   const [form] = Form.useForm(); const [error, setError] = useState<string>(); const [pending, start] = useTransition();
   return <Card title="新增产品（保存后立即发布）"><Form form={form} layout="vertical" initialValues={{ status: "PUBLISHED", mediaIds: [] }} onValuesChange={(changed) => { const title = changed.translations?.en?.title as string | undefined; if (title && !form.getFieldValue("slug")) form.setFieldValue("slug", slugFromTitle(title)); }} onFinish={(value) => start(async () => {
@@ -54,7 +61,7 @@ export function ProductForm({ categories, save }: { categories: Array<{ id: stri
     {error ? <p role="alert">{error}</p> : null}
     <Form.Item name="categoryId" label="分类" rules={[{ required: true }]}><Select options={categories.map((item) => ({ value: item.id, label: item.label }))} /></Form.Item>
     <Form.Item name={["translations", "en", "title"]} label="产品标题" rules={[{ required: true }]}><Input /></Form.Item>
-    <Form.Item name={["translations", "en", "body"]} label="产品内容" rules={[{ required: true }]}><Input.TextArea rows={8} /></Form.Item>
+    <ProductBodyField />
     <Form.Item name="mediaIds" hidden><Input /></Form.Item><PublishedMediaField form={form} multiple />
     <ProductCoverField form={form} /><Form.Item name="slug" hidden rules={[{ required: true }]}><Input /></Form.Item>
     <Form.Item name="status" hidden><Input /></Form.Item>
@@ -100,7 +107,7 @@ export function ExistingContentForm({ kind, initial, categories, tags = [], save
     catch (reason) { const message = reason instanceof Error ? reason.message : "无法保存并发布内容"; setError(message); if (kind === "product") Modal.error({ title: "发布失败", content: message }); }
   })} onFinishFailed={kind === "product" ? () => Modal.error({ title: "发布失败", content: "请检查并补全必填的产品信息。" }) : undefined}>
     {error ? <p role="alert">{error}</p> : null}{success ? <p role="status">{success}</p> : null}<Form.Item name="categoryId" label="分类"><Select options={categories.map((item) => ({ value: item.id, label: item.label }))} /></Form.Item>
-    {kind === "product" ? <><Form.Item name={["translations", "en", "title"]} label="产品标题" rules={[{ required: true }]}><Input /></Form.Item><Form.Item name={["translations", "en", "body"]} label="产品内容" rules={[{ required: true }]}><Input.TextArea rows={8} /></Form.Item><Form.Item name="mediaIds" hidden><Input /></Form.Item><PublishedMediaField form={form} multiple /><ProductCoverField form={form} /><Form.Item name="slug" hidden><Input /></Form.Item></> : <><Form.Item name="slug" label="Slug"><Input /></Form.Item><Form.Item name="coverMediaId" hidden><Input /></Form.Item><PublishedMediaField form={form} multiple={false} /><Form.Item name="tagIds" label="Tags"><Select mode="multiple" options={tags.map((item) => ({ value: item.id, label: item.name }))} /></Form.Item><TranslationTabs article /><SeoPreview form={form} /></>}
+    {kind === "product" ? <><Form.Item name={["translations", "en", "title"]} label="产品标题" rules={[{ required: true }]}><Input /></Form.Item><ProductBodyField /><Form.Item name="mediaIds" hidden><Input /></Form.Item><PublishedMediaField form={form} multiple /><ProductCoverField form={form} /><Form.Item name="slug" hidden><Input /></Form.Item></> : <><Form.Item name="slug" label="Slug"><Input /></Form.Item><Form.Item name="coverMediaId" hidden><Input /></Form.Item><PublishedMediaField form={form} multiple={false} /><Form.Item name="tagIds" label="Tags"><Select mode="multiple" options={tags.map((item) => ({ value: item.id, label: item.name }))} /></Form.Item><TranslationTabs article /><SeoPreview form={form} /></>}
     <Form.Item name="status" hidden><Input /></Form.Item><Button type="primary" htmlType="submit" loading={pending}>保存并立即发布</Button>
   </Form></Card>;
 }

@@ -11,12 +11,13 @@ const PAGE_SIZE = 10;
 type HomeProductShowcaseProps = {
   locale: string;
   products: ShowcaseProduct[];
+  label?: string;
   maxPages?: number;
   moreHref?: string;
   moreLabel?: string;
 };
 
-export function HomeProductShowcase({ locale, products, maxPages, moreHref, moreLabel = "More" }: HomeProductShowcaseProps) {
+export function HomeProductShowcase({ locale, products, label = "Featured products", maxPages, moreHref, moreLabel = "More" }: HomeProductShowcaseProps) {
   const [page, setPage] = useState(0);
   const availablePageCount = Math.ceil(products.length / PAGE_SIZE);
   const pageCount = maxPages ? Math.min(maxPages, availablePageCount) : availablePageCount;
@@ -25,7 +26,7 @@ export function HomeProductShowcase({ locale, products, maxPages, moreHref, more
   if (!products.length) return null;
 
   return (
-    <section className="marketing-section home-product-showcase" aria-label="Featured products">
+    <section className="marketing-section home-product-showcase" aria-label={label}>
       <div className="marketing-container">
         <div className="home-product-showcase__grid">
           {visible.map((product) => (

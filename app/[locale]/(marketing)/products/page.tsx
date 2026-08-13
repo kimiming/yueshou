@@ -40,7 +40,7 @@ export default async function ProductsPage({ params }: ProductsPageProps) {
         <ContentLanguageFallbackNotice usedFallback={page.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
         <h1>{page.title}</h1>
       </header>
-      <HomeProductShowcase locale={locale} products={showcaseProducts} />
+      <HomeProductShowcase locale={locale} products={showcaseProducts} label={dictionary.marketing.public.catalog} />
     </main>
   );
 }
