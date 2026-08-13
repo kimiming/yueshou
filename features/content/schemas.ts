@@ -75,7 +75,10 @@ const pageSectionConfigSchemas = {
     primaryCta: ctaSchema.optional(),
     secondaryCta: ctaSchema.optional(),
   }),
-  services: z.object({ serviceIds: z.array(z.string().cuid()).max(12).optional() }),
+  services: z.object({
+    serviceIds: z.array(z.string().cuid()).max(12).optional(),
+    imageIds: z.array(z.string().cuid()).max(12).optional(),
+  }),
   about: z.object({
     imageId: z.string().cuid().optional(),
     imageIds: z.array(z.string().cuid()).max(3).optional(),

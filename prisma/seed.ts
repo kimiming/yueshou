@@ -111,7 +111,7 @@ const aboutCompanyBody = `<p>粤首股份有限公司成立于2015年，主要�
 <p>根据弗若斯特沙利文统计，2021年公司为国内市场份额最大的多肽化妆品原料生产企业。公司持续进行多肽原料产品的技术创新，并通过工艺改进等方式进一步发挥成本优势，为客户提供具有显著优势的定制化产品。同时，公司在行业深耕多年，对多肽产品具备较深的理解和技术积累，具备了从多肽化妆品原料早期产品开发、研发、实验、粉末生产、原液调配、稳定性检测和功效测评的全链条服务能力，能够在客户早期设计产品时即介入，针对最终产品定位和用途为客户量身定制多肽原料产品，并在产品设计和销售过程中针对客户需求进行升级。</p>
 <p>公司坚持自主创新，持续围绕多肽化妆品原料领域布局在研项目，并积极与珀莱雅、华熙生物、丸美等头部化妆品企业达成战略合作，运用科研专业优势和在多肽原料应用的成功经验，为多肽在化妆品原料领域的发展赋能。</p>
 <h2>联系方式</h2>
-<p><strong>地址：</strong>广州市白云区太和镇广从三路55号3层332室<br><strong>电话：</strong><a href="tel:057583835818">0575-83835818</a><br><strong>网址：</strong><a href="https://www.yueshou-china.com" target="_blank" rel="noopener noreferrer">www.yueshou-china.com</a></p>`;
+<p><strong>地址：</strong>广州市白云区太和镇广从三路55号3层332室<br><strong>电话：</strong><a href="tel:057583835818">0575-83835818</a><br><strong>网址：</strong><a href="https://www.yueshou-peptide.com" target="_blank" rel="noopener noreferrer">www.yueshou-peptide.com</a></p>`;
 
 const corePages = [
   {
@@ -130,7 +130,7 @@ const corePages = [
   {
     slug: "about",
     translations: translated(
-      { en: "About yueshou", zh_CN: "关于粤首", de: "Über yueshou", fr: "À propos de yueshou", es: "Acerca de yueshou" },
+      { en: "About Us", zh_CN: "关于我们", de: "Über uns", fr: "À propos de nous", es: "Sobre nosotros" },
       {
         en: aboutCompanyBody,
         zh_CN: aboutCompanyBody,
@@ -145,7 +145,7 @@ const corePages = [
     translations: translated(
       { en: "Services", zh_CN: "服务", de: "Dienstleistungen", fr: "Services", es: "Servicios" },
       {
-        en: "Explore configurable peptide synthesis, modification, analysis, and project support.",
+        en: "Focusing on beauty and research peptides, we offer factory direct supply and customized services to meet diverse needs.",
         zh_CN: "了解可配置的多肽合成、修饰、分析与项目支持。",
         de: "Entdecken Sie konfigurierbare Peptidsynthese, Modifikation, Analytik und Projektunterstützung.",
         fr: "Découvrez la synthèse, la modification, l’analyse et le soutien de projet configurables.",
@@ -299,12 +299,12 @@ const homeSectionSeeds = [
 ] as const;
 
 const navigation = [
-  { slug: "about", href: "/about", position: 10, title: "About" },
-  { slug: "services", href: "/services", position: 20, title: "Services" },
-  { slug: "products", href: "/products", position: 30, title: "Products" },
-  { slug: "quality", href: "/quality", position: 40, title: "Quality" },
-  { slug: "news", href: "/news", position: 50, title: "News" },
-  { slug: "contact", href: "/contact", position: 60, title: "Contact" },
+  { slug: "home", href: "/", position: 0, titles: { en: "Home", zh_CN: "首页", de: "Startseite", fr: "Accueil", es: "Inicio" } },
+  { slug: "about", href: "/about", position: 10, titles: { en: "About", zh_CN: "关于我们", de: "Über uns", fr: "À propos", es: "Nosotros" } },
+  { slug: "services", href: "/services", position: 20, titles: { en: "Services", zh_CN: "服务", de: "Leistungen", fr: "Services", es: "Servicios" } },
+  { slug: "products", href: "/products", position: 30, titles: { en: "Products", zh_CN: "产品", de: "Produkte", fr: "Produits", es: "Productos" } },
+  { slug: "news", href: "/news", position: 50, titles: { en: "News", zh_CN: "新闻", de: "Neuigkeiten", fr: "Actualités", es: "Noticias" } },
+  { slug: "contact", href: "/contact", position: 60, titles: { en: "Contact", zh_CN: "联系我们", de: "Kontakt", fr: "Contact", es: "Contacto" } },
 ] as const;
 
 const pageTranslationData = (translations: ReturnType<typeof translated>) => translations.map(({ locale, title, body }) => ({
@@ -431,7 +431,7 @@ async function main() {
   }
 
   for (const item of navigation) {
-    const { title, ...navigationData } = item;
+    const { titles, ...navigationData } = item;
     const existingNavigation = await prisma.navigationItem.findUnique({ where: { slug: item.slug }, select: { id: true } });
     if (existingNavigation) continue;
     await prisma.navigationItem.create({
@@ -439,7 +439,7 @@ async function main() {
         ...navigationData,
         status: PublishStatus.PUBLISHED,
         publishedAt: seededAt,
-        translations: { create: locales.map((locale) => ({ locale, title })) },
+        translations: { create: locales.map((locale) => ({ locale, title: titles[locale] })) },
       },
     });
   }

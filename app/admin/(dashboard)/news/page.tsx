@@ -1,80 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { AdminPageTitle, Button, Card, Input, Space } from "@/components/admin/antd-server-bridge";
-import Link from "next/link";
-
-import { ArticleForm } from "@/components/admin/domain-forms";
-import { AdminPagination } from "@/components/admin/server-pagination";
-import { TaxonomyManager } from "@/components/admin/taxonomy-manager";
+import { ManagementTable } from "@/components/admin/management-table";
 import { requireUser } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
-import { archiveArticleCategoryAction, archiveTagAction, saveArticleAction, saveArticleCategoryAction, saveTagAction } from "./actions";
+import { publicMediaUrl } from "@/features/media/public-url";
+import { deleteArticleAction } from "./actions";
 
-const PAGE_SIZE = 25;
-
-export default async function NewsPage({ searchParams }: {
-  searchParams: Promise<{ q?: string; status?: "DRAFT" | "PUBLISHED" | "ARCHIVED"; page?: string }>;
-}) {
-  await requireUser();
-  const filters = await searchParams;
-  const q = filters.q?.trim().slice(0, 100);
-  const status = ["DRAFT", "PUBLISHED", "ARCHIVED"].includes(filters.status ?? "") ? filters.status : undefined;
-  const page = Math.min(1_000, Math.max(1, Number.parseInt(filters.page ?? "1", 10) || 1));
-  const where: Prisma.ArticleWhereInput = {
-    deletedAt: null,
-    ...(status ? { status } : {}),
-    ...(q ? {
-      OR: [
-        { slug: { contains: q, mode: "insensitive" } },
-        { translations: { some: { title: { contains: q, mode: "insensitive" } } } },
-      ],
-    } : {}),
-  };
-  const [categories, tags, total, articles] = await Promise.all([
-    prisma.articleCategory.findMany({
-      where: { deletedAt: null },
-      include: { translations: { where: { locale: "en" }, take: 1 } },
-      orderBy: { position: "asc" },
-    }),
-    prisma.tag.findMany({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
-    prisma.article.count({ where }),
-    prisma.article.findMany({
-      where,
-      include: {
-        translations: { where: { locale: "en" }, take: 1 },
-        category: { include: { translations: { where: { locale: "en" }, take: 1 } } },
-        tags: true,
-      },
-      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-  ]);
-  const categoryItems = categories.map((item) => ({
-    id: item.id,
-    slug: item.slug,
-    label: item.translations[0]?.title ?? item.slug,
-    body: item.translations[0]?.body ?? "",
-    status: item.status,
-    version: item.updatedAt.toISOString(),
-  }));
-  const tagItems = tags.map((item) => ({ id: item.id, slug: item.slug, label: item.name, version: item.updatedAt.toISOString() }));
-
-  return <main>
-    <AdminPageTitle level={1}>News</AdminPageTitle>
-    <ArticleForm categories={categoryItems} tags={tags} save={saveArticleAction} />
-    <TaxonomyManager kind="category" title="Article categories" items={categoryItems} save={saveArticleCategoryAction} archive={archiveArticleCategoryAction} />
-    <TaxonomyManager kind="tag" title="Tags" items={tagItems} save={saveTagAction} archive={archiveTagAction} />
-    <Card title="Articles">
-      <form><Space wrap>
-        <Input name="q" defaultValue={q} placeholder="Search articles" aria-label="Search articles" />
-        <select name="status" defaultValue={status ?? ""} aria-label="Article status"><option value="">All statuses</option>{["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => <option key={value} value={value}>{value}</option>)}</select>
-        <Button htmlType="submit">Filter</Button>
-      </Space></form>
-      <div className="admin-record-list">{articles.map((item) => <div key={item.id} className="admin-record-list__item">
-        <Link href={`/admin/news/${item.id}`}>{item.translations[0]?.title ?? item.slug}</Link>
-        <p>{item.category.translations[0]?.title ?? item.category.slug} · {item.status}{item.scheduledAt ? ` · scheduled ${item.scheduledAt.toISOString()}` : ""}</p>
-      </div>)}</div>
-      <AdminPagination pathname="/admin/news" currentPage={page} totalItems={total} pageSize={PAGE_SIZE} query={{ q, status }} />
-    </Card>
-  </main>;
-}
+export default async function NewsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: "DRAFT" | "PUBLISHED" | "ARCHIVED" }> }) { await requireUser(); const filters = await searchParams; const q = filters.q?.trim().slice(0, 100); const status = ["DRAFT", "PUBLISHED", "ARCHIVED"].includes(filters.status ?? "") ? filters.status : undefined; const where: Prisma.ArticleWhereInput = { deletedAt: null, ...(status ? { status } : {}), ...(q ? { OR: [{ slug: { contains: q, mode: "insensitive" } }, { translations: { some: { title: { contains: q, mode: "insensitive" } } } }] } : {}) }; const articles = await prisma.article.findMany({ where, include: { translations: { where: { locale: "en" }, take: 1 }, category: { include: { translations: { where: { locale: "en" }, take: 1 } } }, coverMedia: true }, orderBy: [{ updatedAt: "desc" }, { id: "asc" }] }); const rows = articles.map((item) => ({ id: item.id, title: item.translations[0]?.title ?? item.slug, imageUrl: item.coverMedia ? publicMediaUrl(item.coverMedia.id) : "/og.png", category: item.category.translations[0]?.title ?? item.category.slug, status: item.status, updatedAt: item.updatedAt.toLocaleString("zh-CN"), version: item.updatedAt.toISOString(), editHref: `/admin/news/${item.id}` })); return <main><Space style={{ width: "100%", justifyContent: "space-between" }}><AdminPageTitle level={1}>新闻管理</AdminPageTitle><Button type="primary" href="/admin/news/new">新建文章</Button></Space><Card><form><Space wrap><Input name="q" defaultValue={q} placeholder="搜索文章" /><select name="status" defaultValue={status ?? ""}><option value="">全部状态</option><option value="PUBLISHED">已发布</option><option value="DRAFT">草稿</option></select><Button htmlType="submit">筛选</Button></Space></form><ManagementTable rows={rows} deleteAction={deleteArticleAction} /></Card></main>; }

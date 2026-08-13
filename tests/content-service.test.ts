@@ -407,6 +407,27 @@ describe("content service", () => {
     expect(JSON.parse(JSON.stringify(result))).toEqual(result);
   });
 
+  it("uses the filename as default English media text when translations are absent", async () => {
+    const product = {
+      id: "product-1",
+      slug: "bpc-157",
+      status: "PUBLISHED",
+      deletedAt: null,
+      casNumber: null,
+      sequence: null,
+      specifications: null,
+      publishedAt: new Date("2026-08-08T03:00:00.000Z"),
+      translations: [{ locale: "en", title: "BPC-157", body: "Research use only" }],
+      category: { slug: "research-peptides", translations: [{ locale: "en", title: "Research peptides", body: "Research" }] },
+      media: [{ id: "media-1", storageKey: "products/bpc.webp", filename: "bpc.webp", mimeType: "image/webp", width: 800, height: 800, visibility: "PUBLIC", status: "PUBLISHED", deletedAt: null, translations: [] }],
+    };
+    const repository = { findPublishedProductBySlug: vi.fn(async () => product) } as unknown as ContentRepository;
+
+    const result = await createContentService(repository).getPublishedProduct("en", "bpc-157");
+
+    expect(result?.media[0]).toMatchObject({ title: "bpc.webp", alt: "bpc.webp", translationLocale: "en", usedFallback: false });
+  });
+
   it("returns published services in repository order with English fallback", async () => {
     const repository = {
       findPublishedServices: vi.fn(async () => [

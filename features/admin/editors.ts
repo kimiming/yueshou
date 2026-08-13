@@ -368,8 +368,6 @@ export function createAdminEditorService(dependencies: {
     async saveMediaMetadata(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
       requireActor(input.actor);
       const payload = parse(mediaInputSchema, input);
-      const english = payload.translations.find((translation) => translation.locale === "en");
-      if (!english?.alt) throw new EditorValidationError("English alt text is required for media");
       const result = await repository.saveMediaMetadata({ ...payload, audit: { actorId: input.actor.id, action: "MEDIA_METADATA_SAVED", entityType: "MediaAsset" } });
       if (!result) throw new EditorConflictError();
       if (!repository.auditsMutations) await audit(repository, input.actor, "MEDIA_METADATA_SAVED", "MediaAsset", result.id);
@@ -387,9 +385,7 @@ export function createAdminEditorService(dependencies: {
     async publishMedia(input: { actor: AdminEditorActor | null } & Record<string, unknown>) {
       requireActor(input.actor);
       const payload = z.object({ mediaAssetId: z.string().min(1), version: z.string().datetime() }).parse(input);
-      if (!repository.getMediaTranslations || !repository.publishMedia) throw new EditorValidationError("Media publication is not available");
-      const english = (await repository.getMediaTranslations(payload.mediaAssetId)).find((translation) => translation.locale === "en");
-      if (!english?.alt.trim()) throw new EditorValidationError("English alt text is required before publishing media");
+      if (!repository.publishMedia) throw new EditorValidationError("Media publication is not available");
       const result = await repository.publishMedia({ ...payload, actorId: input.actor.id });
       if (!result) throw new EditorConflictError();
       if (!repository.auditsMutations) await audit(repository, input.actor, "PUBLISH", "MediaAsset", result.id);

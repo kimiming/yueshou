@@ -12,6 +12,6 @@ function readPayload(input: unknown) { if (!(input instanceof FormData)) return 
 function service() { return createAdminEditorService({ repository: prismaAdminEditorRepository, invalidate: (type, slug) => invalidatePublishedEntity(type, slug, SUPPORTED_LOCALES) }); }
 
 function refreshMedia() { revalidatePath("/admin/media"); invalidateMarketingShell(SUPPORTED_LOCALES); }
-export async function saveMediaMetadataAction(input: unknown) { const actor = await requireUser(); await service().saveMediaMetadata({ ...(readPayload(input) as object), actor }); refreshMedia(); }
+export async function saveMediaMetadataAction(input: unknown) { const actor = await requireUser(); const saved = await service().saveMediaMetadata({ ...(readPayload(input) as object), actor }); await service().publishMedia({ mediaAssetId: saved.id, version: saved.version, actor }); refreshMedia(); }
 export async function archiveMediaAction(input: unknown) { const actor = await requireUser(); await service().archiveMedia({ ...(readPayload(input) as object), actor }); refreshMedia(); }
 export async function publishMediaAction(input: unknown) { const actor = await requireUser(); await service().publishMedia({ ...(readPayload(input) as object), actor }); refreshMedia(); }

@@ -16,6 +16,30 @@ async function assertUsableMedia(tx: Prisma.TransactionClient, ids: readonly str
   const count = await tx.mediaAsset.count({ where: { id: { in: unique }, status: "PUBLISHED", visibility: "PUBLIC", deletedAt: null, OR: [{ deletionJob: { is: null } }, { deletionJob: { is: { status: "COMPLETED" } } }] } });
   if (count !== unique.length) throw new Error("Referenced media must be published, public, and available");
 }
+
+async function publishNewProductMedia(tx: Prisma.TransactionClient, ids: readonly string[], actorId: string) {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return;
+  const drafts = await tx.mediaAsset.findMany({
+    where: {
+      id: { in: unique },
+      status: "DRAFT",
+      visibility: "PUBLIC",
+      deletedAt: null,
+      OR: [{ deletionJob: { is: null } }, { deletionJob: { is: { status: "COMPLETED" } } }],
+    },
+    select: { id: true },
+  });
+  if (!drafts.length) return;
+  const publishedAt = new Date();
+  await tx.mediaAsset.updateMany({
+    where: { id: { in: drafts.map((asset) => asset.id) }, status: "DRAFT" },
+    data: { status: "PUBLISHED", publishedAt },
+  });
+  for (const asset of drafts) {
+    await audit(tx, actorId, "MEDIA_PUBLISHED_WITH_PRODUCT", "MediaAsset", asset.id, { source: "product-editor" });
+  }
+}
 async function assertActiveCategory(tx: Prisma.TransactionClient, kind: "product" | "article", id: string, requirePublished = false) {
   const status = requirePublished ? "PUBLISHED" as const : { not: "ARCHIVED" as const };
   const count = kind === "product" ? await tx.productCategory.count({ where: { id, deletedAt: null, status } }) : await tx.articleCategory.count({ where: { id, deletedAt: null, status } });
@@ -31,6 +55,7 @@ export const prismaProductAdminRepository: ProductAdminRepository = {
   async saveProduct(input: ProductAdminInput & { actorId: string }) {
     return serializableRetry(() => prisma.$transaction(async (tx) => {
       await assertActiveCategory(tx, "product", input.categoryId, input.status === "PUBLISHED");
+      if (input.status === "PUBLISHED") await publishNewProductMedia(tx, input.mediaIds, input.actorId);
       await assertUsableMedia(tx, input.mediaIds);
       const existing = input.id ? await tx.product.findUniqueOrThrow({ where: { id: input.id }, select: { publishedAt: true } }) : null;
       const publication = input.status === "PUBLISHED" ? { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? new Date() } : { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? null };

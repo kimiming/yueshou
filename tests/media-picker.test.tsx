@@ -13,6 +13,7 @@ it("toggles published assets for a multi-media product selection", () => {
   const onChange = vi.fn();
   render(<MediaPicker multiple available={available} value={["asset-a"]} onChange={onChange} />);
 
+  fireEvent.click(screen.getByRole("button", { name: "从媒体库选择" }));
   expect(screen.getByRole("button", { name: /alpha\.webp/i })).toHaveAttribute("aria-pressed", "true");
   fireEvent.click(screen.getByRole("button", { name: /beta\.webp/i }));
   expect(onChange).toHaveBeenLastCalledWith(["asset-a", "asset-b"]);
@@ -24,8 +25,9 @@ it("selects and clears one published cover asset for an article", () => {
   const onChange = vi.fn();
   render(<MediaPicker available={available} value="asset-a" onChange={onChange} />);
 
+  fireEvent.click(screen.getByRole("button", { name: "从媒体库选择" }));
   fireEvent.click(screen.getByRole("button", { name: /beta\.webp/i }));
   expect(onChange).toHaveBeenLastCalledWith("asset-b");
-  fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+  fireEvent.click(screen.getByRole("button", { name: "清除选择" }));
   expect(onChange).toHaveBeenLastCalledWith(undefined);
 });

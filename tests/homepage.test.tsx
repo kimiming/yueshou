@@ -3,14 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MarketingShellContentViewModel, PageViewModel } from "@/features/content/view-models";
 
-const { getHomePage, getMarketingShell, pathname, searchParams } = vi.hoisted(() => ({
+const { getHomePage, getMarketingShell, getPublishedProducts, pathname, searchParams } = vi.hoisted(() => ({
   getHomePage: vi.fn<(locale: string) => Promise<PageViewModel | null>>(),
   getMarketingShell: vi.fn<(locale: string) => Promise<MarketingShellContentViewModel | null>>(),
+  getPublishedProducts: vi.fn(),
   pathname: { value: "/en/about" },
   searchParams: { value: "" },
 }));
 
-vi.mock("@/features/content/service", () => ({ getHomePage, getMarketingShell }));
+vi.mock("@/features/content/service", () => ({ getHomePage, getMarketingShell, getPublishedProducts }));
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({ get: vi.fn(() => undefined) })),
 }));
@@ -176,11 +177,13 @@ describe("semantic marketing homepage", () => {
   beforeEach(() => {
     getHomePage.mockReset();
     getMarketingShell.mockReset();
+    getPublishedProducts.mockReset();
     pathname.value = "/en/about";
     searchParams.value = "";
     window.history.replaceState(null, "", "/en/about");
     getHomePage.mockResolvedValue(homePage);
     getMarketingShell.mockResolvedValue(shell);
+    getPublishedProducts.mockResolvedValue([]);
   });
 
   afterEach(cleanup);
@@ -244,7 +247,8 @@ describe("semantic marketing homepage", () => {
     expect(screen.getByRole("link", { name: "Phone: +49 30 123456" })).toHaveAttribute("href", "tel:+4930123456");
     expect(screen.getByRole("banner")).toHaveTextContent("Search");
     expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en/search");
-    expect(screen.getByRole("link", { name: "Request a Quote" })).toHaveAttribute("href", "/en/request-a-quote");
+    expect(screen.queryByRole("link", { name: "Request a Quote" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Discuss a project" })).not.toBeInTheDocument();
     expect(screen.getByText("Research use only.")).toBeInTheDocument();
   });
 
@@ -267,14 +271,13 @@ describe("semantic marketing homepage", () => {
       closeLabel="Close"
       items={[{ id: "parent", label: "Services", href: "/en/services", enabled: true, sortOrder: 1, children: [{ id: "child", label: "Custom synthesis", href: "/en/services/custom", enabled: true, sortOrder: 1 }] }]}
       searchAction={{ label: "Search", href: "/en/search" }}
-      quoteAction={{ label: "Request a Quote", href: "/en/request-a-quote" }}
     />);
 
     fireEvent.click(screen.getByRole("button", { name: "Menu" }));
     const navigation = screen.getByRole("navigation", { name: "Mobile navigation" });
     expect(within(navigation).getByRole("link", { name: "Custom synthesis" })).toHaveAttribute("href", "/en/services/custom");
     expect(within(navigation).getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en/search");
-    expect(within(navigation).getByRole("link", { name: "Request a Quote" })).toHaveAttribute("href", "/en/request-a-quote");
+    expect(within(navigation).queryByRole("link", { name: "Request a Quote" })).not.toBeInTheDocument();
   });
 
   it("closes the mobile menu on Escape and restores focus to its toggle", () => {
@@ -284,7 +287,6 @@ describe("semantic marketing homepage", () => {
       closeLabel="Close"
       items={[{ id: "products", label: "Products", href: "/en/products", enabled: true, sortOrder: 1 }]}
       searchAction={{ label: "Search", href: "/en/search" }}
-      quoteAction={{ label: "Request a Quote", href: "/en/request-a-quote" }}
     />);
 
     const toggle = screen.getByRole("button", { name: "Menu" });

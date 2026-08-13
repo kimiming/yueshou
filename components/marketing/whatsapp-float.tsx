@@ -1,6 +1,6 @@
 import type { Locale } from "@/lib/i18n/config";
 
-const WHATSAPP_NUMBER = "8613079199391";
+export const WHATSAPP_NUMBER = "8613435855558";
 
 export function WhatsAppFloat({ locale }: { locale: Locale }) {
   const label = locale === "zh-CN" ? "通过 WhatsApp 联系客服" : "Contact us on WhatsApp";

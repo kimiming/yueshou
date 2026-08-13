@@ -1,81 +1,16 @@
 import type { Prisma } from "@prisma/client";
 import { AdminPageTitle, Button, Card, Input, Space } from "@/components/admin/antd-server-bridge";
-
-import { MediaMetadataForm } from "@/components/admin/editor-forms";
-import { MediaPicker } from "@/components/admin/media-picker";
-import { AdminPagination } from "@/components/admin/server-pagination";
-import { prismaMediaRepository } from "@/features/media/repository";
+import { ManagementTable } from "@/components/admin/management-table";
 import { requireUser } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db/prisma";
-import { archiveMediaAction, publishMediaAction, saveMediaMetadataAction } from "./actions";
 
-const PAGE_SIZE = 25;
-
-export default async function MediaPage({ searchParams }: {
-  searchParams: Promise<{ q?: string; status?: "DRAFT" | "PUBLISHED" | "ARCHIVED"; page?: string }>;
-}) {
-  const user = await requireUser();
+export default async function MediaPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: "DRAFT" | "PUBLISHED" | "ARCHIVED" }> }) {
+  await requireUser();
   const filters = await searchParams;
   const q = filters.q?.trim().slice(0, 100);
   const status = ["DRAFT", "PUBLISHED", "ARCHIVED"].includes(filters.status ?? "") ? filters.status : undefined;
-  const page = Math.min(1_000, Math.max(1, Number.parseInt(filters.page ?? "1", 10) || 1));
-  const where: Prisma.MediaAssetWhereInput = {
-    deletedAt: null,
-    ...(status ? { status } : {}),
-    ...(q ? {
-      OR: [
-        { filename: { contains: q, mode: "insensitive" } },
-        { translations: { some: { OR: [
-          { title: { contains: q, mode: "insensitive" } },
-          { alt: { contains: q, mode: "insensitive" } },
-        ] } } },
-      ],
-    } : {}),
-  };
-  const [total, assets] = await Promise.all([
-    prisma.mediaAsset.count({ where }),
-    prisma.mediaAsset.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      include: { translations: true, deletionJob: true },
-    }),
-  ]);
-  const rows = await Promise.all(assets.map(async (asset) => ({ asset, references: await prismaMediaRepository.countReferences(asset.id) })));
-
-  return <main>
-    <AdminPageTitle level={1}>Media library</AdminPageTitle>
-    <Card>
-      <MediaPicker />
-      <p>Uploads are sent directly to a short-lived storage URL. Browser code never receives storage credentials.</p>
-      <form><Space wrap>
-        <Input name="q" defaultValue={q} placeholder="Search media" aria-label="Search media" />
-        <select name="status" defaultValue={status ?? ""} aria-label="Media status"><option value="">All statuses</option>{["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => <option key={value} value={value}>{value}</option>)}</select>
-        <Button htmlType="submit">Filter</Button>
-      </Space></form>
-      <div className="admin-record-list">{rows.length ? rows.map(({ asset, references }) => {
-        const metadata = {
-          id: asset.id,
-          version: asset.updatedAt.toISOString(),
-          translations: asset.translations.map((item) => ({
-            locale: (item.locale === "zh_CN" ? "zh-CN" : item.locale) as "en" | "zh-CN" | "de" | "fr" | "es",
-            title: item.title,
-            body: item.body,
-            alt: item.alt,
-          })),
-        };
-        const referenceCount = Object.values(references).reduce((sum, count) => sum + count, 0);
-        const deletion = asset.deletionJob
-          ? `Deletion ${asset.deletionJob.status.toLowerCase()} after ${asset.deletionJob.deleteAfter.toISOString()}`
-          : asset.status === "ARCHIVED" ? "Retained because it is still referenced." : "Not queued for deletion.";
-        return <Card key={asset.id} title={asset.filename} style={{ width: "100%" }}>
-          <p>{asset.mimeType} · {asset.sizeBytes} bytes · {asset.status} · {referenceCount} active references</p>
-          <p>{deletion}</p>
-          <MediaMetadataForm initial={metadata} save={saveMediaMetadataAction} publish={publishMediaAction} archive={archiveMediaAction} allowArchive={user.role === "ADMIN"} />
-        </Card>;
-      }) : <p>No media assets yet.</p>}</div>
-      <AdminPagination pathname="/admin/media" currentPage={page} totalItems={total} pageSize={PAGE_SIZE} query={{ q, status }} />
-    </Card>
-  </main>;
+  const where: Prisma.MediaAssetWhereInput = { deletedAt: null, ...(status ? { status } : {}), ...(q ? { OR: [{ filename: { contains: q, mode: "insensitive" } }, { translations: { some: { OR: [{ title: { contains: q, mode: "insensitive" } }, { alt: { contains: q, mode: "insensitive" } }] } } }] } : {}) };
+  const assets = await prisma.mediaAsset.findMany({ where, include: { translations: { where: { locale: "en" }, take: 1 } }, orderBy: [{ updatedAt: "desc" }, { id: "asc" }] });
+  const rows = assets.map((asset) => ({ id: asset.id, title: asset.translations[0]?.title || asset.filename, detail: asset.filename, imageUrl: `/api/admin/media/${encodeURIComponent(asset.id)}`, status: asset.status, updatedAt: asset.updatedAt.toLocaleString("zh-CN"), version: asset.updatedAt.toISOString(), editHref: `/admin/media/${asset.id}` }));
+  return <main><Space style={{ width: "100%", justifyContent: "space-between" }}><AdminPageTitle level={1}>媒体库</AdminPageTitle><Button type="primary" href="/admin/media/new">上传图片</Button></Space><Card><form><Space wrap><Input name="q" defaultValue={q} placeholder="搜索图片" aria-label="搜索图片" /><select name="status" defaultValue={status ?? ""} aria-label="媒体状态"><option value="">全部状态</option><option value="PUBLISHED">已发布</option><option value="DRAFT">草稿</option></select><Button htmlType="submit">筛选</Button></Space></form><ManagementTable rows={rows} /></Card></main>;
 }

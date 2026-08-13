@@ -149,7 +149,15 @@ function mapCategory(category: TranslatedCategory, locale: Locale): CategoryView
 type MediaRecord = PublishedMediaRecord;
 
 function mapMedia(record: MediaRecord, locale: Locale): MediaViewModel {
-  const translation = localized(record.translations, locale);
+  const translation = record.translations.length
+    ? localized(record.translations, locale)
+    : {
+        locale,
+        translationLocale: "en" as const,
+        usedFallback: locale !== "en",
+        title: record.filename,
+        value: { alt: record.filename },
+      };
   return {
     id: record.id,
     storageKey: record.storageKey,
@@ -295,7 +303,7 @@ async function hydrateHomePage(
 
   const mediaIds = unique(parsedSections.flatMap(({ parsed }) => {
     if (parsed.type === "about") return [parsed.config.imageId, ...(parsed.config.imageIds ?? [])];
-    if (parsed.type === "capabilities") return parsed.config.imageIds ?? [];
+    if (parsed.type === "services" || parsed.type === "capabilities") return parsed.config.imageIds ?? [];
     return parsed.type === "hero" || parsed.type === "quality" ? [parsed.config.imageId] : [];
   }));
   const serviceIds = unique(parsedSections.flatMap(({ parsed }) =>
@@ -340,6 +348,7 @@ async function hydrateHomePage(
       case "services":
         items = orderReferences(parsed.config.serviceIds ?? [], services)
           .map((item) => mapServiceItem(item, locale));
+        galleryImageIds = parsed.config.imageIds ?? [];
         break;
       case "capabilities":
         galleryImageIds = parsed.config.imageIds ?? [];

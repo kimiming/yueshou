@@ -5,6 +5,7 @@ import { SectionFrame } from "@/components/marketing/sections/section-frame";
 import type { MarketingSectionViewModel } from "@/components/marketing/types";
 
 export function AboutSection({ model }: { model: MarketingSectionViewModel }) {
+  const imageLabels = ["Research Peptides", "Pharmaceutical Peptides", "Cosmetic Peptides"];
   const content = (
     <div className="split-panel__content">
       {model.items.map((item) => (
@@ -22,9 +23,10 @@ export function AboutSection({ model }: { model: MarketingSectionViewModel }) {
       {model.mediaGallery?.length ? (
         <>
           <div className="about-image-gallery">
-            {model.mediaGallery.map((media) => (
+            {model.mediaGallery.map((media, index) => (
               <div className="about-image-gallery__item" key={media.src}>
                 <Image src={media.src} alt={media.alt} fill sizes="(max-width: 760px) 100vw, 33vw" />
+                {imageLabels[index] ? <h3 className="about-image-gallery__label">{imageLabels[index]}</h3> : null}
               </div>
             ))}
           </div>

@@ -34,11 +34,6 @@ export function HeroSection({ model, locale }: HeroSectionProps) {
           <h2 id={`${model.id}-title`}>{model.title}</h2>
           <p className="hero-section__body">{model.body}</p>
           <div className="hero-section__actions">
-            {model.primaryCta ? (
-              <Link className="button-link" href={localizeHref(model.primaryCta.href, locale)}>
-                {model.primaryCta.label}
-              </Link>
-            ) : null}
             {model.secondaryCta ? (
               <Link className="text-link" href={localizeHref(model.secondaryCta.href, locale)}>
                 {model.secondaryCta.label}<span aria-hidden="true"> →</span>

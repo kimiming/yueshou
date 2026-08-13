@@ -23,14 +23,10 @@ export function CapabilitiesSection({ model }: { model: MarketingSectionViewMode
             const [highlight, titleRest] = splitAdvantageTitle(item.title);
             return (
               <article className="advantage-item" key={item.id}>
-                {media ? (
-                  <div className="advantage-icon">
-                    <Image src={media.src} alt={media.alt} width={473} height={473} sizes="(max-width: 760px) 112px, 136px" />
-                  </div>
-                ) : null}
                 <div className="advantage-content">
                   <h3 className="advantage-title">
-                    <span className="underline-text">{highlight}</span>{titleRest}
+                    {media ? <Image className="advantage-title__icon" src={media.src} alt="" width={32} height={32} /> : null}
+                    <span><span className="underline-text">{highlight}</span>{titleRest}</span>
                   </h3>
                   {item.body ? <p className="advantage-description">{item.body}</p> : null}
                 </div>

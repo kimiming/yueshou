@@ -34,7 +34,7 @@ describe("public content cache contract", () => {
 
     invalidatePublishedEntity("article", "lab-update", ["en"], { revalidatePath, revalidateTag });
 
-    expect(revalidateTag).toHaveBeenCalledWith("sitemap:content", "max");
+    expect(revalidateTag).toHaveBeenCalledWith("sitemap:content", { expire: 0 });
   });
 
   it("invalidates category-dependent collection and detail caches", () => {
@@ -44,10 +44,10 @@ describe("public content cache contract", () => {
     invalidatePublishedCollection("product", ["en", "de"], { revalidatePath, revalidateTag });
 
     expect(revalidatePath.mock.calls).toEqual([["/en/products"], ["/de/products"]]);
-    expect(revalidateTag).toHaveBeenCalledWith("product:list", "max");
-    expect(revalidateTag).toHaveBeenCalledWith("product-category:list", "max");
-    expect(revalidateTag).toHaveBeenCalledWith("page:home", "max");
-    expect(revalidateTag).toHaveBeenCalledWith("sitemap:content", "max");
+    expect(revalidateTag).toHaveBeenCalledWith("product:list", { expire: 0 });
+    expect(revalidateTag).toHaveBeenCalledWith("product-category:list", { expire: 0 });
+    expect(revalidateTag).toHaveBeenCalledWith("page:home", { expire: 0 });
+    expect(revalidateTag).toHaveBeenCalledWith("sitemap:content", { expire: 0 });
   });
 
   it("attaches detail, list, home, and sitemap tags to the getters that load Prisma content", async () => {

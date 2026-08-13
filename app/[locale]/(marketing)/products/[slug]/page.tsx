@@ -1,6 +1,4 @@
 import { notFound } from "next/navigation";
-import Image from "next/image";
-
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
 import { ContentLanguageFallbackNotice } from "@/components/marketing/content-language-fallback";
 import { RichContent } from "@/components/marketing/rich-content";
@@ -11,7 +9,9 @@ import { buildMetadata } from "@/features/seo/metadata";
 import { isPublicContentSlug } from "@/features/content/public-slug";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
-import { publicMediaUrl } from "@/features/media/public-url";
+import { productCoverMedia } from "@/features/content/product-cover";
+import { ProductGallery } from "@/components/marketing/product-gallery";
+import { WHATSAPP_NUMBER } from "@/components/marketing/whatsapp-float";
 
 export const dynamic = "auto";
 
@@ -33,9 +33,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getPublishedProduct(locale, slug);
   if (!product) notFound();
   const dictionary = await getDictionary(locale);
+  const coverMedia = productCoverMedia(product);
+  const gallery = coverMedia ? [coverMedia, ...product.media.filter((item) => item.id !== coverMedia.id)] : product.media;
+  const whatsappHref = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hello, I would like to inquire about ${product.title}.`)}`;
 
   return (
-    <main id="main-content" className="marketing-container">
+    <main id="main-content" className="marketing-container product-detail-page">
       <SeoJsonLd
         data={productJsonLd({
           locale: product.locale,
@@ -50,18 +53,25 @@ export default async function ProductPage({ params }: ProductPageProps) {
         { label: dictionary.navigation.products, href: `/${locale}/products` },
         { label: product.title },
       ]} />
-      <article lang={product.translationLocale}>
+      <article className="product-detail" lang={product.translationLocale}>
         <ContentLanguageFallbackNotice usedFallback={product.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
-        <p>{product.category.title}</p>
-        <h1>{product.title}</h1>
-        {(product.casNumber || product.sequence) ? (
-          <dl>
-            {product.casNumber ? <div><dt>{dictionary.marketing.public.cas}</dt><dd>{product.casNumber}</dd></div> : null}
-            {product.sequence ? <div><dt>{dictionary.marketing.public.sequence}</dt><dd>{product.sequence}</dd></div> : null}
-          </dl>
-        ) : null}
-        {product.media.length ? <ul aria-label={dictionary.marketing.accessibility.productMedia}>{product.media.map((media) => <li key={media.id}><Image src={publicMediaUrl(media.id)} alt={media.alt} width={media.width ?? 1200} height={media.height ?? 675} /></li>)}</ul> : null}
-        <RichContent html={product.body} />
+        <div className="product-detail__layout">
+          <div className="product-detail__media">
+            <ProductGallery media={gallery} />
+          </div>
+          <div className="product-detail__content">
+            <p className="section-eyebrow">{product.category.title}</p>
+            <h1>{product.title}</h1>
+            {(product.casNumber || product.sequence) ? (
+              <dl>
+                {product.casNumber ? <div><dt>{dictionary.marketing.public.cas}</dt><dd>{product.casNumber}</dd></div> : null}
+                {product.sequence ? <div><dt>{dictionary.marketing.public.sequence}</dt><dd>{product.sequence}</dd></div> : null}
+              </dl>
+            ) : null}
+            <RichContent html={product.body} />
+            <a className="product-detail__whatsapp" href={whatsappHref} target="_blank" rel="noopener noreferrer">Inquire on WhatsApp</a>
+          </div>
+        </div>
       </article>
     </main>
   );

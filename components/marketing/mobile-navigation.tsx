@@ -13,10 +13,9 @@ type MobileNavigationProps = {
   menuLabel: string;
   closeLabel: string;
   searchAction: { label: string; href: string };
-  quoteAction: { label: string; href: string };
 };
 
-export function MobileNavigation({ label, items, menuLabel, closeLabel, searchAction, quoteAction }: MobileNavigationProps) {
+export function MobileNavigation({ label, items, menuLabel, closeLabel, searchAction }: MobileNavigationProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -62,7 +61,6 @@ export function MobileNavigation({ label, items, menuLabel, closeLabel, searchAc
           {links(items)}
           <ul className="mobile-navigation__actions">
             <li><Link href={searchAction.href} onClick={() => setOpen(false)}>{searchAction.label}</Link></li>
-            <li><Link href={quoteAction.href} onClick={() => setOpen(false)}>{quoteAction.label}</Link></li>
           </ul>
         </nav>
       ) : null}

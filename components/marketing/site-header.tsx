@@ -26,7 +26,7 @@ export function SiteHeader({ model }: SiteHeaderProps) {
       <div className="marketing-container site-header__main">
         <Link className="brand-lockup" href={`/${model.locale}`} aria-label={model.homeLabel}>
           {model.logo ? <Image className="brand-lockup__image" src={model.logo.src} alt={model.logo.alt} width={44} height={44} /> : <span className="brand-lockup__mark" aria-hidden="true">YS</span>}
-          <span className="brand-lockup__name">{model.brandName}</span>
+          <span className="brand-lockup__name">{model.brandName.toLocaleUpperCase("en")}</span>
         </Link>
         <PrimaryNavigation
           label={model.primaryNavigationLabel}
@@ -35,12 +35,8 @@ export function SiteHeader({ model }: SiteHeaderProps) {
           closeLabel={model.mobileCloseLabel}
           mobileNavigationLabel={model.mobileNavigationLabel}
           searchAction={{ label: model.searchLabel, href: localizeHref("/search", model.locale) }}
-          quoteAction={{ label: model.quoteLabel, href: localizeHref("/request-a-quote", model.locale) }}
         />
         <Link className="site-header__search" href={localizeHref("/search", model.locale)}>{model.searchLabel}</Link>
-        <Link className="button-link button-link--compact" href={localizeHref("/request-a-quote", model.locale)}>
-          {model.quoteLabel}
-        </Link>
       </div>
     </header>
   );

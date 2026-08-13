@@ -96,7 +96,10 @@ const service: ServiceViewModel = {
 };
 
 describe("public content routes", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    contentMocks.getPublishedProducts.mockResolvedValue([]);
+  });
 
   it.each(["terms", "privacy", "ruo-policy", "shipping-compliance", "cookie-policy"])(
     "renders %s as its own legal article with exactly one heading level one",
@@ -274,15 +277,12 @@ describe("public content routes", () => {
     expect(within(screen.getByRole("article")).getByRole("status")).toHaveTextContent("Die englische Version wird angezeigt");
   });
 
-  it("renders the grouped peptide product table without catalog filters", async () => {
-    contentMocks.getPageBySlug.mockResolvedValue(page("products"));
-    const { default: ProductsPage } = await import(
-      "@/app/[locale]/(marketing)/products/page"
-    );
+  it("moves the grouped peptide product table to Services", async () => {
+    contentMocks.getPageBySlug.mockResolvedValue(page("services"));
+    contentMocks.getPublishedServices.mockResolvedValue([]);
+    const { default: ServicesPage } = await import("@/app/[locale]/(marketing)/services/page");
 
-    const view = await ProductsPage({
-      params: Promise.resolve({ locale: "de" }),
-    });
+    const view = await ServicesPage({ params: Promise.resolve({ locale: "de" }) });
     const { container } = render(view);
 
     expect(container.querySelectorAll("h1")).toHaveLength(1);
@@ -292,7 +292,7 @@ describe("public content routes", () => {
     expect(screen.getByText("ZPC®Wrinklend008S")).toBeInTheDocument();
     expect(screen.getByText("NONAPEPTIDE-1")).toBeInTheDocument();
     expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
-    expect(contentMocks.getProductCatalog).not.toHaveBeenCalled();
+    expect(contentMocks.getPublishedServices).toHaveBeenCalledWith("de");
   });
 
   it("renders product card copy as safe plain text without nested headings", () => {

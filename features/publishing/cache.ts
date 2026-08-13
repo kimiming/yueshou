@@ -10,7 +10,7 @@ export type ContentCacheEntityType = PublishedEntityType | "service";
 
 type CacheInvalidation = {
   revalidatePath(path: string, type?: "layout" | "page"): void;
-  revalidateTag(tag: string, profile: "max"): void;
+  revalidateTag(tag: string, profile: "max" | { expire: 0 }): void;
 };
 
 const defaultCacheInvalidation: CacheInvalidation = {
@@ -55,7 +55,7 @@ export function invalidatePublishedEntity(
 
   const tags = new Set([...contentTags(type, slug), "page:home", "sitemap:content"]);
   for (const tag of tags) {
-    cache.revalidateTag(tag, "max");
+    cache.revalidateTag(tag, { expire: 0 });
   }
 }
 
@@ -74,7 +74,7 @@ export function invalidatePublishedCollection(
     "page:home",
     "sitemap:content",
   ]);
-  for (const tag of tags) cache.revalidateTag(tag, "max");
+  for (const tag of tags) cache.revalidateTag(tag, { expire: 0 });
 }
 
 export function invalidateMarketingShell(
@@ -84,6 +84,6 @@ export function invalidateMarketingShell(
   for (const locale of new Set(locales)) {
     cache.revalidatePath(`/${locale}`, "layout");
   }
-  cache.revalidateTag("site:global", "max");
-  cache.revalidateTag("media:global", "max");
+  cache.revalidateTag("site:global", { expire: 0 });
+  cache.revalidateTag("media:global", { expire: 0 });
 }

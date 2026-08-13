@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
 import { ContentLanguageFallbackNotice } from "@/components/marketing/content-language-fallback";
-import { plainTextExcerpt, RichContent } from "@/components/marketing/rich-content";
-import { getPageBySlug, getPublishedServices } from "@/features/content/service";
+import { ProductReferenceTable } from "@/components/marketing/product-reference-table";
+import { RichContent } from "@/components/marketing/rich-content";
+import { getPageBySlug } from "@/features/content/service";
 import { buildMetadata } from "@/features/seo/metadata";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { isLocale } from "@/lib/i18n/config";
@@ -30,9 +30,8 @@ export async function generateMetadata({ params }: ServicesPageProps) {
 export default async function ServicesPage({ params }: ServicesPageProps) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
-  const [page, services, dictionary] = await Promise.all([
+  const [page, dictionary] = await Promise.all([
     getPageBySlug(locale, "services"),
-    getPublishedServices(locale),
     getDictionary(locale),
   ]);
   if (!page) notFound();
@@ -48,19 +47,8 @@ export default async function ServicesPage({ params }: ServicesPageProps) {
         <h1>{page.title}</h1>
         <RichContent html={page.body} />
       </div>
-      <section aria-labelledby="service-catalog-heading">
-        <h2 id="service-catalog-heading">{dictionary.navigation.services}</h2>
-        <div className="content-card-grid">
-          {services.map((service) => (
-            <article className="content-card" key={service.id} lang={service.translationLocale}>
-              <ContentLanguageFallbackNotice usedFallback={service.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
-              <h3>
-                <Link href={`/${locale}/services/${service.slug}`}>{service.title}</Link>
-              </h3>
-              {service.body ? <p>{plainTextExcerpt(service.body)}</p> : null}
-            </article>
-          ))}
-        </div>
+      <section className="services-product-reference" aria-label={dictionary.navigation.services}>
+        <ProductReferenceTable />
       </section>
     </main>
   );
