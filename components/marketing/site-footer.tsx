@@ -8,17 +8,26 @@ type SiteFooterProps = {
   model: MarketingShellViewModel;
 };
 
-const socialPlatforms = [
-  { label: "Facebook", href: "https://www.facebook.com", path: "M14 8.5V6.8c0-1.7 1-1.8 2.9-1.8H19V1.2c-.8-.1-2.2-.2-3.8-.2-3.7 0-6.2 2.2-6.2 6.3v1.2H5v4.3h4V23h5V12.8h4l.7-4.3H14Z" },
-  { label: "Instagram", href: "https://www.instagram.com", path: "M7 1h10a6 6 0 0 1 6 6v10a6 6 0 0 1-6 6H7a6 6 0 0 1-6-6V7a6 6 0 0 1 6-6Zm0 2.2A3.8 3.8 0 0 0 3.2 7v10A3.8 3.8 0 0 0 7 20.8h10a3.8 3.8 0 0 0 3.8-3.8V7A3.8 3.8 0 0 0 17 3.2H7Zm10.4 1.6a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8ZM12 6.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Zm0 2.2a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6Z" },
-  { label: "TikTok", href: "https://www.tiktok.com", path: "M14.2 1h4.1c.3 2.5 1.7 4 4.2 4.7v4.1a11 11 0 0 1-4.2-1.3v7.1A7.4 7.4 0 1 1 12 8.3v4.2a3.3 3.3 0 1 0 2.2 3.1V1Z" },
-  { label: "X", href: "https://x.com", path: "M18.7 2H22l-7.2 8.2L23.2 22h-6.6l-5.2-6.8L5.5 22H2.2l7.7-8.8L1.8 2h6.8l4.7 6.2L18.7 2Zm-1.2 17.9h1.8L7.6 4H5.7l11.8 15.9Z" },
-] as const;
+const socialIconPaths: Record<string, string> = {
+  facebook: "M14 8.5V6.8c0-1.7 1-1.8 2.9-1.8H19V1.2c-.8-.1-2.2-.2-3.8-.2-3.7 0-6.2 2.2-6.2 6.3v1.2H5v4.3h4V23h5V12.8h4l.7-4.3H14Z",
+  instagram: "M7 1h10a6 6 0 0 1 6 6v10a6 6 0 0 1-6 6H7a6 6 0 0 1-6-6V7a6 6 0 0 1 6-6Zm0 2.2A3.8 3.8 0 0 0 3.2 7v10A3.8 3.8 0 0 0 7 20.8h10a3.8 3.8 0 0 0 3.8-3.8V7A3.8 3.8 0 0 0 17 3.2H7Zm10.4 1.6a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8ZM12 6.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Zm0 2.2a3.3 3.3 0 1 0 0 6.6 3.3 3.3 0 0 0 0-6.6Z",
+  tiktok: "M14.2 1h4.1c.3 2.5 1.7 4 4.2 4.7v4.1a11 11 0 0 1-4.2-1.3v7.1A7.4 7.4 0 1 1 12 8.3v4.2a3.3 3.3 0 1 0 2.2 3.1V1Z",
+  x: "M18.7 2H22l-7.2 8.2L23.2 22h-6.6l-5.2-6.8L5.5 22H2.2l7.7-8.8L1.8 2h6.8l4.7 6.2L18.7 2Zm-1.2 17.9h1.8L7.6 4H5.7l11.8 15.9Z",
+};
+
+const footerSocialPlatforms = new Set(["facebook", "instagram", "tiktok", "x"]);
+
+function socialIconPath(label: string) {
+  const normalized = label.trim().toLowerCase();
+  const aliases: Record<string, string> = { fb: "facebook", ins: "instagram", twitter: "x" };
+  return socialIconPaths[aliases[normalized] ?? normalized] ?? "M4 4h16v16H4V4Zm4 4v8h8V8H8Z";
+}
 
 export function SiteFooter({ model }: SiteFooterProps) {
   const navigation = model.navigation
     .filter((item) => item.enabled)
     .toSorted((left, right) => left.sortOrder - right.sortOrder || left.id.localeCompare(right.id));
+  const socialLinks = model.socialLinks.filter((platform) => footerSocialPlatforms.has(platform.label.trim().toLowerCase()));
 
   const links = (items: typeof navigation) => <ul className="site-footer__links">{items.map((item) => <li key={item.id}><Link href={item.href}>{item.label}</Link>{item.children?.length ? links(item.children) : null}</li>)}</ul>;
   return (
@@ -32,7 +41,8 @@ export function SiteFooter({ model }: SiteFooterProps) {
           <p className="site-footer__summary">{model.footerSummary}</p>
           <address className="site-footer__company-details">
             <span>Address: Room 332, 3rd Floor, No. 55 Guangcong 3rd Road, Taihe Town, Baiyun District, Guangzhou</span>
-            <a href="tel:+8657583835818">Tel: 0575-83835818</a>
+            <a href="tel:+8613435855558">Tel: +86 134 3585 5558</a>
+            <a href="mailto:business@yueshou-peptide.com">Email: business@yueshou-peptide.com</a>
             <a href="https://www.yueshou-peptide.com" target="_blank" rel="noopener noreferrer">Website: www.yueshou-peptide.com</a>
           </address>
         </div>
@@ -49,10 +59,10 @@ export function SiteFooter({ model }: SiteFooterProps) {
         <div>
           <h2>Follow Us</h2>
           <ul className="site-footer__social-icons" aria-label="Social media">
-            {socialPlatforms.map((platform) => (
+            {socialLinks.map((platform) => (
               <li key={platform.label}>
                 <a href={platform.href} target="_blank" rel="noopener noreferrer" aria-label={platform.label} title={platform.label}>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d={platform.path} /></svg>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d={socialIconPath(platform.label)} /></svg>
                 </a>
               </li>
             ))}

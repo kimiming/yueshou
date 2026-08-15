@@ -8,6 +8,7 @@ export const pageSectionTypes = [
   "hero",
   "services",
   "about",
+  "factory",
   "capabilities",
   "quality",
   "product-categories",

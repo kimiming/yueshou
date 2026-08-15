@@ -9,7 +9,6 @@ type PrimaryNavigationProps = {
   menuLabel: string;
   closeLabel: string;
   mobileNavigationLabel: string;
-  searchAction: { label: string; href: string };
 };
 
 export function PrimaryNavigation({
@@ -18,7 +17,6 @@ export function PrimaryNavigation({
   menuLabel,
   closeLabel,
   mobileNavigationLabel,
-  searchAction,
 }: PrimaryNavigationProps) {
   const visibleItems = items
     .filter((item) => item.enabled)
@@ -35,7 +33,6 @@ export function PrimaryNavigation({
         items={visibleItems}
         menuLabel={menuLabel}
         closeLabel={closeLabel}
-        searchAction={searchAction}
       />
     </>
   );

@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 
 import { LanguageSwitcher } from "@/components/marketing/language-switcher";
-import { localizeHref } from "@/components/marketing/link-utils";
 import { PrimaryNavigation } from "@/components/marketing/primary-navigation";
 import type { MarketingShellViewModel } from "@/components/marketing/types";
 
@@ -34,9 +33,7 @@ export function SiteHeader({ model }: SiteHeaderProps) {
           menuLabel={model.mobileMenuLabel}
           closeLabel={model.mobileCloseLabel}
           mobileNavigationLabel={model.mobileNavigationLabel}
-          searchAction={{ label: model.searchLabel, href: localizeHref("/search", model.locale) }}
         />
-        <Link className="site-header__search" href={localizeHref("/search", model.locale)}>{model.searchLabel}</Link>
       </div>
     </header>
   );

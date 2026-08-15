@@ -73,6 +73,7 @@ enum PageSectionType {
   HERO
   SERVICES
   ABOUT
+  FACTORY
   CAPABILITIES
   QUALITY
   PRODUCT_CATEGORIES
@@ -482,6 +483,8 @@ model Inquiry {
   contactName    String
   email          String
   country        String?
+  whatsapp       String?
+  source         String              @default("REQUEST_QUOTE")
   message        String
   status         InquiryStatus       @default(NEW)
   internalNotes  String?

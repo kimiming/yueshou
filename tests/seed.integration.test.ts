@@ -194,7 +194,7 @@ describeWithDatabase("initial content seed", () => {
       include: { translations: true },
     });
     expect(sections.map((section) => section.type)).toEqual(expect.arrayContaining([
-      "HERO", "SERVICES", "ABOUT", "CAPABILITIES", "QUALITY", "STATS", "NEWS", "CTA",
+      "HERO", "SERVICES", "ABOUT", "FACTORY", "CAPABILITIES", "QUALITY", "STATS", "NEWS", "CTA",
     ]));
     expect(sections.every((section) => section.status === PublishStatus.PUBLISHED && section.translations.length === 5)).toBe(true);
     const servicesSection = sections.find((section) => section.type === "SERVICES")!;

@@ -12,10 +12,9 @@ type MobileNavigationProps = {
   items: MarketingLinkViewModel[];
   menuLabel: string;
   closeLabel: string;
-  searchAction: { label: string; href: string };
 };
 
-export function MobileNavigation({ label, items, menuLabel, closeLabel, searchAction }: MobileNavigationProps) {
+export function MobileNavigation({ label, items, menuLabel, closeLabel }: MobileNavigationProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -59,9 +58,6 @@ export function MobileNavigation({ label, items, menuLabel, closeLabel, searchAc
       {open ? (
         <nav id={menuId} className="mobile-navigation__panel" aria-label={label}>
           {links(items)}
-          <ul className="mobile-navigation__actions">
-            <li><Link href={searchAction.href} onClick={() => setOpen(false)}>{searchAction.label}</Link></li>
-          </ul>
         </nav>
       ) : null}
     </div>

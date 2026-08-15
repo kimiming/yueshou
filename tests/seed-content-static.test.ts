@@ -18,7 +18,7 @@ describe("ordinary fresh-deployment seed contract", () => {
     }
 
     expect(source).toContain("const homeSectionSeeds");
-    for (const type of ["HERO", "SERVICES", "ABOUT", "CAPABILITIES", "QUALITY", "STATS", "NEWS", "CTA"]) {
+    for (const type of ["HERO", "SERVICES", "ABOUT", "FACTORY", "CAPABILITIES", "QUALITY", "STATS", "NEWS", "CTA"]) {
       expect(source).toContain(`type: PageSectionType.${type}`);
     }
   });

@@ -62,12 +62,14 @@ export type MarketingSectionItemViewModel = {
   body?: string;
   value?: string;
   href?: string;
+  media?: MarketingMediaViewModel;
 };
 
 export type MarketingSectionType =
   | "hero"
   | "services"
   | "about"
+  | "factory"
   | "capabilities"
   | "quality"
   | "product-categories"

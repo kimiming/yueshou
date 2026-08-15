@@ -25,6 +25,7 @@ export type HomepageSectionItemViewModel = LocalizedViewModel & {
   id: string;
   href?: string;
   value?: string;
+  media?: MediaViewModel | null;
 };
 
 export type PageViewModel = LocalizedViewModel & {

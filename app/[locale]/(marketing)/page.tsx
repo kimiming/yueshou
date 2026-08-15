@@ -5,6 +5,7 @@ import { ContentLanguageFallbackNotice } from "@/components/marketing/content-la
 import { CapabilitiesSection } from "@/components/marketing/sections/capabilities-section";
 import { CtaSection } from "@/components/marketing/sections/cta-section";
 import { GlobalReachSection } from "@/components/marketing/sections/global-reach-section";
+import { FactorySection } from "@/components/marketing/sections/factory-section";
 import { HomeScrollReveal } from "@/components/marketing/home-scroll-reveal";
 import { HomeProductShowcase } from "@/components/marketing/home-product-showcase";
 import { HeroSection } from "@/components/marketing/sections/hero-section";
@@ -71,6 +72,8 @@ function renderSection(
       return <ServicesSection key={model.id} model={model} />;
     case "about":
       return <AboutSection key={model.id} model={model} />;
+    case "factory":
+      return <FactorySection key={model.id} model={model} />;
     case "capabilities":
       return <CapabilitiesSection key={model.id} model={model} />;
     case "quality":
@@ -82,7 +85,7 @@ function renderSection(
     case "stats":
       return <StatsSection key={model.id} model={model} />;
     case "news":
-      return <NewsSection key={model.id} model={model} updateLabel={labels.researchUpdate} readMoreLabel={labels.readMore} />;
+      return <NewsSection key={model.id} model={model} />;
     case "cta":
       return <CtaSection key={model.id} model={model} locale={locale} />;
   }

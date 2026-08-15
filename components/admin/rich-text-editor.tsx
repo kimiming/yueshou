@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Divider, Input, Select, Space, Tooltip } from "antd";
+import { Button, Divider, Input, Modal, Select, Space, Tooltip } from "antd";
 import { useEffect, useRef, useState } from "react";
 
 type RichTextEditorProps = {
@@ -10,6 +10,8 @@ type RichTextEditorProps = {
   onChange?: (value: string) => void;
   placeholder?: string;
 };
+
+type LibraryAsset = { id: string; filename: string; alt?: string; mimeType?: string };
 
 const blockOptions = [
   { value: "p", label: "正文" },
@@ -30,6 +32,9 @@ export function RichTextEditor({ id, label, value = "", onChange, placeholder = 
   const editorRef = useRef<HTMLDivElement>(null);
   const lastValueRef = useRef(value);
   const [linkUrl, setLinkUrl] = useState("");
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [assets, setAssets] = useState<LibraryAsset[]>([]);
+  const selectionRef = useRef<Range | null>(null);
 
   useEffect(() => {
     if (!editorRef.current || value === lastValueRef.current) return;
@@ -61,6 +66,28 @@ export function RichTextEditor({ id, label, value = "", onChange, placeholder = 
     setLinkUrl("");
   };
 
+  const openLibrary = () => {
+    const selection = window.getSelection();
+    selectionRef.current = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
+    setLibraryOpen(true);
+    if (!assets.length) void fetch("/api/admin/media/available", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() as Promise<LibraryAsset[]> : [])
+      .then(setAssets)
+      .catch(() => undefined);
+  };
+
+  const insertImage = (asset: LibraryAsset) => {
+    focusEditor();
+    const selection = window.getSelection();
+    if (selectionRef.current && selection) {
+      selection.removeAllRanges();
+      selection.addRange(selectionRef.current);
+    }
+    const src = `/api/media/public/${encodeURIComponent(asset.id)}`;
+    command("insertHTML", `<figure><img src="${src}" alt="${(asset.alt || asset.filename).replaceAll('"', "&quot;")}" loading="lazy"></figure><p><br></p>`);
+    setLibraryOpen(false);
+  };
+
   return (
     <div className="admin-rich-editor">
       <div className="admin-rich-editor__toolbar" aria-label="富文本工具栏">
@@ -84,6 +111,7 @@ export function RichTextEditor({ id, label, value = "", onChange, placeholder = 
           <Tooltip title="有序列表"><Button htmlType="button" onClick={() => command("insertOrderedList")}>编号</Button></Tooltip>
         </Space.Compact>
         <Tooltip title="插入表格"><Button htmlType="button" onClick={insertTable}>表格</Button></Tooltip>
+        <Tooltip title="从媒体库插入图片"><Button htmlType="button" onClick={openLibrary}>插入图片</Button></Tooltip>
         <Space.Compact className="admin-rich-editor__link">
           <Input aria-label="链接地址" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://..." />
           <Button htmlType="button" onClick={applyLink}>链接</Button>
@@ -105,6 +133,9 @@ export function RichTextEditor({ id, label, value = "", onChange, placeholder = 
         aria-multiline="true"
         suppressContentEditableWarning
       />
+      <Modal title="从媒体库插入图片" open={libraryOpen} onCancel={() => setLibraryOpen(false)} footer={null} width={900}>
+        <div className="admin-media-library-picker">{assets.filter((asset) => !asset.mimeType || asset.mimeType.startsWith("image/")).map((asset) => <button type="button" onClick={() => insertImage(asset)} key={asset.id}><img src={`/api/admin/media/${encodeURIComponent(asset.id)}`} alt={asset.alt || asset.filename} loading="lazy" /><span>{asset.filename}</span></button>)}</div>
+      </Modal>
     </div>
   );
 }

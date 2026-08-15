@@ -12,7 +12,13 @@ FROM deps AS build
 COPY . .
 ARG NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL}
-RUN pnpm prisma:generate && pnpm build
+ENV NODE_OPTIONS=--max-old-space-size=1536
+# Give every image build a distinct deployment identifier. Next.js embeds it in
+# pages and navigation requests so open browser tabs can detect a replaced image
+# and reload instead of submitting stale Server Action identifiers.
+RUN DEPLOYMENT_VERSION="build-$(date +%s)-$$" && \
+    NEXT_DEPLOYMENT_ID="$DEPLOYMENT_VERSION" pnpm prisma:generate && \
+    NEXT_DEPLOYMENT_ID="$DEPLOYMENT_VERSION" pnpm exec next build
 
 # Migration intentionally uses the complete dependency graph. It is a short-lived
 # service, never the web runtime image.

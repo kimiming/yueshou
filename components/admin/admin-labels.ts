@@ -42,6 +42,7 @@ export const sectionTypeLabels: Record<string, string> = {
   quality: "质量保障",
   "product-categories": "产品分类",
   "global-reach": "全球业务",
+  factory: "我们的工厂",
   stats: "数据统计",
   news: "新闻",
   cta: "行动按钮",

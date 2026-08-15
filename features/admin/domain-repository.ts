@@ -77,6 +77,7 @@ export const prismaNewsAdminRepository: NewsAdminRepository = {
     return serializableRetry(() => prisma.$transaction(async (tx) => {
       await assertActiveCategory(tx, "article", input.categoryId, input.status === "PUBLISHED");
       await assertActiveTags(tx, input.tagIds);
+      if (input.status === "PUBLISHED" && input.coverMediaId) await publishNewProductMedia(tx, [input.coverMediaId], input.actorId);
       await assertUsableMedia(tx, input.coverMediaId ? [input.coverMediaId] : []);
       const existing = input.id ? await tx.article.findUniqueOrThrow({ where: { id: input.id }, select: { publishedAt: true } }) : null;
       const publication = input.status === "PUBLISHED" ? { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? new Date() } : { status: input.status, scheduledAt: input.scheduledAt ?? null, publishedAt: existing?.publishedAt ?? null };

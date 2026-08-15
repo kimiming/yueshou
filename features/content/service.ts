@@ -39,6 +39,7 @@ import { unstable_cache } from "next/cache";
 import { cache } from "react";
 
 const PRODUCT_PAGE_SIZE = 24;
+const ARTICLE_PAGE_SIZE = 5;
 
 function normalizeRequestedPage(value: string | number | undefined) {
   const page = typeof value === "number" ? value : Number(value ?? 1);
@@ -282,6 +283,7 @@ function mapArticleItem(record: PublishedArticleRecord, locale: Locale) {
     title: article.title,
     body: article.excerpt ?? article.body,
     href: `/news/${article.slug}`,
+    media: article.coverMedia,
   } satisfies HomepageSectionItemViewModel;
 }
 
@@ -303,7 +305,7 @@ async function hydrateHomePage(
 
   const mediaIds = unique(parsedSections.flatMap(({ parsed }) => {
     if (parsed.type === "about") return [parsed.config.imageId, ...(parsed.config.imageIds ?? [])];
-    if (parsed.type === "services" || parsed.type === "capabilities") return parsed.config.imageIds ?? [];
+    if (parsed.type === "services" || parsed.type === "capabilities" || parsed.type === "factory") return parsed.config.imageIds ?? [];
     return parsed.type === "hero" || parsed.type === "quality" ? [parsed.config.imageId] : [];
   }));
   const serviceIds = unique(parsedSections.flatMap(({ parsed }) =>
@@ -318,7 +320,7 @@ async function hydrateHomePage(
     parsed.type === "product-categories" ? parsed.config.categoryIds ?? [] : [],
   ));
   const newsCount = parsedSections.reduce(
-    (count, { parsed }) => parsed.type === "news" ? Math.max(count, parsed.config.count) : count,
+    (count, { parsed }) => parsed.type === "news" ? Math.max(count, Math.min(parsed.config.count, 3)) : count,
     0,
   );
 
@@ -344,6 +346,9 @@ async function hydrateHomePage(
       case "about":
         imageId = parsed.config.imageId;
         galleryImageIds = parsed.config.imageIds ?? [];
+        break;
+      case "factory":
+        galleryImageIds = parsed.config.imageIds;
         break;
       case "services":
         items = orderReferences(parsed.config.serviceIds ?? [], services)
@@ -380,7 +385,7 @@ async function hydrateHomePage(
         }));
         break;
       case "news":
-        items = articles.slice(0, parsed.config.count).map((item) => mapArticleItem(item, locale));
+        items = articles.slice(0, Math.min(parsed.config.count, 3)).map((item) => mapArticleItem(item, locale));
         break;
       case "cta":
         break;
@@ -532,10 +537,19 @@ function serviceFromRepository(repository: ContentRepository) {
         categories: categories.map((record) => mapCategory(record, locale)),
       };
     },
-    async getPublishedArticles(localeInput: string) {
+    async getPublishedArticles(localeInput: string, pageInput?: string | number) {
       const locale = validateLookup(localeInput, "news");
-      const records = await repository.findLatestPublishedArticles(30);
-      return records.map((record) => mapArticle(record, locale));
+      const totalCount = await repository.countPublishedArticles();
+      const pageCount = Math.max(1, Math.ceil(totalCount / ARTICLE_PAGE_SIZE));
+      const page = Math.min(normalizeRequestedPage(pageInput), pageCount);
+      const records = await repository.findPublishedArticlesPage((page - 1) * ARTICLE_PAGE_SIZE, ARTICLE_PAGE_SIZE);
+      return {
+        articles: records.map((record) => mapArticle(record, locale)),
+        page,
+        pageSize: ARTICLE_PAGE_SIZE,
+        pageCount,
+        totalCount,
+      };
     },
     async getSitemapContent() {
       const records = await repository.findSitemapContent();
@@ -619,10 +633,10 @@ export const getProductCatalog = cache((
     () => contentService.getProductCatalog(locale, filters),
   );
 });
-export const getPublishedArticles = cache((locale: string) => cachedContent(
-  ["content", "article-list", locale],
+export const getPublishedArticles = cache((locale: string, page: string | number = 1) => cachedContent(
+  ["content", "article-list", locale, String(normalizeRequestedPage(page))],
   ["article:list", "media:global"],
-  () => contentService.getPublishedArticles(locale),
+  () => contentService.getPublishedArticles(locale, page),
 ));
 export const getSitemapContent = cache(() => cachedContent(
   ["content", "sitemap"],

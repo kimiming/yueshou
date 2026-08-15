@@ -26,6 +26,7 @@ const ALLOWED_TAGS = [
   "h6",
   "hr",
   "i",
+  "img",
   "li",
   "mark",
   "ol",
@@ -56,13 +57,18 @@ const ALLOWED_ATTR = [
   "colspan",
   "datetime",
   "href",
+  "alt",
+  "height",
   "lang",
+  "loading",
   "rel",
   "rowspan",
   "scope",
   "style",
+  "src",
   "target",
   "title",
+  "width",
 ] as const;
 
 function safeCssColor(value: string) {
@@ -125,6 +131,10 @@ export function sanitizeRichContent(html: string) {
   }) as HTMLElement;
 
   sanitizeStyles(root);
+
+  // Older editor versions inserted the uploaded filename as a visible caption.
+  // It is media metadata rather than authored page content, so do not render it.
+  root.querySelectorAll("figcaption").forEach((caption) => caption.remove());
 
   root.querySelectorAll("a[target='_blank']").forEach((link) => {
     const rel = new Set((link.getAttribute("rel") ?? "").split(/\s+/u).filter(Boolean));

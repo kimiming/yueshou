@@ -48,6 +48,7 @@ const sectionTypeByEditorType = {
   hero: "HERO",
   services: "SERVICES",
   about: "ABOUT",
+  factory: "FACTORY",
   capabilities: "CAPABILITIES",
   quality: "QUALITY",
   "product-categories": "PRODUCT_CATEGORIES",

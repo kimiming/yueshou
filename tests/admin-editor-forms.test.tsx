@@ -1,14 +1,56 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { PageEditorForm, PageSectionForm, SiteSettingsForm } from "@/components/admin/editor-forms";
+import { MediaMetadataForm, PageEditorForm, PageSectionForm, SiteSettingsForm } from "@/components/admin/editor-forms";
 import { ExistingContentForm, InquiryStatusForm } from "@/components/admin/domain-forms";
 import { SortableSections } from "@/components/admin/sortable-sections";
 import { PageSectionOrdering } from "@/components/admin/content-ordering";
 
+const replace = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
+
 Object.defineProperty(window, "matchMedia", { writable: true, value: vi.fn().mockImplementation(() => ({ matches: false, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() })) });
 globalThis.ResizeObserver = class ResizeObserver { observe() {} unobserve() {} disconnect() {} };
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  replace.mockReset();
+  vi.restoreAllMocks();
+});
+
+it("confirms a successful media publish and returns to the media library", async () => {
+  const publish = vi.fn(async () => undefined);
+  render(<MediaMetadataForm initial={{ id: "media-1", version: "2026-08-08T00:00:00.000Z", translations: [] }} save={vi.fn(async () => undefined)} publish={publish} archive={vi.fn(async () => undefined)} allowArchive />);
+
+  fireEvent.click(screen.getByRole("button", { name: "发布图片" }));
+
+  await waitFor(() => expect(publish).toHaveBeenCalledWith({ mediaAssetId: "media-1", version: "2026-08-08T00:00:00.000Z" }));
+  expect(await screen.findByText("发布成功")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "返回媒体库" }));
+  expect(replace).toHaveBeenCalledWith("/admin/media");
+});
+
+it("shows an error dialog and stays on the editor when media publishing fails", async () => {
+  const publish = vi.fn(async () => { throw new Error("媒体版本已过期"); });
+  render(<MediaMetadataForm initial={{ id: "media-1", version: "2026-08-08T00:00:00.000Z", translations: [] }} save={vi.fn(async () => undefined)} publish={publish} archive={vi.fn(async () => undefined)} allowArchive />);
+
+  fireEvent.click(screen.getByRole("button", { name: "发布图片" }));
+
+  expect(await screen.findByText("操作失败")).toBeInTheDocument();
+  expect(screen.getAllByText("媒体版本已过期").length).toBeGreaterThan(0);
+  expect(replace).not.toHaveBeenCalled();
+});
+
+it("confirms saved media metadata and returns to the media library", async () => {
+  const save = vi.fn(async () => undefined);
+  render(<MediaMetadataForm initial={{ id: "media-1", version: "2026-08-08T00:00:00.000Z", translations: [] }} save={save} publish={vi.fn(async () => undefined)} archive={vi.fn(async () => undefined)} allowArchive />);
+
+  fireEvent.click(screen.getByRole("button", { name: "保存媒体信息" }));
+
+  await waitFor(() => expect(save).toHaveBeenCalled());
+  expect(await screen.findByText("保存成功")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "返回媒体库" }));
+  expect(replace).toHaveBeenCalledWith("/admin/media");
+});
 
 it("submits visible page fields as a validated five-language editor payload", async () => {
   const save = vi.fn(async () => undefined);

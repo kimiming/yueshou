@@ -11,6 +11,9 @@ const { Header, Content, Sider } = Layout;
 
 const navigation = [
   { key: "media", label: "媒体库", href: "/admin/media" },
+  { key: "factory", label: "Our Factory", href: "/admin/factory" },
+  { key: "social-media", label: "社交媒体管理", href: "/admin/social-media" },
+  { key: "customer-messages", label: "客户信息管理", href: "/admin/customer-messages" },
   { key: "news", label: "新闻管理", href: "/admin/news" },
   { key: "products", label: "产品管理", href: "/admin/products" },
   { key: "users", label: "用户管理", href: "/admin/users" },

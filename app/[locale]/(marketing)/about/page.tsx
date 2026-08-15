@@ -37,7 +37,9 @@ export default async function AboutPage({ params }: AboutPageProps) {
         { label: page.title },
       ]} />
       <article className="about-page__article">
-        <h1>{page.title}</h1>
+        <header className="marketing-page-hero">
+          <h1 className="marketing-page-title">{page.title}</h1>
+        </header>
         <RichContent html={page.body} className="about-page__content" />
       </article>
     </main>

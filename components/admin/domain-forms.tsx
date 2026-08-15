@@ -10,6 +10,8 @@ import { RichTextEditor } from "./rich-text-editor";
 import { inquiryStatusOptions, localeLabels, roleOptions } from "./admin-labels";
 
 type Action = (input: unknown) => Promise<unknown>;
+type CategoryAction = (input: unknown) => Promise<{ id: string; label: string }>;
+type CategoryOption = { id: string; label: string };
 type Translation = { title?: string; body?: string; excerpt?: string };
 type ContentKind = "product" | "article";
 
@@ -21,7 +23,9 @@ function TranslationTabs({ article = false }: { article?: boolean }) {
     label: localeLabels[locale] ?? locale,
     children: <Space direction="vertical" style={{ width: "100%" }}>
       <Form.Item name={["translations", locale, "title"]} label="标题" rules={[{ required: locale === "en" }]}><Input /></Form.Item>
-      <Form.Item name={["translations", locale, "body"]} label="正文" rules={[{ required: locale === "en" }]}><Input.TextArea rows={4} /></Form.Item>
+      <Form.Item name={["translations", locale, "body"]} label="正文" rules={[{ required: locale === "en" }]}>{article
+        ? <RichTextEditor label={`${localeLabels[locale] ?? locale}新闻正文`} placeholder="输入新闻正文，可插入媒体库图片、链接、列表和表格" />
+        : <Input.TextArea rows={4} />}</Form.Item>
       {article ? <Form.Item name={["translations", locale, "excerpt"]} label="摘要"><Input.TextArea rows={2} /></Form.Item> : null}
     </Space>,
   }))} />;
@@ -40,6 +44,37 @@ function slugFromTitle(title: string) {
   return title.normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 120);
 }
 
+function CategoryField({ form, categories, saveCategory }: { form: ReturnType<typeof Form.useForm>[0]; categories: CategoryOption[]; saveCategory: CategoryAction }) {
+  const [options, setOptions] = useState(categories);
+  const [open, setOpen] = useState(false);
+  const [saving, startSaving] = useTransition();
+  const [categoryForm] = Form.useForm();
+  const create = () => categoryForm.validateFields().then((value) => startSaving(async () => {
+    try {
+      const title = String(value.title).trim();
+      const result = await saveCategory({ title, body: value.body ?? "", slug: slugFromTitle(title) || `category-${Date.now()}`, status: "PUBLISHED" });
+      setOptions((current) => [...current.filter((item) => item.id !== result.id), result]);
+      form.setFieldValue("categoryId", result.id);
+      categoryForm.resetFields();
+      setOpen(false);
+      Modal.success({ title: "创建成功", content: `分类“${result.label}”已创建并自动选中。` });
+    } catch (reason) {
+      Modal.error({ title: "创建分类失败", content: reason instanceof Error ? reason.message : "无法创建分类" });
+    }
+  }));
+  return <>
+    <Form.Item label="分类" required>
+      <Space.Compact style={{ width: "100%" }}>
+        <Form.Item name="categoryId" noStyle rules={[{ required: true, message: "请选择或创建分类" }]}><Select style={{ width: "100%" }} placeholder={options.length ? "请选择分类" : "暂无分类，请先创建"} options={options.map((item) => ({ value: item.id, label: item.label }))} /></Form.Item>
+        <Button htmlType="button" onClick={() => setOpen(true)}>新建分类</Button>
+      </Space.Compact>
+    </Form.Item>
+    <Modal title="新建分类" open={open} onCancel={() => setOpen(false)} onOk={create} okText="创建并选中" cancelText="取消" confirmLoading={saving}>
+      <Form form={categoryForm} layout="vertical"><Form.Item name="title" label="分类名称" rules={[{ required: true, message: "请输入分类名称" }, { max: 160 }]}><Input autoFocus /></Form.Item><Form.Item name="body" label="分类说明"><Input.TextArea rows={3} maxLength={4000} /></Form.Item></Form>
+    </Modal>
+  </>;
+}
+
 function ProductCoverField({ form }: { form: ReturnType<typeof Form.useForm>[0] }) {
   const [assets, setAssets] = useState<Array<{ id: string; filename: string; alt?: string }>>([]);
   useEffect(() => { void fetch("/api/admin/media/available", { cache: "no-store" }).then((response) => response.ok ? response.json() : []).then(setAssets).catch(() => undefined); }, []);
@@ -52,14 +87,14 @@ function ProductBodyField({ name = ["translations", "en", "body"] }: { name?: (s
   </Form.Item>;
 }
 
-export function ProductForm({ categories, save }: { categories: Array<{ id: string; label: string }>; save: Action }) {
+export function ProductForm({ categories, save, saveCategory }: { categories: CategoryOption[]; save: Action; saveCategory: CategoryAction }) {
   const [form] = Form.useForm(); const [error, setError] = useState<string>(); const [pending, start] = useTransition();
   return <Card title="新增产品（保存后立即发布）"><Form form={form} layout="vertical" initialValues={{ status: "PUBLISHED", mediaIds: [] }} onValuesChange={(changed) => { const title = changed.translations?.en?.title as string | undefined; if (title && !form.getFieldValue("slug")) form.setFieldValue("slug", slugFromTitle(title)); }} onFinish={(value) => start(async () => {
     try { setError(undefined); await save({ ...value, mediaIds: value.mediaIds ?? [], scheduledAt: null, translations: collectTranslations(value.translations ?? {}), specifications: { coverMediaId: value.coverMediaId } }); form.resetFields(); Modal.success({ title: "发布成功", content: "产品已新增并成功发布。" }); }
     catch (reason) { const message = reason instanceof Error ? reason.message : "无法保存产品"; setError(message); Modal.error({ title: "发布失败", content: message }); }
   })} onFinishFailed={() => Modal.error({ title: "发布失败", content: "请检查并补全必填的产品信息。" })}>
     {error ? <p role="alert">{error}</p> : null}
-    <Form.Item name="categoryId" label="分类" rules={[{ required: true }]}><Select options={categories.map((item) => ({ value: item.id, label: item.label }))} /></Form.Item>
+    <CategoryField form={form} categories={categories} saveCategory={saveCategory} />
     <Form.Item name={["translations", "en", "title"]} label="产品标题" rules={[{ required: true }]}><Input /></Form.Item>
     <ProductBodyField />
     <Form.Item name="mediaIds" hidden><Input /></Form.Item><PublishedMediaField form={form} multiple />
@@ -69,19 +104,19 @@ export function ProductForm({ categories, save }: { categories: Array<{ id: stri
   </Form></Card>;
 }
 
-export function ArticleForm({ categories, tags, save }: { categories: Array<{ id: string; label: string }>; tags: Array<{ id: string; name: string }>; save: Action }) {
+export function ArticleForm({ categories, tags, save, saveCategory }: { categories: CategoryOption[]; tags: Array<{ id: string; name: string }>; save: Action; saveCategory: CategoryAction }) {
   const [form] = Form.useForm(); const [error, setError] = useState<string>(); const [pending, start] = useTransition();
-  return <Card title="新增文章（保存后立即发布）"><Form form={form} layout="vertical" initialValues={{ status: "PUBLISHED", tagIds: [] }} onValuesChange={(changed) => { if (changed.status && changed.status !== "DRAFT") form.setFieldValue("scheduledAt", ""); }} onFinish={(value) => start(async () => {
-    try { setError(undefined); await save({ ...value, coverMediaId: value.coverMediaId ?? null, scheduledAt: localDateTimeToIso(value.scheduledAt), translations: collectTranslations(value.translations ?? {}) }); form.resetFields(); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "无法保存文章"); }
-  })}>
+  return <Card title="新增新闻（保存后立即发布）"><Form form={form} layout="vertical" initialValues={{ status: "PUBLISHED", tagIds: [] }} onValuesChange={(changed) => { const title = changed.translations?.en?.title as string | undefined; if (title) form.setFieldValue("slug", slugFromTitle(title)); }} onFinish={(value) => start(async () => {
+    try { setError(undefined); await save({ ...value, slug: value.slug || `news-${Date.now()}`, coverMediaId: value.coverMediaId ?? null, scheduledAt: localDateTimeToIso(value.scheduledAt), translations: collectTranslations(value.translations ?? {}) }); form.resetFields(); Modal.success({ title: "发布成功", content: "新闻已新增并成功发布。" }); }
+    catch (reason) { const message = reason instanceof Error ? reason.message : "无法保存新闻"; setError(message); Modal.error({ title: "发布失败", content: message }); }
+  })} onFinishFailed={() => Modal.error({ title: "发布失败", content: "请检查并补全必填的新闻信息。" })}>
     {error ? <p role="alert">{error}</p> : null}
-    <Form.Item name="categoryId" label="分类" rules={[{ required: true }]}><Select options={categories.map((item) => ({ value: item.id, label: item.label }))} /></Form.Item>
-    <Form.Item name="slug" label="路径标识（Slug）" rules={[{ required: true }]}><Input /></Form.Item>
-    <Form.Item name="coverMediaId" hidden><Input /></Form.Item><PublishedMediaField form={form} multiple={false} />
+    <CategoryField form={form} categories={categories} saveCategory={saveCategory} />
+    <Form.Item name="slug" hidden><Input /></Form.Item>
+    <Form.Item name="coverMediaId" hidden rules={[{ required: true, message: "请选择新闻封面" }]}><Input /></Form.Item><PublishedMediaField form={form} multiple={false} />
     <Form.Item name="tagIds" label="标签"><Select mode="multiple" options={tags.map((item) => ({ value: item.id, label: item.name }))} /></Form.Item>
     <Form.Item name="status" hidden><Input /></Form.Item><TranslationTabs article />
-    <Button type="primary" htmlType="submit" loading={pending}>保存并发布文章</Button>
+    <Button type="primary" htmlType="submit" loading={pending}>保存并发布新闻</Button>
   </Form></Card>;
 }
 
@@ -99,15 +134,15 @@ export function UserUpdateForm({ user, update, protectedAdmin }: { user: { id: s
 
 function SeoPreview({ form }: { form: ReturnType<typeof Form.useForm>[0] }) { return <Form.Item shouldUpdate noStyle>{() => { const translation = form.getFieldValue(["translations", "en"]) as Translation | undefined; return <Card size="small" title="Google 搜索预览"><strong>{translation?.title || "SEO 标题预览"}</strong><p style={{ color: "#1677ff" }}>https://yueshou.example/…</p><p>{(translation?.body || "SEO 描述预览").slice(0, 160)}</p></Card>; }}</Form.Item>; }
 
-export function ExistingContentForm({ kind, initial, categories, tags = [], save }: { kind: ContentKind; initial: Record<string, unknown>; categories: Array<{ id: string; label: string }>; tags?: Array<{ id: string; name: string }>; save: Action }) {
+export function ExistingContentForm({ kind, initial, categories, tags = [], save, saveCategory }: { kind: ContentKind; initial: Record<string, unknown>; categories: CategoryOption[]; tags?: Array<{ id: string; name: string }>; save: Action; saveCategory: CategoryAction }) {
   const [form] = Form.useForm(); const [pending, start] = useTransition(); const [error, setError] = useState<string>(); const [success, setSuccess] = useState<string>(); const [version, setVersion] = useState(initial.version);
   useEffect(() => { form.setFieldValue("scheduledAt", isoToLocalDateTime(initial.scheduledAt as string | null | undefined)); }, [form, initial.scheduledAt]);
-  return <Card title={kind === "product" ? "编辑产品" : "编辑文章"}><Form form={form} layout="vertical" initialValues={{ ...initial, scheduledAt: "", translations: Object.fromEntries((initial.translations as Array<{ locale: string }>).map((item) => [item.locale, item])) }} onFinish={(value) => start(async () => {
-    try { setError(undefined); setSuccess(undefined); const result = await save({ ...initial, ...value, version, translations: collectTranslations(value.translations ?? {}), mediaIds: kind === "product" ? value.mediaIds ?? [] : undefined, specifications: kind === "product" ? { ...((initial.specifications as object | undefined) ?? {}), coverMediaId: value.coverMediaId } : undefined, tagIds: kind === "article" ? value.tagIds ?? [] : undefined, coverMediaId: kind === "article" ? value.coverMediaId ?? null : undefined, scheduledAt: null }); if (typeof result === "object" && result !== null && "version" in result && typeof result.version === "string") setVersion(result.version); setSuccess("保存并发布成功"); if (kind === "product") Modal.success({ title: "发布成功", content: "产品修改已保存并成功发布。" }); }
-    catch (reason) { const message = reason instanceof Error ? reason.message : "无法保存并发布内容"; setError(message); if (kind === "product") Modal.error({ title: "发布失败", content: message }); }
-  })} onFinishFailed={kind === "product" ? () => Modal.error({ title: "发布失败", content: "请检查并补全必填的产品信息。" }) : undefined}>
-    {error ? <p role="alert">{error}</p> : null}{success ? <p role="status">{success}</p> : null}<Form.Item name="categoryId" label="分类"><Select options={categories.map((item) => ({ value: item.id, label: item.label }))} /></Form.Item>
-    {kind === "product" ? <><Form.Item name={["translations", "en", "title"]} label="产品标题" rules={[{ required: true }]}><Input /></Form.Item><ProductBodyField /><Form.Item name="mediaIds" hidden><Input /></Form.Item><PublishedMediaField form={form} multiple /><ProductCoverField form={form} /><Form.Item name="slug" hidden><Input /></Form.Item></> : <><Form.Item name="slug" label="Slug"><Input /></Form.Item><Form.Item name="coverMediaId" hidden><Input /></Form.Item><PublishedMediaField form={form} multiple={false} /><Form.Item name="tagIds" label="Tags"><Select mode="multiple" options={tags.map((item) => ({ value: item.id, label: item.name }))} /></Form.Item><TranslationTabs article /><SeoPreview form={form} /></>}
+  return <Card title={kind === "product" ? "编辑产品" : "编辑新闻"}><Form form={form} layout="vertical" initialValues={{ ...initial, scheduledAt: "", translations: Object.fromEntries((initial.translations as Array<{ locale: string }>).map((item) => [item.locale, item])) }} onValuesChange={(changed) => { const title = changed.translations?.en?.title as string | undefined; if (kind === "article" && title) form.setFieldValue("slug", slugFromTitle(title)); }} onFinish={(value) => start(async () => {
+    try { setError(undefined); setSuccess(undefined); const result = await save({ ...initial, ...value, version, translations: collectTranslations(value.translations ?? {}), mediaIds: kind === "product" ? value.mediaIds ?? [] : undefined, specifications: kind === "product" ? { ...((initial.specifications as object | undefined) ?? {}), coverMediaId: value.coverMediaId } : undefined, tagIds: kind === "article" ? value.tagIds ?? [] : undefined, coverMediaId: kind === "article" ? value.coverMediaId ?? null : undefined, scheduledAt: null }); if (typeof result === "object" && result !== null && "version" in result && typeof result.version === "string") setVersion(result.version); setSuccess("保存并发布成功"); Modal.success({ title: "发布成功", content: kind === "product" ? "产品修改已保存并成功发布。" : "新闻修改已保存并成功发布。" }); }
+    catch (reason) { const message = reason instanceof Error ? reason.message : "无法保存并发布内容"; setError(message); Modal.error({ title: "发布失败", content: message }); }
+  })} onFinishFailed={() => Modal.error({ title: "发布失败", content: kind === "product" ? "请检查并补全必填的产品信息。" : "请检查并补全必填的新闻信息。" })}>
+    {error ? <p role="alert">{error}</p> : null}{success ? <p role="status">{success}</p> : null}<CategoryField form={form} categories={categories} saveCategory={saveCategory} />
+    {kind === "product" ? <><Form.Item name={["translations", "en", "title"]} label="产品标题" rules={[{ required: true }]}><Input /></Form.Item><ProductBodyField /><Form.Item name="mediaIds" hidden><Input /></Form.Item><PublishedMediaField form={form} multiple /><ProductCoverField form={form} /><Form.Item name="slug" hidden><Input /></Form.Item></> : <><Form.Item name="slug" hidden><Input /></Form.Item><Form.Item name="coverMediaId" hidden rules={[{ required: true, message: "请选择新闻封面" }]}><Input /></Form.Item><PublishedMediaField form={form} multiple={false} /><Form.Item name="tagIds" label="标签"><Select mode="multiple" options={tags.map((item) => ({ value: item.id, label: item.name }))} /></Form.Item><TranslationTabs article /><SeoPreview form={form} /></>}
     <Form.Item name="status" hidden><Input /></Form.Item><Button type="primary" htmlType="submit" loading={pending}>保存并立即发布</Button>
   </Form></Card>;
 }

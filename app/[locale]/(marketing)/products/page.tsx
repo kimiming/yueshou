@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
 import { ContentLanguageFallbackNotice } from "@/components/marketing/content-language-fallback";
 import { HomeProductShowcase } from "@/components/marketing/home-product-showcase";
+import { RichContent } from "@/components/marketing/rich-content";
 import { getPageBySlug, getPublishedProducts } from "@/features/content/service";
 import { toShowcaseProducts } from "@/features/content/showcase-products";
 import { buildMetadata } from "@/features/seo/metadata";
@@ -36,9 +37,10 @@ export default async function ProductsPage({ params }: ProductsPageProps) {
   return (
     <main id="main-content" className="marketing-container products-page">
       <Breadcrumbs label={dictionary.marketing.public.breadcrumbs} items={[{ label: dictionary.navigation.home, href: `/${locale}` }, { label: page.title }]} />
-      <header lang={page.translationLocale}>
+      <header className="marketing-page-hero" lang={page.translationLocale}>
         <ContentLanguageFallbackNotice usedFallback={page.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
-        <h1>{page.title}</h1>
+        <h1 className="marketing-page-title">{page.title}</h1>
+        <RichContent html={page.body} className="marketing-page-hero__description" />
       </header>
       <HomeProductShowcase locale={locale} products={showcaseProducts} label={dictionary.marketing.public.catalog} />
     </main>

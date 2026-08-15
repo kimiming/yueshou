@@ -64,6 +64,7 @@ export function MediaPicker({
   available = [],
   multiple = false,
   showCatalogue = true,
+  title,
 }: {
   value?: MediaValue;
   onChange?(value: string | string[] | undefined): void;
@@ -71,6 +72,7 @@ export function MediaPicker({
   available?: Asset[];
   multiple?: boolean;
   showCatalogue?: boolean;
+  title?: string;
 }) {
   const [fetchedCatalogue, setFetchedCatalogue] = useState<Asset[]>([]);
   const [uploadedAssets, setUploadedAssets] = useState<Asset[]>([]);
@@ -137,7 +139,7 @@ export function MediaPicker({
   };
 
   const preview = (asset: Asset) => asset.mimeType?.startsWith("video/") ? <video src={`/api/admin/media/${encodeURIComponent(asset.id)}`} muted preload="metadata" /> : <img src={`/api/admin/media/${encodeURIComponent(asset.id)}`} alt={asset.alt || asset.filename} loading="lazy" />;
-  return <Card size="small" title="产品媒体">
+  return <Card size="small" title={title ?? (multiple ? "产品媒体" : "新闻封面")}>
     <Space orientation="vertical" style={{ width: "100%" }}>
       <Typography.Text>{selectedIds.length ? `已选择 ${selectedIds.length} 个媒体` : "尚未选择媒体"}</Typography.Text>
       {selectedIds.length ? <div className="admin-selected-media">{selectedIds.map((id) => { const asset = catalogue.find((item) => item.id === id) ?? { id, filename: id, alt: "" }; return <div className="admin-selected-media__item" key={id}>{preview(asset)}<div className="admin-selected-media__footer"><span title={asset.filename}>{asset.filename}</span><Button size="small" danger onClick={() => select(id)}>移除</Button></div></div>; })}</div> : null}

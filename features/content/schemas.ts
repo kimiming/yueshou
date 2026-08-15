@@ -83,6 +83,9 @@ const pageSectionConfigSchemas = {
     imageId: z.string().cuid().optional(),
     imageIds: z.array(z.string().cuid()).max(3).optional(),
   }),
+  factory: z.object({
+    imageIds: z.array(z.string().cuid()).max(12).default([]),
+  }),
   capabilities: z.object({
     itemIds: referenceIdsSchema,
     imageIds: z.array(z.string().cuid()).max(4).optional(),
@@ -111,6 +114,7 @@ export const pageSectionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("hero"), config: pageSectionConfigSchemas.hero }),
   z.object({ type: z.literal("services"), config: pageSectionConfigSchemas.services }),
   z.object({ type: z.literal("about"), config: pageSectionConfigSchemas.about }),
+  z.object({ type: z.literal("factory"), config: pageSectionConfigSchemas.factory }),
   z.object({ type: z.literal("capabilities"), config: pageSectionConfigSchemas.capabilities }),
   z.object({ type: z.literal("quality"), config: pageSectionConfigSchemas.quality }),
   z.object({

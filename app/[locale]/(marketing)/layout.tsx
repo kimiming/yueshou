@@ -6,6 +6,7 @@ import { ConsentRuntime } from "@/components/consent/analytics-consent-boundary"
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { WhatsAppFloat } from "@/components/marketing/whatsapp-float";
+import { MessageFloat } from "@/components/marketing/message-float";
 import { SeoJsonLd } from "@/components/marketing/seo-json-ld";
 import {
   BRAND_SLOGAN,
@@ -56,13 +57,15 @@ export default async function MarketingLayout({ children, params }: MarketingLay
   }
 
   const shell = createMarketingShellViewModel(result.content, dictionary);
+  const whatsappHref = shell.socialLinks.find((link) => link.label.toLowerCase() === "whatsapp" || new URL(link.href).hostname === "wa.me")?.href;
   return (
     <>
       <SeoJsonLd data={[organizationJsonLd(result.content), websiteJsonLd()]} />
       <SiteHeader model={shell} />
       {children}
       <SiteFooter model={shell} />
-      <WhatsAppFloat locale={locale} />
+      <WhatsAppFloat locale={locale} href={whatsappHref} />
+      <MessageFloat />
       <ConsentRuntime labels={dictionary.consent} initialPreferences={consentPreferences}>
         <div data-analytics-enabled hidden />
       </ConsentRuntime>

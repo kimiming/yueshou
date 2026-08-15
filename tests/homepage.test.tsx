@@ -245,8 +245,7 @@ describe("semantic marketing homepage", () => {
     expect(screen.getByRole("link", { name: "Deutsch" })).toHaveAttribute("href", "/de/about");
     expect(screen.getByRole("link", { name: "Email: research@example.test" })).toHaveAttribute("href", "mailto:research@example.test");
     expect(screen.getByRole("link", { name: "Phone: +49 30 123456" })).toHaveAttribute("href", "tel:+4930123456");
-    expect(screen.getByRole("banner")).toHaveTextContent("Search");
-    expect(screen.getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en/search");
+    expect(screen.queryByRole("link", { name: "Search" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Request a Quote" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Discuss a project" })).not.toBeInTheDocument();
     expect(screen.getByText("Research use only.")).toBeInTheDocument();
@@ -270,13 +269,12 @@ describe("semantic marketing homepage", () => {
       menuLabel="Menu"
       closeLabel="Close"
       items={[{ id: "parent", label: "Services", href: "/en/services", enabled: true, sortOrder: 1, children: [{ id: "child", label: "Custom synthesis", href: "/en/services/custom", enabled: true, sortOrder: 1 }] }]}
-      searchAction={{ label: "Search", href: "/en/search" }}
     />);
 
     fireEvent.click(screen.getByRole("button", { name: "Menu" }));
     const navigation = screen.getByRole("navigation", { name: "Mobile navigation" });
     expect(within(navigation).getByRole("link", { name: "Custom synthesis" })).toHaveAttribute("href", "/en/services/custom");
-    expect(within(navigation).getByRole("link", { name: "Search" })).toHaveAttribute("href", "/en/search");
+    expect(within(navigation).queryByRole("link", { name: "Search" })).not.toBeInTheDocument();
     expect(within(navigation).queryByRole("link", { name: "Request a Quote" })).not.toBeInTheDocument();
   });
 
@@ -286,7 +284,6 @@ describe("semantic marketing homepage", () => {
       menuLabel="Menu"
       closeLabel="Close"
       items={[{ id: "products", label: "Products", href: "/en/products", enabled: true, sortOrder: 1 }]}
-      searchAction={{ label: "Search", href: "/en/search" }}
     />);
 
     const toggle = screen.getByRole("button", { name: "Menu" });

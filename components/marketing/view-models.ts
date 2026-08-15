@@ -43,6 +43,7 @@ function mapSection(section: PageViewModel["sections"][number]): MarketingSectio
         : undefined,
       value: item.value,
       href: item.href ? localizeHref(item.href, section.locale) : undefined,
+      media: item.media ? { src: publicMediaUrl(item.media.id), alt: item.media.alt } : undefined,
     })),
     media: section.media ? {
       src: publicMediaUrl(section.media.id),

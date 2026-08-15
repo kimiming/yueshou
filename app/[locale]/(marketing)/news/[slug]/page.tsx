@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Image from "next/image";
 
 import { Breadcrumbs } from "@/components/marketing/breadcrumbs";
 import { ContentLanguageFallbackNotice } from "@/components/marketing/content-language-fallback";
@@ -11,7 +10,6 @@ import { buildMetadata } from "@/features/seo/metadata";
 import { isPublicContentSlug } from "@/features/content/public-slug";
 import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
-import { publicMediaUrl } from "@/features/media/public-url";
 
 export const dynamic = "auto";
 
@@ -55,7 +53,6 @@ export default async function NewsArticlePage({ params }: NewsArticlePageProps) 
         <p>{article.category.title}</p>
         <h1>{article.title}</h1>
         {article.publishedAt ? <time dateTime={article.publishedAt}>{new Intl.DateTimeFormat(locale).format(new Date(article.publishedAt))}</time> : null}
-        {article.coverMedia ? <Image src={publicMediaUrl(article.coverMedia.id)} alt={article.coverMedia.alt} width={article.coverMedia.width ?? 1200} height={article.coverMedia.height ?? 675} /> : null}
         <RichContent html={article.body} />
       </article>
     </main>

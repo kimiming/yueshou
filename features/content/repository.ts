@@ -175,6 +175,7 @@ export type PublishedPageRecord = {
       | "HERO"
       | "SERVICES"
       | "ABOUT"
+      | "FACTORY"
       | "CAPABILITIES"
       | "QUALITY"
       | "PRODUCT_CATEGORIES"
@@ -233,6 +234,8 @@ export interface ContentRepository {
   findPublishedHomepageItemsByIds(ids: string[]): Promise<PublishedHomepageItemRecord[]>;
   findPublishedProductCategoriesByIds(ids: string[]): Promise<PublishedProductCategoryRecord[]>;
   findLatestPublishedArticles(count: number): Promise<PublishedArticleRecord[]>;
+  findPublishedArticlesPage(offset: number, limit: number): Promise<PublishedArticleRecord[]>;
+  countPublishedArticles(): Promise<number>;
   findPublishedSiteSettingByKey(key: string): Promise<PublishedSiteSettingRecord | null>;
   findPublishedNavigationItems(): Promise<PublishedNavigationRecord[]>;
   findSitemapContent(): Promise<SitemapContentRecord[]>;
@@ -452,6 +455,35 @@ export function createContentRepository(database: ContentDatabase) {
         (record): record is typeof record & { publishedAt: Date } =>
           record.publishedAt !== null,
       );
+    },
+
+    async findPublishedArticlesPage(offset: number, limit: number): Promise<PublishedArticleRecord[]> {
+      const records = await database.article.findMany({
+        where: {
+          status: "PUBLISHED",
+          publishedAt: { not: null },
+          deletedAt: null,
+          category: { is: { status: "PUBLISHED", deletedAt: null } },
+        },
+        orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
+        skip: offset,
+        take: limit,
+        include: articleInclude,
+      });
+      return records.filter(
+        (record): record is typeof record & { publishedAt: Date } => record.publishedAt !== null,
+      );
+    },
+
+    countPublishedArticles() {
+      return database.article.count({
+        where: {
+          status: "PUBLISHED",
+          publishedAt: { not: null },
+          deletedAt: null,
+          category: { is: { status: "PUBLISHED", deletedAt: null } },
+        },
+      });
     },
 
     findPublishedSiteSettingByKey(key: string): Promise<PublishedSiteSettingRecord | null> {

@@ -37,15 +37,17 @@ export default async function ServicesPage({ params }: ServicesPageProps) {
   if (!page) notFound();
 
   return (
-    <main id="main-content" className="marketing-container">
+    <main id="main-content" className="marketing-container services-page">
       <Breadcrumbs label={dictionary.marketing.public.breadcrumbs} items={[
         { label: dictionary.navigation.home, href: `/${locale}` },
         { label: page.title },
       ]} />
       <div lang={page.translationLocale}>
         <ContentLanguageFallbackNotice usedFallback={page.usedFallback} message={dictionary.marketing.accessibility.fallbackNotice} />
-        <h1>{page.title}</h1>
-        <RichContent html={page.body} />
+        <header className="marketing-page-hero">
+          <h1 className="marketing-page-title">{page.title}</h1>
+          <RichContent html={page.body} className="marketing-page-hero__description" />
+        </header>
       </div>
       <section className="services-product-reference" aria-label={dictionary.navigation.services}>
         <ProductReferenceTable />
