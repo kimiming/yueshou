@@ -474,7 +474,7 @@ async function main() {
             { label: "Instagram", href: "https://www.instagram.com" },
             { label: "X", href: "https://x.com" },
             { label: "TikTok", href: "https://www.tiktok.com" },
-            { label: "WhatsApp", href: "https://wa.me/8613435855558" },
+            { label: "WhatsApp", href: "https://wa.me/+8613438855558" },
           ],
         },
         status: PublishStatus.PUBLISHED,

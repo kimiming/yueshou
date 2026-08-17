@@ -10,7 +10,7 @@ export function ContactMessageForm({ onSuccess }: { onSuccess?: () => void }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   const [success, setSuccess] = useState(false);
-  const submit = (values: { name: string; email: string; whatsapp: string; message: string }) => startTransition(async () => {
+  const submit = (values: { name: string; email: string; whatsapp?: string; message?: string }) => startTransition(async () => {
     try {
       setError(undefined);
       await submitContactMessageAction(values);
@@ -26,8 +26,8 @@ export function ContactMessageForm({ onSuccess }: { onSuccess?: () => void }) {
     {success ? <Alert type="success" showIcon message="Thank you. Your message has been sent." closable onClose={() => setSuccess(false)} style={{ marginBottom: 16 }} /> : null}
     <Form.Item name="name" label="Your Name" rules={[{ required: true }, { min: 2 }, { max: 200 }]}><Input autoComplete="name" /></Form.Item>
     <Form.Item name="email" label="Your Email" rules={[{ required: true }, { type: "email" }]}><Input type="email" autoComplete="email" /></Form.Item>
-    <Form.Item name="whatsapp" label="Your WhatsApp" extra="Phone number with country code" rules={[{ required: true }, { min: 5 }, { max: 60 }]}><Input type="tel" autoComplete="tel" placeholder="+86 134 3585 5558" /></Form.Item>
-    <Form.Item name="message" label="Message" rules={[{ required: true }, { min: 10 }, { max: 10000 }]}><Input.TextArea rows={5} /></Form.Item>
+    <Form.Item name="whatsapp" label="Your WhatsApp (Optional)" extra="Phone number with country code" rules={[{ max: 60 }]}><Input type="tel" autoComplete="tel" placeholder="+86 134 3585 5558" /></Form.Item>
+    <Form.Item name="message" label="Message (Optional)" rules={[{ max: 10000 }]}><Input.TextArea rows={5} /></Form.Item>
     <Button type="primary" htmlType="submit" loading={pending} block size="large">Send Message</Button>
   </Form>;
 }

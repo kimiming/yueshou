@@ -1,7 +1,7 @@
 "use client";
 
 import { Button, Divider, Input, Modal, Select, Space, Tooltip } from "antd";
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 type RichTextEditorProps = {
   id?: string;
@@ -31,15 +31,18 @@ function sanitizeEditorHtml(html: string) {
 export function RichTextEditor({ id, label, value = "", onChange, placeholder = "输入产品内容" }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const lastValueRef = useRef(value);
+  const initializedRef = useRef(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const selectionRef = useRef<Range | null>(null);
 
-  useEffect(() => {
-    if (!editorRef.current || value === lastValueRef.current) return;
-    editorRef.current.innerHTML = value;
+  useLayoutEffect(() => {
+    if (!editorRef.current) return;
+    if (initializedRef.current && value === lastValueRef.current) return;
+    if (editorRef.current.innerHTML !== value) editorRef.current.innerHTML = value;
     lastValueRef.current = value;
+    initializedRef.current = true;
   }, [value]);
 
   const emitChange = () => {
@@ -125,7 +128,6 @@ export function RichTextEditor({ id, label, value = "", onChange, placeholder = 
         className="admin-rich-editor__surface"
         contentEditable
         data-placeholder={placeholder}
-        dangerouslySetInnerHTML={{ __html: value }}
         onInput={emitChange}
         onBlur={emitChange}
         role="textbox"

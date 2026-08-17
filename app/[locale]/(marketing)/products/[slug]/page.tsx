@@ -11,7 +11,7 @@ import { isLocale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { productCoverMedia } from "@/features/content/product-cover";
 import { ProductGallery } from "@/components/marketing/product-gallery";
-import { WHATSAPP_NUMBER } from "@/components/marketing/whatsapp-float";
+import { WHATSAPP_HREF } from "@/components/marketing/whatsapp-float";
 
 export const dynamic = "auto";
 
@@ -35,8 +35,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const dictionary = await getDictionary(locale);
   const coverMedia = productCoverMedia(product);
   const gallery = coverMedia ? [coverMedia, ...product.media.filter((item) => item.id !== coverMedia.id)] : product.media;
-  const whatsappHref = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(`Hello, I would like to inquire about ${product.title}.`)}`;
-
   return (
     <main id="main-content" className="marketing-container product-detail-page">
       <SeoJsonLd
@@ -69,7 +67,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               </dl>
             ) : null}
             <RichContent html={product.body} />
-            <a className="product-detail__whatsapp" href={whatsappHref} target="_blank" rel="noopener noreferrer">Inquire on WhatsApp</a>
+            <a className="product-detail__whatsapp" href={WHATSAPP_HREF} target="_blank" rel="noopener noreferrer">Inquire on WhatsApp</a>
           </div>
         </div>
       </article>

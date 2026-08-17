@@ -18,6 +18,7 @@ import { getDictionary } from "@/lib/i18n/dictionaries";
 import { isLocale, type Locale } from "@/lib/i18n/config";
 import { organizationJsonLd, websiteJsonLd } from "@/features/seo/json-ld";
 import { CONSENT_COOKIE_NAME, parseConsentCookie } from "@/features/consent/preferences";
+import { TrafficTracker } from "@/components/analytics/traffic-tracker";
 
 type MarketingLayoutProps = {
   children: ReactNode;
@@ -67,7 +68,7 @@ export default async function MarketingLayout({ children, params }: MarketingLay
       <WhatsAppFloat locale={locale} href={whatsappHref} />
       <MessageFloat />
       <ConsentRuntime labels={dictionary.consent} initialPreferences={consentPreferences}>
-        <div data-analytics-enabled hidden />
+        <TrafficTracker />
       </ConsentRuntime>
     </>
   );

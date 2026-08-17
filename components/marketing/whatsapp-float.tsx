@@ -4,7 +4,7 @@ import { Tooltip } from "antd";
 
 import type { Locale } from "@/lib/i18n/config";
 
-export const WHATSAPP_NUMBER = "8613435855558";
+export const WHATSAPP_HREF = "https://wa.me/+8613438855558";
 
 export function WhatsAppFloat({ locale, href }: { locale: Locale; href?: string }) {
   const label = locale === "zh-CN" ? "通过 WhatsApp 联系客服" : "Contact us on WhatsApp";
@@ -14,7 +14,7 @@ export function WhatsAppFloat({ locale, href }: { locale: Locale; href?: string 
     <Tooltip title={label} placement="left">
       <a
         className="whatsapp-float"
-        href={href}
+        href={WHATSAPP_HREF}
         target="_blank"
         rel="noopener noreferrer"
         aria-label={label}

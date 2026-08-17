@@ -14,8 +14,8 @@ import { prisma } from "@/lib/db/prisma";
 const messageSchema = z.object({
   name: z.string().trim().min(2, "请输入您的姓名").max(200),
   email: z.string().trim().toLowerCase().email("请输入有效邮箱").max(254),
-  whatsapp: z.string().trim().min(5, "请输入包含国家代码的 WhatsApp 号码").max(60),
-  message: z.string().trim().min(10, "留言内容至少需要 10 个字符").max(10_000),
+  whatsapp: z.string().trim().max(60).optional().transform((value) => value || undefined),
+  message: z.string().trim().max(10_000).optional().transform((value) => value || undefined),
 });
 
 function digest(secret: string, namespace: string, value: string) {
@@ -43,7 +43,7 @@ export async function submitContactMessageAction(input: unknown) {
       contactName: data.name,
       email: data.email,
       whatsapp: data.whatsapp,
-      message: data.message,
+      message: data.message ?? "",
       source: "CONTACT_MESSAGE",
       consentRecords: { create: {
         subject: data.email,
