@@ -441,7 +441,9 @@ function serviceFromRepository(repository: ContentRepository) {
       const brandingMediaIds = unique([contact.logoMediaId, contact.faviconMediaId]);
       const brandingMedia = brandingMediaIds.length ? await repository.findPublishedMediaByIds(brandingMediaIds) : [];
       const mediaById = new Map(brandingMedia.map((item) => [item.id, item]));
+      const publicMenuHrefs = new Set(["/", "/about", "/services", "/products", "/news", "/contact"]);
       const flatNavigation = navigationRecords
+        .filter((item) => publicMenuHrefs.has(item.href))
         .map((item) => {
           const translation = resolveTranslation(item.translations, toDatabaseLocale(locale));
           return {

@@ -194,13 +194,7 @@ the complete stack only after restore succeeds. This preserves uploaded CMS
 images, private attachments, content records, users, and every database reference
 as one consistent deployment unit.
 
-Run a manual backup from PowerShell:
-
-```powershell
-./deploy/backup/backup.ps1
-```
-
-or Linux:
+Run a manual backup from Linux:
 
 ```sh
 docker compose --env-file .env.docker run --rm --no-deps --entrypoint /backup/backup.sh backup
@@ -211,14 +205,7 @@ PostgreSQL URL, and the literal confirmation `RESTORE`. It accepts only an atomi
 `COMPLETE` directory and verifies the archive checksum, decryption, and tar
 readability before destructive database work. Restore to a separate database first:
 
-```powershell
-./deploy/backup/restore.ps1 `
-  -BackupDirectory /backups/2026-08-09T01-00-00Z `
-  -TargetDatabaseUrl 'postgresql://restore-user:encoded-password@restore-host:5432/yueshou_restore' `
-  -ConfirmRestore RESTORE
-```
-
-Linux uses the same explicit entrypoint form:
+Use the explicit restore entrypoint:
 
 ```sh
 docker compose --env-file .env.docker run --rm --no-deps --entrypoint /backup/restore.sh \

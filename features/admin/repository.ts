@@ -6,43 +6,10 @@ import { isLegalPageSlug } from "@/features/content/public-slug";
 import { prisma } from "@/lib/db/prisma";
 import { toDatabaseLocale } from "@/lib/i18n/config";
 
-import type { AdminDashboardRepository } from "./dashboard";
 import { EditorValidationError, type AdminEditorRepository } from "./editors";
 import { validatePagePublication } from "./publication";
 import { assertExactLiveSet } from "./ordering";
 import { validateSectionReferences } from "./section-references";
-
-const requiredLocales = new Set(["en", "zh_CN", "de", "fr", "es"]);
-
-function missingLocaleCount(records: Array<{ translations: Array<{ locale: string }> }>): number {
-  return records.reduce((total, record) => {
-    const present = new Set(record.translations.map((translation) => translation.locale));
-    return total + [...requiredLocales].filter((locale) => !present.has(locale)).length;
-  }, 0);
-}
-
-export const prismaAdminDashboardRepository: AdminDashboardRepository = {
-  async countDraftContent() {
-    const counts = await Promise.all([
-      prisma.page.count({ where: { status: "DRAFT", deletedAt: null } }),
-      prisma.service.count({ where: { status: "DRAFT", deletedAt: null } }),
-      prisma.product.count({ where: { status: "DRAFT", deletedAt: null } }),
-      prisma.article.count({ where: { status: "DRAFT", deletedAt: null } }),
-    ]);
-    return counts.reduce((total, count) => total + count, 0);
-  },
-  async countMissingTranslations() {
-    const groups = await Promise.all([
-      prisma.page.findMany({ where: { deletedAt: null }, select: { translations: { select: { locale: true } } } }),
-      prisma.service.findMany({ where: { deletedAt: null }, select: { translations: { select: { locale: true } } } }),
-      prisma.product.findMany({ where: { deletedAt: null }, select: { translations: { select: { locale: true } } } }),
-      prisma.article.findMany({ where: { deletedAt: null }, select: { translations: { select: { locale: true } } } }),
-    ]);
-    return groups.reduce((total, records) => total + missingLocaleCount(records), 0);
-  },
-  countOpenInquiries() { return prisma.inquiry.count({ where: { status: { in: ["NEW", "IN_PROGRESS"] } } }); },
-  listRecentAuditEntries() { return prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 5, select: { id: true, action: true, entityType: true, createdAt: true } }); },
-};
 
 const sectionTypeByEditorType = {
   hero: "HERO",

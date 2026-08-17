@@ -1,129 +1,47 @@
 "use client";
 
-import { Button, Card, Form, Input, Modal, Select, Space, Switch, Tabs, Typography } from "antd";
+import { Button, Form, Input, Modal, Space, Tabs, Typography } from "antd";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { SUPPORTED_LOCALES, type Locale } from "@/lib/i18n/config";
-import { ContentReferencePicker, type ContentReferenceOption } from "./content-management-forms";
-import { MediaPicker } from "./media-picker";
 
 type Mutation = (input: unknown) => Promise<unknown>;
-type Translation = { locale: Locale; title: string; body: string; alt?: string; seoTitle?: string; seoDescription?: string };
+type Translation = { locale: Locale; title: string; body: string; alt?: string };
 
-function TranslationFields({ media = false, page = false }: { media?: boolean; page?: boolean }) {
-  return <Tabs items={SUPPORTED_LOCALES.map((locale) => ({ key: locale, label: locale === "en" ? (media ? "English (default)" : "English (required)") : locale, children: <Space direction="vertical" style={{ width: "100%" }}><Form.Item name={["translations", locale, "title"]} label="Title" rules={[{ required: locale === "en" && !media }]}><Input placeholder={media ? "留空则使用文件名" : undefined} /></Form.Item><Form.Item name={["translations", locale, "body"]} label="Body" rules={[{ required: locale === "en" && !media }]}><Input.TextArea rows={4} /></Form.Item>{page ? <><Form.Item name={["translations", locale, "seoTitle"]} label="SEO title"><Input /></Form.Item><Form.Item name={["translations", locale, "seoDescription"]} label="SEO description"><Input.TextArea rows={2} /></Form.Item></> : null}{media ? <Form.Item name={["translations", locale, "alt"]} label="Alternative text"><Input placeholder="留空则使用文件名" /></Form.Item> : null}</Space> }))} />;
+function TranslationFields() {
+  return <Tabs items={SUPPORTED_LOCALES.map((locale) => ({
+    key: locale,
+    label: locale === "en" ? "English (default)" : locale,
+    children: <Space direction="vertical" style={{ width: "100%" }}>
+      <Form.Item name={["translations", locale, "title"]} label="Title"><Input placeholder="留空则使用文件名" /></Form.Item>
+      <Form.Item name={["translations", locale, "body"]} label="Body"><Input.TextArea rows={4} /></Form.Item>
+      <Form.Item name={["translations", locale, "alt"]} label="Alternative text"><Input placeholder="留空则使用文件名" /></Form.Item>
+    </Space>,
+  }))} />;
 }
 
-function toTranslations(value: Record<string, { title?: string; body?: string; alt?: string; seoTitle?: string; seoDescription?: string }>) {
-  return SUPPORTED_LOCALES.flatMap((locale) => {
-    const translation = value[locale];
-    return translation?.title ? [{ locale, title: translation.title, body: translation.body ?? "", ...(translation.alt === undefined ? {} : { alt: translation.alt }), ...(translation.seoTitle === undefined ? {} : { seoTitle: translation.seoTitle }), ...(translation.seoDescription === undefined ? {} : { seoDescription: translation.seoDescription }) }] : [];
-  });
-}
-
-export function SiteSettingsForm({ initial, save, mediaOptions = [] }: { initial: { key: string; version: string | null; value: Record<string, unknown>; translations: Translation[]; status: string }; save: Mutation; mediaOptions?: Array<{ id: string; filename: string; alt: string }> }) {
-  const [form] = Form.useForm(); const [pending, startTransition] = useTransition(); const [error, setError] = useState<string>(); const [success, setSuccess] = useState<string>();
-  const translations = Object.fromEntries(initial.translations.map((item) => [item.locale, item]));
-  return <Form form={form} layout="vertical" initialValues={{ value: initial.value, status: initial.status, translations }} onFinish={(values) => startTransition(async () => { try { setError(undefined); setSuccess(undefined); await save({ key: initial.key, version: initial.version, status: values.status, value: values.value ?? {}, translations: toTranslations(values.translations ?? {}) }); setSuccess("Settings saved"); } catch { setError("Could not save settings. Please reload and try again."); } })}>
-    {error ? <p role="alert">{error}</p> : null}{success ? <p role="status">{success}</p> : null}<Form.Item name="status" label="Publication status"><Select options={["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => ({ value }))} /></Form.Item><Form.Item name={["value", "companyName"]} label="Company name"><Input /></Form.Item><Form.Item name={["value", "slogan"]} label="Slogan"><Input /></Form.Item><Form.Item name={["value", "email"]} label="Email"><Input type="email" /></Form.Item><Form.Item name={["value", "phone"]} label="Phone"><Input /></Form.Item><Form.List name={["value", "addressLines"]}>{(fields, { add, remove }) => <Card size="small" title="Company address">{fields.map((field) => <Space key={field.key}><Form.Item {...field}><Input aria-label="Address line" /></Form.Item><Button onClick={() => remove(field.name)}>Remove</Button></Space>)}<Button onClick={() => add()}>Add address line</Button></Card>}</Form.List><Card size="small" title="Logo media" data-testid="logo-media-picker"><Form.Item name={["value", "logoMediaId"]} hidden><Input /></Form.Item><Form.Item shouldUpdate noStyle>{() => <MediaPicker available={mediaOptions} value={form.getFieldValue(["value", "logoMediaId"]) as string | undefined} onChange={(value) => form.setFieldValue(["value", "logoMediaId"], value)} />}</Form.Item></Card><Card size="small" title="Favicon media" data-testid="favicon-media-picker"><Form.Item name={["value", "faviconMediaId"]} hidden><Input /></Form.Item><Form.Item shouldUpdate noStyle>{() => <MediaPicker available={mediaOptions} value={form.getFieldValue(["value", "faviconMediaId"]) as string | undefined} onChange={(value) => form.setFieldValue(["value", "faviconMediaId"], value)} />}</Form.Item></Card><Form.List name={["value", "socialLinks"]}>{(fields, { add, remove }) => <Card size="small" title="Social links">{fields.map((field) => <Space key={field.key}><Form.Item {...field} name={[field.name, "label"]}><Input aria-label="Social label" /></Form.Item><Form.Item {...field} name={[field.name, "href"]}><Input aria-label="Social HTTPS link" /></Form.Item><Button onClick={() => remove(field.name)}>Remove</Button></Space>)}<Button onClick={() => add()}>Add social link</Button></Card>}</Form.List><Card size="small" title="Default SEO"><Form.Item name={["value", "defaultSeo", "title"]} label="SEO title"><Input /></Form.Item><Form.Item name={["value", "defaultSeo", "description"]} label="SEO description"><Input.TextArea /></Form.Item><Form.Item name={["value", "defaultSeo", "keywords"]} label="SEO keywords"><Select mode="tags" /></Form.Item></Card><Form.List name={["value", "footerColumns"]}>{(fields, { add, remove }) => <Card size="small" title="Footer columns">{fields.map((field) => <Card key={field.key} size="small"><Form.Item {...field} name={[field.name, "heading"]} label="Heading"><Input aria-label="Footer heading" /></Form.Item><Form.List name={[field.name, "links"]}>{(links, { add: addLink, remove: removeLink }) => <>{links.map((link) => <Space key={link.key}><Form.Item {...link} name={[link.name, "label"]}><Input aria-label="Footer link label" /></Form.Item><Form.Item {...link} name={[link.name, "href"]}><Input aria-label="Footer link href" /></Form.Item><Button onClick={() => removeLink(link.name)}>Remove link</Button></Space>)}<Button onClick={() => addLink()}>Add footer link</Button></>}</Form.List><Button onClick={() => remove(field.name)}>Remove column</Button></Card>)}<Button onClick={() => add({ links: [] })}>Add footer column</Button></Card>}</Form.List><TranslationFields /><Button htmlType="submit" type="primary" loading={pending}>Save settings</Button>
-  </Form>;
-}
-
-export function NavigationEditorForm({ initial, save }: { initial: { id?: string; slug: string; href: string; parentId: string | null; position: number; isVisible: boolean; version: string | null; translations: Array<{ locale: Locale; title: string }>; status: string }; save: Mutation }) {
-  const [form] = Form.useForm(); const [pending, startTransition] = useTransition(); const [error, setError] = useState<string>();
-  return <Form form={form} layout="vertical" initialValues={{ ...initial, translations: Object.fromEntries(initial.translations.map((item) => [item.locale, item])) }} onFinish={(values) => startTransition(async () => { try { setError(undefined); await save({ ...initial, ...values, position: Number(values.position), isVisible: Boolean(values.isVisible), parentId: values.parentId || null, translations: SUPPORTED_LOCALES.flatMap((locale) => values.translations?.[locale]?.title ? [{ locale, title: values.translations[locale].title }] : []) }); } catch { setError("Could not save this navigation item."); } })}><Form.Item name="slug" label="Slug" rules={[{ required: true }]}><Input /></Form.Item><Form.Item name="href" label="Link"><Input /></Form.Item><Form.Item name="parentId" label="Parent menu ID"><Input /></Form.Item><Form.Item name="position" label="Position"><Input type="number" /></Form.Item><Form.Item name="status" label="Publication status"><Select options={["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => ({ value }))} /></Form.Item><Form.Item name="isVisible" valuePropName="checked" label="Visible"><Switch onChange={() => form.submit()} /></Form.Item>{error ? <p role="alert">{error}</p> : null}<Tabs items={SUPPORTED_LOCALES.map((locale) => ({ key: locale, label: locale, children: <Form.Item name={["translations", locale, "title"]} label="Label" rules={[{ required: locale === "en" }]}><Input /></Form.Item> }))} /><Button htmlType="submit" loading={pending}>Save menu item</Button></Form>;
-}
-
-export function PageEditorForm({ initial, save, publish, archive, approve, transition, allowArchive }: { initial: { id: string; slug: string; version: string; status?: string; contentRevision?: number; legalReviewStatus?: "NOT_REQUIRED" | "PENDING" | "APPROVED"; translations: Translation[] }; save: Mutation; publish: Mutation; archive: Mutation; approve?: Mutation; transition?: Mutation; allowArchive: boolean }) {
-  const [form] = Form.useForm(); const [pending, startTransition] = useTransition(); const [error, setError] = useState<string>(); const [success, setSuccess] = useState<string>(); const [dirty, setDirty] = useState(false); const [persistedVersion, setPersistedVersion] = useState(initial.version); const [contentRevision, setContentRevision] = useState(initial.contentRevision); const [legalReviewStatus, setLegalReviewStatus] = useState(initial.legalReviewStatus);
-  const acceptPersistedResult = (result: unknown) => { if (typeof result !== "object" || result === null) return; if ("version" in result && typeof result.version === "string") setPersistedVersion(result.version); if ("contentRevision" in result && typeof result.contentRevision === "number") setContentRevision(result.contentRevision); };
-  const submit = (kind: "save" | "publish" | "archive") => startTransition(async () => {
-    try {
-      setError(undefined);
-      setSuccess(undefined);
-      if (kind === "publish" && legalReviewStatus === "APPROVED" && !dirty) {
-        const result = await publish({ pageId: initial.id, version: persistedVersion, status: "PUBLISHED" });
-        acceptPersistedResult(result);
-        return;
-      }
-      const values = await form.validateFields();
-      const data = { ...initial, version: persistedVersion, slug: values.slug, translations: toTranslations(values.translations ?? {}) };
-      const status = kind === "save" ? "DRAFT" : kind === "publish" ? "PUBLISHED" : "ARCHIVED";
-      if (transition) {
-        const result = await transition({ ...data, status });
-        acceptPersistedResult(result);
-      } else {
-        const saved = await save(data);
-        acceptPersistedResult(saved);
-        if (kind !== "save") {
-          const savedVersion = typeof saved === "object" && saved !== null && "version" in saved && typeof saved.version === "string" ? saved.version : persistedVersion;
-          const result = await (kind === "publish" ? publish : archive)({ pageId: initial.id, version: savedVersion, status });
-          acceptPersistedResult(result);
-        }
-      }
-      setDirty(false);
-    } catch {
-      setError("Could not update this page. Reload if another editor has changed it.");
-    }
-  });
-  const approveRevision = () => startTransition(async () => { try { setError(undefined); setSuccess(undefined); if (!approve || contentRevision === undefined) return; const result = await approve({ pageId: initial.id, version: persistedVersion, contentRevision }); acceptPersistedResult(result); setLegalReviewStatus("APPROVED"); setSuccess(`Legal revision ${contentRevision} approved`); } catch { setError("Could not approve this legal revision. Reload if another editor has changed it."); } });
-  return <Form form={form} layout="vertical" onValuesChange={() => setDirty(true)} initialValues={{ slug: initial.slug, status: initial.status ?? "DRAFT", translations: Object.fromEntries(initial.translations.map((item) => [item.locale, item])) }}><Form.Item name="slug" label="Slug" rules={[{ required: true }]}><Input /></Form.Item><Form.Item name="status" label="Current status"><Select disabled options={["DRAFT", "PUBLISHED", "ARCHIVED"].map((value) => ({ value }))} /></Form.Item>{error ? <p role="alert">{error}</p> : null}{success ? <p role="status">{success}</p> : null}{dirty ? <p role="status">Changes must be saved before approval, publishing, or archiving.</p> : null}<TranslationFields page /><Space><Button type="primary" onClick={() => submit("save")} loading={pending}>Save draft</Button><Button onClick={() => submit("publish")} loading={pending}>Publish</Button>{allowArchive ? <Button danger onClick={() => submit("archive")} loading={pending}>Archive</Button> : null}{approve && legalReviewStatus === "PENDING" && contentRevision !== undefined ? <Button onClick={approveRevision} loading={pending} disabled={dirty}>Approve current legal revision</Button> : null}</Space></Form>;
-}
-
-export function PageSectionForm({ initial, save, referenceOptions = [], mediaOptions = [] }: { initial: { id?: string; pageId: string; version: string | null; position: number; type: string; config: Record<string, unknown>; isEnabled: boolean; translations: Translation[] }; save: Mutation; referenceOptions?: ContentReferenceOption[]; mediaOptions?: Array<{ id: string; filename: string; alt: string }> }) {
-  const [form] = Form.useForm(); const [pending, startTransition] = useTransition(); const [kind, setKind] = useState(initial.type); const [error, setError] = useState<string>(); const [success, setSuccess] = useState<string>();
-  const submit = (values: Record<string, unknown>) => startTransition(async () => { try { setError(undefined); setSuccess(undefined); const config: Record<string, unknown> = { ...initial.config }; if (kind === "news") config.count = Number(values.newsCount ?? 3); else if (kind === "cta") config.primaryCta = { ...(config.primaryCta as Record<string, unknown> | undefined), label: String(values.ctaLabel ?? ""), href: String(values.ctaHref ?? "") }; else if (["hero", "about", "quality"].includes(kind)) { if (values.imageId) config.imageId = values.imageId; else delete config.imageId; } else if (kind === "services") config.serviceIds = Array.isArray(values.referenceIds) ? values.referenceIds : []; else if (kind === "product-categories") config.categoryIds = Array.isArray(values.referenceIds) ? values.referenceIds : []; else if (["capabilities", "global-reach"].includes(kind)) config.itemIds = Array.isArray(values.referenceIds) ? values.referenceIds : []; else if (kind === "stats") config.items = String(values.stats ?? "").split(",").map((item) => item.trim()).filter(Boolean).map((item) => { const [label, value] = item.split(":"); return { label: label?.trim(), value: value?.trim() }; }); await save({ ...initial, type: kind, isEnabled: Boolean(values.isEnabled), config, translations: toTranslations(values.translations as Record<string, { title?: string; body?: string }>) }); setSuccess("Section saved"); } catch { setError("Could not save this section. Check the required fields."); } });
-  const toggle = (enabled: boolean) => { form.setFieldValue("isEnabled", enabled); form.submit(); };
-  const referenceIds = Array.isArray(initial.config.serviceIds) ? initial.config.serviceIds : Array.isArray(initial.config.itemIds) ? initial.config.itemIds : Array.isArray(initial.config.categoryIds) ? initial.config.categoryIds : [];
-  const stats = Array.isArray(initial.config.items) ? initial.config.items.map((item) => typeof item === "object" && item ? `${String((item as { label?: string }).label ?? "")}: ${String((item as { value?: string }).value ?? "")}` : "").filter(Boolean).join(", ") : "";
-  const referenceKind = kind === "services" ? "service" : kind === "product-categories" ? "category" : "homepage-item";
-  const referenceLabel = kind === "services" ? "Referenced services" : kind === "product-categories" ? "Referenced product categories" : "Referenced homepage items";
-  return <Form form={form} layout="vertical" initialValues={{ ...initial, translations: Object.fromEntries(initial.translations.map((item) => [item.locale, item])), newsCount: initial.config.count ?? 3, imageId: initial.config.imageId, referenceIds, stats, ctaLabel: (initial.config.primaryCta as { label?: string } | undefined)?.label, ctaHref: (initial.config.primaryCta as { href?: string } | undefined)?.href }} onFinish={submit}><Form.Item label="Section type"><Select value={kind} onChange={setKind} options={["hero", "services", "about", "capabilities", "quality", "product-categories", "global-reach", "stats", "news", "cta"].map((value) => ({ value }))} /></Form.Item>{["hero", "about", "quality"].includes(kind) ? <><Form.Item name="imageId" hidden><Input /></Form.Item><Form.Item shouldUpdate noStyle>{() => <MediaPicker available={mediaOptions} value={form.getFieldValue("imageId") as string | undefined} onChange={(value) => form.setFieldValue("imageId", value)} />}</Form.Item></> : null}{["services", "capabilities", "product-categories", "global-reach"].includes(kind) ? <><Form.Item name="referenceIds" hidden><Input /></Form.Item><Form.Item shouldUpdate noStyle>{() => <ContentReferencePicker label={referenceLabel} value={(form.getFieldValue("referenceIds") as string[] | undefined) ?? []} options={referenceOptions.filter((option) => option.kind === referenceKind)} onChange={(value) => form.setFieldValue("referenceIds", value)} />}</Form.Item></> : null}{kind === "stats" ? <Form.Item name="stats" label="Stats (Label: Value, comma-separated)"><Input /></Form.Item> : null}{kind === "news" ? <Form.Item name="newsCount" label="Article count"><Input type="number" /></Form.Item> : null}{kind === "cta" ? <><Form.Item name="ctaLabel" label="CTA label" rules={[{ required: true }]}><Input /></Form.Item><Form.Item name="ctaHref" label="CTA link" rules={[{ required: true }]}><Input /></Form.Item></> : null}<Form.Item name="isEnabled" valuePropName="checked" label="Enabled"><Switch onChange={toggle} /></Form.Item>{error ? <p role="alert">{error}</p> : null}{success ? <p role="status">{success}</p> : null}<TranslationFields /><Button htmlType="submit" loading={pending}>Save section</Button></Form>;
+function toTranslations(value: Record<string, { title?: string; body?: string; alt?: string }>) {
+  return SUPPORTED_LOCALES.flatMap((locale) => value[locale]?.title ? [{ locale, title: value[locale].title, body: value[locale].body ?? "", alt: value[locale].alt ?? "" }] : []);
 }
 
 export function MediaMetadataForm({ initial, save, archive, publish, allowArchive }: { initial: { id: string; version: string; translations: Translation[] }; save: Mutation; archive: Mutation; publish: Mutation; allowArchive: boolean }) {
-  const [form] = Form.useForm(); const router = useRouter(); const [pending, startTransition] = useTransition(); const [error, setError] = useState<string>(); const [result, setResult] = useState<{ kind: "success" | "error"; title: string; message: string }>();
-  const showFailure = (reason: unknown, fallback: string) => {
-    const message = reason instanceof Error && reason.message ? reason.message : fallback;
-    setError(message);
-    setResult({ kind: "error", title: "操作失败", message });
-  };
-  const showSuccess = (title: string, message: string) => {
-    setError(undefined);
-    setResult({ kind: "success", title, message });
-  };
+  const [form] = Form.useForm();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string>();
+  const [result, setResult] = useState<{ kind: "success" | "error"; title: string; message: string }>();
+  const showFailure = (reason: unknown, fallback: string) => { const message = reason instanceof Error && reason.message ? reason.message : fallback; setError(message); setResult({ kind: "error", title: "操作失败", message }); };
+  const showSuccess = (title: string, message: string) => { setError(undefined); setResult({ kind: "success", title, message }); };
   const saveMedia = (values: { translations?: Record<string, { title?: string; body?: string; alt?: string }> }) => startTransition(async () => {
-    try {
-      setError(undefined);
-      setResult(undefined);
-      await save({ ...initial, translations: toTranslations(values.translations ?? {}) });
-      showSuccess("保存成功", "媒体信息已经保存，图片也已发布。点击确定返回媒体库。");
-    } catch (reason) {
-      showFailure(reason, "无法保存媒体信息，请稍后重试。");
-    }
+    try { setError(undefined); setResult(undefined); await save({ ...initial, translations: toTranslations(values.translations ?? {}) }); showSuccess("保存成功", "媒体信息已经保存，图片也已发布。点击确定返回媒体库。"); }
+    catch (reason) { showFailure(reason, "无法保存媒体信息，请稍后重试。"); }
   });
   const publishMedia = () => startTransition(async () => {
-    try {
-      setError(undefined);
-      setResult(undefined);
-      await publish({ mediaAssetId: initial.id, version: initial.version });
-      showSuccess("发布成功", "图片已经成功发布，现在可以在官网各模块中选择和使用。");
-    } catch (reason) {
-      showFailure(reason, "无法发布图片，请刷新页面后重试。");
-    }
+    try { setError(undefined); setResult(undefined); await publish({ mediaAssetId: initial.id, version: initial.version }); showSuccess("发布成功", "图片已经成功发布，现在可以在官网各模块中选择和使用。"); }
+    catch (reason) { showFailure(reason, "无法发布图片，请刷新页面后重试。"); }
   });
-  return <><Form form={form} layout="vertical" initialValues={{ translations: Object.fromEntries(initial.translations.map((item) => [item.locale, item])) }} onFinish={saveMedia}>{error ? <p role="alert">{error}</p> : null}<TranslationFields media /><Space><Button htmlType="submit" loading={pending}>保存媒体信息</Button><Button htmlType="button" type="primary" loading={pending} onClick={publishMedia}>发布图片</Button>{allowArchive ? <Button htmlType="button" danger disabled={pending} onClick={() => startTransition(async () => { await archive({ mediaAssetId: initial.id }); })}>安全归档</Button> : null}</Space></Form><Modal
-    open={Boolean(result)}
-    title={result?.title}
-    okText={result?.kind === "success" ? "返回媒体库" : "关闭"}
-    cancelButtonProps={{ style: { display: "none" } }}
-    closable={result?.kind === "error"}
-    maskClosable={false}
-    onCancel={() => setResult(undefined)}
-    onOk={() => {
-      if (result?.kind === "success") router.replace("/admin/media");
-      else setResult(undefined);
-    }}
-  ><Typography.Text type={result?.kind === "error" ? "danger" : undefined}>{result?.message}</Typography.Text></Modal></>;
+  return <><Form form={form} layout="vertical" initialValues={{ translations: Object.fromEntries(initial.translations.map((item) => [item.locale, item])) }} onFinish={saveMedia}>
+    {error ? <p role="alert">{error}</p> : null}<TranslationFields /><Space><Button htmlType="submit" loading={pending}>保存媒体信息</Button><Button htmlType="button" type="primary" loading={pending} onClick={publishMedia}>发布图片</Button>{allowArchive ? <Button htmlType="button" danger disabled={pending} onClick={() => startTransition(async () => { await archive({ mediaAssetId: initial.id }); })}>安全归档</Button> : null}</Space>
+  </Form><Modal open={Boolean(result)} title={result?.title} okText={result?.kind === "success" ? "返回媒体库" : "关闭"} cancelButtonProps={{ style: { display: "none" } }} closable={result?.kind === "error"} maskClosable={false} onCancel={() => setResult(undefined)} onOk={() => { if (result?.kind === "success") router.replace("/admin/media"); else setResult(undefined); }}><Typography.Text type={result?.kind === "error" ? "danger" : undefined}>{result?.message}</Typography.Text></Modal></>;
 }

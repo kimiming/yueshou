@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { publishDueContent } from "@/features/admin/domain-repository";
-import { verifyCronRequest, verifyVercelCronRequest } from "@/features/admin/cron-auth";
+import { verifyCronRequest } from "@/features/admin/cron-auth";
 import { invalidatePublishedEntity } from "@/features/publishing/cache";
 import { SUPPORTED_LOCALES } from "@/lib/i18n/config";
 
@@ -15,11 +15,5 @@ async function publishScheduledContent() {
 
 export async function POST(request: Request) {
   if (!verifyCronRequest({ secret: process.env.CRON_SECRET, timestamp: request.headers.get("x-cron-timestamp"), signature: request.headers.get("x-cron-signature") })) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return publishScheduledContent();
-}
-
-/** Vercel Cron invokes configured paths with GET and an exact bearer secret. */
-export async function GET(request: Request) {
-  if (!verifyVercelCronRequest({ secret: process.env.CRON_SECRET, authorization: request.headers.get("authorization") })) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   return publishScheduledContent();
 }
